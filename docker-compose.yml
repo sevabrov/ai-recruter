@@ -1,0 +1,93 @@
+# AI Recruiter — local infrastructure
+#
+# Nothing is installed on the host: PostgreSQL and Redis run in containers and
+# keep their data in named volumes.
+#
+#   docker compose up -d          start Postgres, Redis and Adminer
+#   docker compose ps             check health
+#   docker compose down           stop (data survives)
+#   docker compose down -v        stop and delete the data volumes
+#
+# Phase 1 (the current mock frontend) does not use any of this — it is here so
+# Phase 3 can start with one command. Backend and worker services are sketched
+# at the bottom and stay disabled until the FastAPI app exists.
+
+name: ai-recruiter
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: air-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-airecruiter}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-airecruiter}
+      POSTGRES_DB: ${POSTGRES_DB:-airecruiter}
+      # Deterministic collation so ORDER BY on names behaves the same everywhere.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-airecruiter} -d ${POSTGRES_DB:-airecruiter}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: air-redis
+    restart: unless-stopped
+    # appendonly keeps queued jobs across a restart.
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Browser-based SQL client, so no database GUI is needed on the host.
+  adminer:
+    image: adminer:5
+    container_name: air-adminer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: dracula
+    ports:
+      - "${ADMINER_PORT:-8081}:8080"
+
+  # ---------------------------------------------------------------- Phase 2+
+  # Uncomment once /backend exists. Kept here so the topology from spec §41
+  # (API + Redis + N stateless workers) is visible from day one.
+  #
+  # backend:
+  #   build: ./backend
+  #   env_file: .env
+  #   depends_on:
+  #     postgres: { condition: service_healthy }
+  #     redis: { condition: service_healthy }
+  #   ports: ["8000:8000"]
+  #   command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  #
+  # worker:
+  #   build: ./backend
+  #   env_file: .env
+  #   depends_on:
+  #     redis: { condition: service_healthy }
+  #   command: celery -A app.workers.celery_app worker --concurrency=4 -l info
+  #   deploy:
+  #     replicas: 3        # stateless: scale with `docker compose up -d --scale worker=10`
+
+volumes:
+  postgres-data:
+  redis-data:
