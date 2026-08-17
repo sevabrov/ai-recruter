@@ -11,6 +11,8 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IS_MOCK } from "@/services";
+import { API_BASE_URL } from "@/services/api/http";
+import { useBackendHealth } from "@/services/hooks";
 import { cn } from "@/lib/utils";
 import { Dot } from "@/components/ui/badge";
 
@@ -70,17 +72,42 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      <div className="border-t border-line px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Dot tone={IS_MOCK ? "warn" : "good"} pulse={IS_MOCK} />
-          <p className="label text-fg-faint">{IS_MOCK ? "Phase 1 · mock data" : "Live backend"}</p>
-        </div>
-        <p className="mt-1.5 text-xs leading-relaxed text-fg-faint">
-          {IS_MOCK
-            ? "No external services are called. Every number is fixture data."
-            : "Connected to the FastAPI backend."}
-        </p>
+      <DataSourceFooter />
+    </div>
+  );
+}
+
+/**
+ * In mock mode this is a static disclaimer. Against the API it is a live
+ * connection indicator — an unreachable backend must not look like an empty
+ * workspace.
+ */
+function DataSourceFooter() {
+  const { data, isError, isPending } = useBackendHealth();
+
+  const tone = IS_MOCK ? "warn" : isError ? "bad" : isPending ? "neutral" : "good";
+  const title = IS_MOCK
+    ? "Phase 1 · mock data"
+    : isError
+      ? "Backend unreachable"
+      : isPending
+        ? "Connecting…"
+        : `Live backend · v${data?.version}`;
+  const detail = IS_MOCK
+    ? "No external services are called. Every number is fixture data."
+    : isError
+      ? `No answer from ${API_BASE_URL}. Start it with: docker compose up -d backend`
+      : data?.pipeline === "fixture"
+        ? "Connected. Search providers are not configured yet, so results come from the seeded catalogue."
+        : "Connected to the FastAPI backend.";
+
+  return (
+    <div className="border-t border-line px-4 py-3">
+      <div className="flex items-center gap-2">
+        <Dot tone={tone} pulse={IS_MOCK || isPending} />
+        <p className="label truncate text-fg-faint">{title}</p>
       </div>
+      <p className="mt-1.5 text-xs leading-relaxed text-fg-faint">{detail}</p>
     </div>
   );
 }

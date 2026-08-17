@@ -306,6 +306,21 @@ export interface DashboardData {
   weeklyLeads: { day: string; count: number }[];
 }
 
+/* --------------------------------------------------------------- workspace */
+
+export interface HealthStatus {
+  status: "ok" | "degraded";
+  service: string;
+  version: string;
+  /** Which delivery phase the data source belongs to. */
+  phase: number;
+  /** "fixture" until the real providers are configured (Phases 4–6). */
+  pipeline: "fixture" | "live";
+  storage: "browser" | "memory" | "postgres";
+  /** Whether a provider key is configured — never the key itself. */
+  providers: { braveSearch: boolean; scrapegraph: boolean; openai: boolean };
+}
+
 /* ------------------------------------------------------- service interfaces */
 
 export interface SearchService {
@@ -327,4 +342,14 @@ export interface LeadService {
 
 export interface DashboardService {
   get(): Promise<DashboardData>;
+}
+
+/**
+ * Workspace-level concerns that both implementations can answer, so no screen
+ * has to know which one is active: "is the data source reachable?" and "put the
+ * demo data back".
+ */
+export interface WorkspaceService {
+  health(): Promise<HealthStatus>;
+  reset(): Promise<void>;
 }

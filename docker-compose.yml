@@ -1,16 +1,17 @@
 # AI Recruiter — local infrastructure
 #
-# Nothing is installed on the host: PostgreSQL and Redis run in containers and
-# keep their data in named volumes.
+# Nothing is installed on the host: the API, PostgreSQL and Redis all run in
+# containers and keep their data in named volumes.
 #
-#   docker compose up -d          start Postgres, Redis and Adminer
+#   docker compose up -d backend  start just the API (all Phase 2 needs)
+#   docker compose up -d          also start Postgres, Redis and Adminer
 #   docker compose ps             check health
 #   docker compose down           stop (data survives)
 #   docker compose down -v        stop and delete the data volumes
 #
-# Phase 1 (the current mock frontend) does not use any of this — it is here so
-# Phase 3 can start with one command. Backend and worker services are sketched
-# at the bottom and stay disabled until the FastAPI app exists.
+# Postgres and Redis are not used yet: Phase 3 gives the backend a database and
+# Phase 7 moves jobs onto Redis. They are here so those phases start with one
+# command.
 
 name: ai-recruiter
 
@@ -66,27 +67,44 @@ services:
     ports:
       - "${ADMINER_PORT:-8081}:8080"
 
-  # ---------------------------------------------------------------- Phase 2+
-  # Uncomment once /backend exists. Kept here so the topology from spec §41
-  # (API + Redis + N stateless workers) is visible from day one.
-  #
-  # backend:
-  #   build: ./backend
-  #   env_file: .env
-  #   depends_on:
-  #     postgres: { condition: service_healthy }
-  #     redis: { condition: service_healthy }
-  #   ports: ["8000:8000"]
-  #   command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+  # ------------------------------------------------------------------ Phase 2
+  # The API. Deliberately independent of postgres and redis: Phase 2 keeps state
+  # in memory, so `docker compose up -d backend` is enough to run the product.
+  backend:
+    build: ./backend
+    container_name: air-backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Compose-only defaults; everything else comes from .env (spec §22).
+      CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # Edit on the host, reload in the container.
+      - ./backend/app:/app/app
+      - ./backend/tests:/app/tests
+      # pytest and ruff read their configuration from here.
+      - ./backend/pyproject.toml:/app/pyproject.toml:ro
+    command:
+      ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # ---------------------------------------------------------------- Phase 7+
+  # Workers are stateless, so scaling is `docker compose up -d --scale worker=10`
+  # (spec §42). Enabled once jobs move from asyncio to Celery.
   #
   # worker:
   #   build: ./backend
-  #   env_file: .env
+  #   env_file:
+  #     - path: .env
+  #       required: false
   #   depends_on:
   #     redis: { condition: service_healthy }
   #   command: celery -A app.workers.celery_app worker --concurrency=4 -l info
   #   deploy:
-  #     replicas: 3        # stateless: scale with `docker compose up -d --scale worker=10`
+  #     replicas: 3
 
 volumes:
   postgres-data:

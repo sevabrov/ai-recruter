@@ -1,0 +1,4319 @@
+{
+  "note": "Generated from the Phase 1 frontend fixtures — do not edit by hand.",
+  "defaultSignalWeights": {
+    "mlm": 30,
+    "beauty": 20,
+    "recruiting": 20,
+    "leadership": 15,
+    "location": 10,
+    "personalBrand": 5
+  },
+  "scoredSignals": [
+    "mlm",
+    "beauty",
+    "recruiting",
+    "leadership",
+    "location",
+    "personalBrand"
+  ],
+  "highQualityThreshold": 85,
+  "dashboard": {
+    "stats": {
+      "totalLeads": {
+        "label": "Total leads",
+        "value": 1284,
+        "delta": 12.4,
+        "hint": "across 27 searches"
+      },
+      "highQuality": {
+        "label": "High quality",
+        "value": 342,
+        "delta": 8.1,
+        "hint": "score 85 and above"
+      },
+      "searches": {
+        "label": "Searches",
+        "value": 27,
+        "delta": 3.7,
+        "hint": "4 in the last 7 days"
+      },
+      "savedLeads": {
+        "label": "Saved leads",
+        "value": 186,
+        "delta": -2.3,
+        "hint": "31 awaiting outreach"
+      }
+    },
+    "sourceBreakdown": [
+      {
+        "platform": "instagram",
+        "share": 42,
+        "leads": 539
+      },
+      {
+        "platform": "linkedin",
+        "share": 28,
+        "leads": 359
+      },
+      {
+        "platform": "facebook",
+        "share": 12,
+        "leads": 154
+      },
+      {
+        "platform": "website",
+        "share": 10,
+        "leads": 129
+      },
+      {
+        "platform": "blog",
+        "share": 5,
+        "leads": 64
+      },
+      {
+        "platform": "threads",
+        "share": 3,
+        "leads": 39
+      }
+    ],
+    "scoreDistribution": [
+      {
+        "label": "90–100",
+        "from": 90,
+        "to": 100,
+        "count": 148
+      },
+      {
+        "label": "85–89",
+        "from": 85,
+        "to": 89,
+        "count": 194
+      },
+      {
+        "label": "70–84",
+        "from": 70,
+        "to": 84,
+        "count": 461
+      },
+      {
+        "label": "50–69",
+        "from": 50,
+        "to": 69,
+        "count": 337
+      },
+      {
+        "label": "< 50",
+        "from": 0,
+        "to": 49,
+        "count": 144
+      }
+    ],
+    "weeklyLeads": [
+      {
+        "day": "Mon",
+        "count": 34
+      },
+      {
+        "day": "Tue",
+        "count": 61
+      },
+      {
+        "day": "Wed",
+        "count": 48
+      },
+      {
+        "day": "Thu",
+        "count": 92
+      },
+      {
+        "day": "Fri",
+        "count": 76
+      },
+      {
+        "day": "Sat",
+        "count": 27
+      },
+      {
+        "day": "Sun",
+        "count": 18
+      }
+    ]
+  },
+  "searches": [
+    {
+      "id": "srch_es_mihi",
+      "name": "MIHI Beauty Leaders Spain",
+      "status": "completed",
+      "createdAt": "2026-08-17T15:53:59.582Z",
+      "startedAt": "2026-08-17T15:53:59.582Z",
+      "completedAt": "2026-08-17T16:05:59.582Z",
+      "target": "MLM / Network marketing · Beauty / Cosmetics",
+      "country": "Spain",
+      "sources": [
+        "public_web",
+        "instagram_public",
+        "linkedin_public",
+        "facebook_public"
+      ],
+      "criteria": {
+        "industry": [
+          "Beauty",
+          "Cosmetics"
+        ],
+        "businessTypes": [
+          "MLM",
+          "Network marketing"
+        ],
+        "keywords": [
+          "MIHI",
+          "beauty",
+          "network marketing",
+          "team leader",
+          "distributor"
+        ],
+        "negativeKeywords": [
+          "customer",
+          "shop",
+          "beauty salon"
+        ],
+        "location": {
+          "country": "Spain"
+        },
+        "languages": [
+          "Spanish",
+          "English",
+          "Russian",
+          "Ukrainian"
+        ],
+        "mustHave": [
+          "mlm",
+          "beauty",
+          "activity"
+        ],
+        "niceToHave": [
+          "leadership",
+          "recruiting",
+          "personalBrand"
+        ],
+        "signalWeights": {
+          "mlm": 30,
+          "beauty": 20,
+          "recruiting": 20,
+          "leadership": 15,
+          "location": 10,
+          "personalBrand": 5
+        },
+        "sources": [
+          "public_web",
+          "instagram_public",
+          "linkedin_public",
+          "facebook_public"
+        ]
+      },
+      "leadCount": 153,
+      "highQualityCount": 6,
+      "progress": {
+        "queries": 14,
+        "queriesCompleted": 14,
+        "urlsDiscovered": 187,
+        "profilesDiscovered": 126,
+        "profilesProcessed": 126,
+        "qualified": 153,
+        "highQuality": 6,
+        "percent": 100,
+        "stage": "done"
+      },
+      "usage": {
+        "searchApiCalls": 14,
+        "pagesAnalyzed": 187,
+        "llmCalls": 126,
+        "estimatedCostEur": 2.41
+      },
+      "queries": [
+        {
+          "id": "q_1",
+          "query": "site:instagram.com \"MIHI\" Spain -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 24
+        },
+        {
+          "id": "q_2",
+          "query": "site:instagram.com \"beauty\" Beauty Spain -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 18
+        },
+        {
+          "id": "q_3",
+          "query": "site:linkedin.com/in \"MIHI\" Spain -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 31
+        },
+        {
+          "id": "q_4",
+          "query": "site:linkedin.com/in \"beauty\" Beauty Spain -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 12
+        },
+        {
+          "id": "q_5",
+          "query": "site:facebook.com \"MIHI\" Spain -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 9
+        },
+        {
+          "id": "q_6",
+          "query": "site:facebook.com \"beauty\" Beauty Spain -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 27
+        },
+        {
+          "id": "q_7",
+          "query": "\"MIHI distributor\" Spain -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 15
+        },
+        {
+          "id": "q_8",
+          "query": "\"Beauty team leader\" \"MLM\" Spain -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 21
+        },
+        {
+          "id": "q_9",
+          "query": "\"MLM\" Beauty Spain leader -\"customer\" -\"shop\"",
+          "provider": "brave",
+          "resultCount": 24
+        }
+      ]
+    },
+    {
+      "id": "srch_de_mihi",
+      "name": "MIHI distributors — Germany",
+      "status": "completed",
+      "createdAt": "2026-08-16T14:53:59.582Z",
+      "startedAt": "2026-08-16T14:53:59.582Z",
+      "completedAt": "2026-08-16T15:05:59.582Z",
+      "target": "MLM / Empfehlungsmarketing · Beauty / Cosmetics",
+      "country": "Germany",
+      "sources": [
+        "public_web",
+        "instagram_public",
+        "linkedin_public",
+        "facebook_public"
+      ],
+      "criteria": {
+        "industry": [
+          "Beauty",
+          "Cosmetics"
+        ],
+        "businessTypes": [
+          "MLM",
+          "Empfehlungsmarketing"
+        ],
+        "keywords": [
+          "MIHI",
+          "Kosmetik",
+          "Teamleiterin",
+          "Vertriebspartner"
+        ],
+        "negativeKeywords": [
+          "Kundin",
+          "Shop",
+          "Kosmetikstudio"
+        ],
+        "location": {
+          "country": "Germany"
+        },
+        "languages": [
+          "German",
+          "English",
+          "Russian"
+        ],
+        "mustHave": [
+          "mlm",
+          "beauty",
+          "activity"
+        ],
+        "niceToHave": [
+          "leadership",
+          "recruiting",
+          "personalBrand"
+        ],
+        "signalWeights": {
+          "mlm": 30,
+          "beauty": 20,
+          "recruiting": 20,
+          "leadership": 15,
+          "location": 10,
+          "personalBrand": 5
+        },
+        "sources": [
+          "public_web",
+          "instagram_public",
+          "linkedin_public",
+          "facebook_public"
+        ]
+      },
+      "leadCount": 84,
+      "highQualityCount": 3,
+      "progress": {
+        "queries": 11,
+        "queriesCompleted": 11,
+        "urlsDiscovered": 132,
+        "profilesDiscovered": 88,
+        "profilesProcessed": 88,
+        "qualified": 84,
+        "highQuality": 3,
+        "percent": 100,
+        "stage": "done"
+      },
+      "usage": {
+        "searchApiCalls": 11,
+        "pagesAnalyzed": 132,
+        "llmCalls": 88,
+        "estimatedCostEur": 1.63
+      },
+      "queries": [
+        {
+          "id": "q_1",
+          "query": "site:instagram.com \"MIHI\" Germany -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 24
+        },
+        {
+          "id": "q_2",
+          "query": "site:instagram.com \"Kosmetik\" Beauty Germany -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 18
+        },
+        {
+          "id": "q_3",
+          "query": "site:linkedin.com/in \"MIHI\" Germany -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 31
+        },
+        {
+          "id": "q_4",
+          "query": "site:linkedin.com/in \"Kosmetik\" Beauty Germany -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 12
+        },
+        {
+          "id": "q_5",
+          "query": "site:facebook.com \"MIHI\" Germany -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 9
+        },
+        {
+          "id": "q_6",
+          "query": "site:facebook.com \"Kosmetik\" Beauty Germany -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 27
+        },
+        {
+          "id": "q_7",
+          "query": "\"MIHI distributor\" Germany -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 15
+        },
+        {
+          "id": "q_8",
+          "query": "\"Beauty team leader\" \"MLM\" Germany -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 21
+        },
+        {
+          "id": "q_9",
+          "query": "\"MLM\" Beauty Germany leader -\"Kundin\" -\"Shop\"",
+          "provider": "brave",
+          "resultCount": 24
+        }
+      ]
+    },
+    {
+      "id": "srch_pl_network",
+      "name": "Network Marketing Leaders — Poland",
+      "status": "extracting",
+      "createdAt": "2026-08-17T18:29:59.582Z",
+      "startedAt": "2026-08-17T18:29:59.582Z",
+      "target": "MLM / Network marketing · Beauty / Wellness",
+      "country": "Poland",
+      "sources": [
+        "public_web",
+        "instagram_public",
+        "linkedin_public",
+        "facebook_public"
+      ],
+      "criteria": {
+        "industry": [
+          "Beauty",
+          "Wellness"
+        ],
+        "businessTypes": [
+          "MLM",
+          "Network marketing"
+        ],
+        "keywords": [
+          "network marketing",
+          "lider zespołu",
+          "kosmetyki"
+        ],
+        "negativeKeywords": [
+          "sklep",
+          "klientka"
+        ],
+        "location": {
+          "country": "Poland"
+        },
+        "languages": [
+          "Polish",
+          "English",
+          "Ukrainian"
+        ],
+        "mustHave": [
+          "mlm",
+          "beauty",
+          "activity"
+        ],
+        "niceToHave": [
+          "leadership",
+          "recruiting",
+          "personalBrand"
+        ],
+        "signalWeights": {
+          "mlm": 30,
+          "beauty": 20,
+          "recruiting": 20,
+          "leadership": 15,
+          "location": 10,
+          "personalBrand": 5
+        },
+        "sources": [
+          "public_web",
+          "instagram_public",
+          "linkedin_public",
+          "facebook_public"
+        ]
+      },
+      "leadCount": 0,
+      "highQualityCount": 0,
+      "progress": {
+        "queries": 12,
+        "queriesCompleted": 12,
+        "urlsDiscovered": 164,
+        "profilesDiscovered": 97,
+        "profilesProcessed": 41,
+        "qualified": 19,
+        "highQuality": 6,
+        "percent": 58,
+        "stage": "extracting"
+      },
+      "usage": {
+        "searchApiCalls": 12,
+        "pagesAnalyzed": 41,
+        "llmCalls": 24,
+        "estimatedCostEur": 0.62
+      },
+      "queries": [
+        {
+          "id": "q_1",
+          "query": "site:instagram.com \"network marketing\" Poland -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 24
+        },
+        {
+          "id": "q_2",
+          "query": "site:instagram.com \"lider zespołu\" Beauty Poland -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 18
+        },
+        {
+          "id": "q_3",
+          "query": "site:linkedin.com/in \"network marketing\" Poland -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 31
+        },
+        {
+          "id": "q_4",
+          "query": "site:linkedin.com/in \"lider zespołu\" Beauty Poland -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 12
+        },
+        {
+          "id": "q_5",
+          "query": "site:facebook.com \"network marketing\" Poland -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 9
+        },
+        {
+          "id": "q_6",
+          "query": "site:facebook.com \"lider zespołu\" Beauty Poland -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 27
+        },
+        {
+          "id": "q_7",
+          "query": "\"network marketing distributor\" Poland -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 15
+        },
+        {
+          "id": "q_8",
+          "query": "\"Beauty team leader\" \"MLM\" Poland -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 21
+        },
+        {
+          "id": "q_9",
+          "query": "\"MLM\" Beauty Poland leader -\"sklep\" -\"klientka\"",
+          "provider": "brave",
+          "resultCount": 24
+        }
+      ]
+    },
+    {
+      "id": "srch_it_beauty",
+      "name": "Beauty founders — Italy",
+      "status": "completed",
+      "createdAt": "2026-08-14T14:53:59.582Z",
+      "startedAt": "2026-08-14T14:53:59.582Z",
+      "completedAt": "2026-08-14T15:05:59.582Z",
+      "target": "Network marketing / Direct sales · Beauty / Skincare",
+      "country": "Italy",
+      "sources": [
+        "public_web",
+        "instagram_public",
+        "linkedin_public",
+        "blogs"
+      ],
+      "criteria": {
+        "industry": [
+          "Beauty",
+          "Skincare"
+        ],
+        "businessTypes": [
+          "Network marketing",
+          "Direct sales"
+        ],
+        "keywords": [
+          "beauty",
+          "network marketing",
+          "consulente",
+          "team"
+        ],
+        "negativeKeywords": [
+          "cliente",
+          "negozio"
+        ],
+        "location": {
+          "country": "Italy"
+        },
+        "languages": [
+          "Italian",
+          "English"
+        ],
+        "mustHave": [
+          "mlm",
+          "beauty",
+          "activity"
+        ],
+        "niceToHave": [
+          "leadership",
+          "recruiting",
+          "personalBrand"
+        ],
+        "signalWeights": {
+          "mlm": 30,
+          "beauty": 20,
+          "recruiting": 20,
+          "leadership": 15,
+          "location": 10,
+          "personalBrand": 5
+        },
+        "sources": [
+          "public_web",
+          "instagram_public",
+          "linkedin_public",
+          "blogs"
+        ]
+      },
+      "leadCount": 61,
+      "highQualityCount": 3,
+      "progress": {
+        "queries": 9,
+        "queriesCompleted": 9,
+        "urlsDiscovered": 96,
+        "profilesDiscovered": 58,
+        "profilesProcessed": 58,
+        "qualified": 61,
+        "highQuality": 3,
+        "percent": 100,
+        "stage": "done"
+      },
+      "usage": {
+        "searchApiCalls": 9,
+        "pagesAnalyzed": 96,
+        "llmCalls": 58,
+        "estimatedCostEur": 1.12
+      },
+      "queries": [
+        {
+          "id": "q_1",
+          "query": "site:instagram.com \"beauty\" Italy -\"cliente\" -\"negozio\"",
+          "provider": "brave",
+          "resultCount": 24
+        },
+        {
+          "id": "q_2",
+          "query": "site:instagram.com \"network marketing\" Beauty Italy -\"cliente\" -\"negozio\"",
+          "provider": "brave",
+          "resultCount": 18
+        },
+        {
+          "id": "q_3",
+          "query": "site:linkedin.com/in \"beauty\" Italy -\"cliente\" -\"negozio\"",
+          "provider": "brave",
+          "resultCount": 31
+        },
+        {
+          "id": "q_4",
+          "query": "site:linkedin.com/in \"network marketing\" Beauty Italy -\"cliente\" -\"negozio\"",
+          "provider": "brave",
+          "resultCount": 12
+        },
+        {
+          "id": "q_5",
+          "query": "\"beauty distributor\" Italy -\"cliente\" -\"negozio\"",
+          "provider": "brave",
+          "resultCount": 9
+        },
+        {
+          "id": "q_6",
+          "query": "\"Beauty team leader\" \"Network marketing\" Italy -\"cliente\" -\"negozio\"",
+          "provider": "brave",
+          "resultCount": 27
+        },
+        {
+          "id": "q_7",
+          "query": "\"Network marketing\" Beauty Italy leader -\"cliente\" -\"negozio\"",
+          "provider": "brave",
+          "resultCount": 15
+        },
+        {
+          "id": "q_8",
+          "query": "\"Beauty\" \"Network marketing\" blog Italy -\"cliente\" -\"negozio\"",
+          "provider": "brave",
+          "resultCount": 21
+        }
+      ]
+    }
+  ],
+  "leads": [
+    {
+      "id": "lead_anna_kowalska",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Anna Kowalska",
+      "headline": "Beauty team leader · MIHI Iberia",
+      "company": "MIHI",
+      "location": {
+        "country": "Spain",
+        "city": "Barcelona",
+        "region": "Catalonia"
+      },
+      "languages": [
+        "Spanish",
+        "Polish",
+        "English"
+      ],
+      "score": 95,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 29,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 4,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@anna.beautyteam",
+          "url": "https://www.instagram.com/anna.beautyteam/",
+          "followers": 24800
+        },
+        {
+          "platform": "linkedin",
+          "handle": "anna-kowalska-beauty",
+          "url": "https://www.linkedin.com/in/anna-kowalska-beauty/",
+          "followers": 3100
+        },
+        {
+          "platform": "website",
+          "handle": "annakowalska.es",
+          "url": "https://annakowalska.es"
+        }
+      ],
+      "summary": "Anna appears to be an experienced network marketing professional focused on beauty and cosmetics. Her public activity indicates active recruiting and team-building across Spain and Poland, with a personal site used as a landing page for applications.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.98,
+          "evidence": "\"7 años en network marketing — construyendo equipos en España y Polonia\"",
+          "sourceUrl": "https://www.instagram.com/anna.beautyteam/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.96,
+          "evidence": "Bio reads \"skincare & cosmética natural\"; 80% of recent posts are product routines.",
+          "sourceUrl": "https://www.instagram.com/anna.beautyteam/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.94,
+          "evidence": "\"Busco 3 personas para mi equipo este mes — escríbeme 'EQUIPO'\" (posted 4 days ago)",
+          "sourceUrl": "https://www.instagram.com/anna.beautyteam/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "\"Liderando un equipo internacional de 40+ consultoras de belleza\"",
+          "sourceUrl": "https://www.linkedin.com/in/anna-kowalska-beauty/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Profile location: Barcelona, Spain. Posts geotagged in Barcelona.",
+          "sourceUrl": "https://www.instagram.com/anna.beautyteam/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.85,
+          "evidence": "Personal domain annakowalska.es with an application form and press mentions.",
+          "sourceUrl": "https://annakowalska.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.93,
+          "evidence": "18 posts and 40+ stories in the last 30 days.",
+          "sourceUrl": "https://www.instagram.com/anna.beautyteam/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_anna_kowalska_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/anna.beautyteam/",
+          "title": "Anna Kowalska (@anna.beautyteam) · Instagram",
+          "snippet": "Beauty team leader · MIHI Iberia · Barcelona. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T14:53:59.560Z"
+        },
+        {
+          "id": "lead_anna_kowalska_src_1",
+          "platform": "linkedin",
+          "url": "https://www.linkedin.com/in/anna-kowalska-beauty/",
+          "title": "Anna Kowalska — Beauty team leader · MIHI Iberia | LinkedIn",
+          "snippet": "Public profile: Beauty team leader · MIHI Iberia. Barcelona.",
+          "discoveredAt": "2026-08-17T14:53:59.560Z"
+        },
+        {
+          "id": "lead_anna_kowalska_src_2",
+          "platform": "website",
+          "url": "https://annakowalska.es",
+          "title": "MIHI — official site",
+          "snippet": "Company or personal website listing contact details and team information.",
+          "discoveredAt": "2026-08-17T14:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "hola@annakowalska.es",
+        "website": "https://annakowalska.es"
+      },
+      "status": "qualified",
+      "saved": true,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T15:53:59.560Z"
+    },
+    {
+      "id": "lead_carmen_delgado",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Carmen Delgado",
+      "headline": "Founder · beauty team academy",
+      "company": "Delgado Beauty Academy",
+      "location": {
+        "country": "Spain",
+        "city": "Seville",
+        "region": "Andalusia"
+      },
+      "languages": [
+        "Spanish",
+        "English"
+      ],
+      "score": 95,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 28,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 5,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@carmendelgado.academy",
+          "url": "https://www.instagram.com/carmendelgado.academy/",
+          "followers": 31500
+        },
+        {
+          "platform": "website",
+          "handle": "delgadoacademy.es",
+          "url": "https://delgadoacademy.es"
+        },
+        {
+          "platform": "facebook",
+          "handle": "delgado.beauty.academy",
+          "url": "https://www.facebook.com/delgado.beauty.academy",
+          "followers": 8900
+        }
+      ],
+      "summary": "Carmen trains beauty consultants through her own academy while leading a distributor network. Strong evidence of both leadership and structured recruiting funnels.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.93,
+          "evidence": "\"Mi equipo de distribución cubre Andalucía y Canarias\"",
+          "sourceUrl": "https://delgadoacademy.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "Academy curriculum covers cosmetics and skincare retail.",
+          "sourceUrl": "https://delgadoacademy.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.96,
+          "evidence": "Public application form: \"Únete a mi equipo — plazas limitadas\".",
+          "sourceUrl": "https://delgadoacademy.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.94,
+          "evidence": "\"Formando a más de 200 consultoras desde 2019\"",
+          "sourceUrl": "https://www.instagram.com/carmendelgado.academy/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Business address in Seville listed on the academy site.",
+          "sourceUrl": "https://delgadoacademy.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "Own domain, podcast appearances, branded academy.",
+          "sourceUrl": "https://delgadoacademy.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.88,
+          "evidence": "Weekly live sessions announced on Facebook and Instagram.",
+          "sourceUrl": "https://www.facebook.com/delgado.beauty.academy",
+          "sourcePlatform": "facebook"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_carmen_delgado_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/carmendelgado.academy/",
+          "title": "Carmen Delgado (@carmendelgado.academy) · Instagram",
+          "snippet": "Founder · beauty team academy · Seville. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T11:53:59.560Z"
+        },
+        {
+          "id": "lead_carmen_delgado_src_1",
+          "platform": "website",
+          "url": "https://delgadoacademy.es",
+          "title": "Delgado Beauty Academy — official site",
+          "snippet": "Company or personal website listing contact details and team information.",
+          "discoveredAt": "2026-08-17T11:53:59.560Z"
+        },
+        {
+          "id": "lead_carmen_delgado_src_2",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/delgado.beauty.academy",
+          "title": "Carmen Delgado | Facebook",
+          "snippet": "Public page mentioning founder · beauty team academy in Seville.",
+          "discoveredAt": "2026-08-17T11:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "carmen@delgadoacademy.es",
+        "website": "https://delgadoacademy.es",
+        "phone": "+34 6•• ••• •••"
+      },
+      "status": "qualified",
+      "saved": true,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T12:53:59.560Z"
+    },
+    {
+      "id": "lead_katrin_mueller",
+      "searchId": "srch_de_mihi",
+      "searchName": "MIHI distributors — Germany",
+      "name": "Katrin Müller",
+      "headline": "Teamleiterin · Beauty & Empfehlungsmarketing",
+      "company": "MIHI",
+      "location": {
+        "country": "Germany",
+        "city": "Munich",
+        "region": "Bavaria"
+      },
+      "languages": [
+        "German",
+        "English"
+      ],
+      "score": 94,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 29,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 4,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@katrin.beautyteam",
+          "url": "https://www.instagram.com/katrin.beautyteam/",
+          "followers": 21700
+        },
+        {
+          "platform": "linkedin",
+          "handle": "katrin-mueller-beauty",
+          "url": "https://www.linkedin.com/in/katrin-mueller-beauty/",
+          "followers": 2900
+        },
+        {
+          "platform": "website",
+          "handle": "katrin-mueller.de",
+          "url": "https://katrin-mueller.de"
+        }
+      ],
+      "summary": "Katrin leads a MIHI distributor team in southern Germany and publishes a structured onboarding path on her own site. Strong across every scored signal.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.97,
+          "evidence": "\"Seit 2017 im Empfehlungsmarketing, Team in DACH\"",
+          "sourceUrl": "https://katrin-mueller.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.93,
+          "evidence": "\"Naturkosmetik & Hautpflege\" product focus.",
+          "sourceUrl": "https://katrin-mueller.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "\"Bewirb dich für mein Team — Onboarding startet monatlich\"",
+          "sourceUrl": "https://katrin-mueller.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.93,
+          "evidence": "\"Ich begleite 60+ Partnerinnen\"",
+          "sourceUrl": "https://www.instagram.com/katrin.beautyteam/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Impressum lists a Munich address.",
+          "sourceUrl": "https://katrin-mueller.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.88,
+          "evidence": "Own domain with press section and podcast.",
+          "sourceUrl": "https://katrin-mueller.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "Posts 5 times per week.",
+          "sourceUrl": "https://www.instagram.com/katrin.beautyteam/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_katrin_mueller_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/katrin.beautyteam/",
+          "title": "Katrin Müller (@katrin.beautyteam) · Instagram",
+          "snippet": "Teamleiterin · Beauty & Empfehlungsmarketing · Munich. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-16T15:53:59.560Z"
+        },
+        {
+          "id": "lead_katrin_mueller_src_1",
+          "platform": "linkedin",
+          "url": "https://www.linkedin.com/in/katrin-mueller-beauty/",
+          "title": "Katrin Müller — Teamleiterin · Beauty & Empfehlungsmarketing | LinkedIn",
+          "snippet": "Public profile: Teamleiterin · Beauty & Empfehlungsmarketing. Munich.",
+          "discoveredAt": "2026-08-16T15:53:59.560Z"
+        },
+        {
+          "id": "lead_katrin_mueller_src_2",
+          "platform": "website",
+          "url": "https://katrin-mueller.de",
+          "title": "MIHI — official site",
+          "snippet": "Company or personal website listing contact details and team information.",
+          "discoveredAt": "2026-08-16T15:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "team@katrin-mueller.de",
+        "website": "https://katrin-mueller.de"
+      },
+      "status": "qualified",
+      "saved": true,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-16T16:53:59.560Z"
+    },
+    {
+      "id": "lead_svetlana_richter",
+      "searchId": "srch_de_mihi",
+      "searchName": "MIHI distributors — Germany",
+      "name": "Svetlana Richter",
+      "headline": "Netzwerk-Mentorin · Beauty-Business",
+      "location": {
+        "country": "Germany",
+        "city": "Cologne"
+      },
+      "languages": [
+        "Russian",
+        "German",
+        "English"
+      ],
+      "score": 94,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 29,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 17,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 5,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@svetlana.mentor.beauty",
+          "url": "https://www.instagram.com/svetlana.mentor.beauty/",
+          "followers": 33400
+        },
+        {
+          "platform": "threads",
+          "handle": "@svetlana.mentor",
+          "url": "https://www.threads.net/@svetlana.mentor",
+          "followers": 3800
+        },
+        {
+          "platform": "blog",
+          "handle": "beautybusiness-mentor.de",
+          "url": "https://beautybusiness-mentor.de"
+        }
+      ],
+      "summary": "Svetlana mentors Russian-speaking beauty entrepreneurs across Germany. Her blog details duplication systems and she runs recurring recruiting webinars.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.96,
+          "evidence": "\"9 лет в индустрии сетевого маркетинга\"",
+          "sourceUrl": "https://beautybusiness-mentor.de",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.86,
+          "evidence": "Beauty-business niche stated in the blog header.",
+          "sourceUrl": "https://beautybusiness-mentor.de",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.93,
+          "evidence": "\"Набор в команду открыт — старт 1 числа\"",
+          "sourceUrl": "https://www.instagram.com/svetlana.mentor.beauty/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.91,
+          "evidence": "\"Структура 180+ партнёров в DACH\"",
+          "sourceUrl": "https://beautybusiness-mentor.de",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "Blog imprint lists Cologne.",
+          "sourceUrl": "https://beautybusiness-mentor.de",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.93,
+          "evidence": "Own blog, paid course, large following.",
+          "sourceUrl": "https://beautybusiness-mentor.de",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.94,
+          "evidence": "Daily stories and weekly blog posts.",
+          "sourceUrl": "https://www.instagram.com/svetlana.mentor.beauty/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_svetlana_richter_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/svetlana.mentor.beauty/",
+          "title": "Svetlana Richter (@svetlana.mentor.beauty) · Instagram",
+          "snippet": "Netzwerk-Mentorin · Beauty-Business · Cologne. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-16T11:53:59.560Z"
+        },
+        {
+          "id": "lead_svetlana_richter_src_1",
+          "platform": "threads",
+          "url": "https://www.threads.net/@svetlana.mentor",
+          "title": "Svetlana Richter · Threads",
+          "snippet": "Public Threads profile cross-linked from Instagram.",
+          "discoveredAt": "2026-08-16T11:53:59.560Z"
+        },
+        {
+          "id": "lead_svetlana_richter_src_2",
+          "platform": "blog",
+          "url": "https://beautybusiness-mentor.de",
+          "title": "Svetlana Richter — blog",
+          "snippet": "Personal blog covering team building and product content.",
+          "discoveredAt": "2026-08-16T11:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "info@beautybusiness-mentor.de",
+        "website": "https://beautybusiness-mentor.de"
+      },
+      "status": "reviewed",
+      "saved": true,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-16T12:53:59.560Z"
+    },
+    {
+      "id": "lead_giulia_conti",
+      "searchId": "srch_it_beauty",
+      "searchName": "Beauty founders — Italy",
+      "name": "Giulia Conti",
+      "headline": "Beauty network leader · Milano",
+      "company": "Velair",
+      "location": {
+        "country": "Italy",
+        "city": "Milan",
+        "region": "Lombardy"
+      },
+      "languages": [
+        "Italian",
+        "English"
+      ],
+      "score": 94,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 29,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 4,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@giulia.beautynetwork",
+          "url": "https://www.instagram.com/giulia.beautynetwork/",
+          "followers": 27600
+        },
+        {
+          "platform": "linkedin",
+          "handle": "giulia-conti-beauty",
+          "url": "https://www.linkedin.com/in/giulia-conti-beauty/",
+          "followers": 3600
+        },
+        {
+          "platform": "website",
+          "handle": "giuliaconti.it",
+          "url": "https://giuliaconti.it"
+        }
+      ],
+      "summary": "Giulia leads a beauty distribution network from Milan and runs a public mentorship track for new partners.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "\"Network marketing nel settore beauty dal 2016\"",
+          "sourceUrl": "https://giuliaconti.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.94,
+          "evidence": "Skincare and cosmetics catalogue on her site.",
+          "sourceUrl": "https://giuliaconti.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "\"Cerco 4 nuove collaboratrici per il team di Milano\"",
+          "sourceUrl": "https://www.instagram.com/giulia.beautynetwork/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "\"Coordino un team di 50 persone\"",
+          "sourceUrl": "https://www.linkedin.com/in/giulia-conti-beauty/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Site footer lists Milano.",
+          "sourceUrl": "https://giuliaconti.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.86,
+          "evidence": "Own domain, event speaking, newsletter.",
+          "sourceUrl": "https://giuliaconti.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.89,
+          "evidence": "5 posts per week.",
+          "sourceUrl": "https://www.instagram.com/giulia.beautynetwork/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_giulia_conti_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/giulia.beautynetwork/",
+          "title": "Giulia Conti (@giulia.beautynetwork) · Instagram",
+          "snippet": "Beauty network leader · Milano · Milan. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-14T15:53:59.560Z"
+        },
+        {
+          "id": "lead_giulia_conti_src_1",
+          "platform": "linkedin",
+          "url": "https://www.linkedin.com/in/giulia-conti-beauty/",
+          "title": "Giulia Conti — Beauty network leader · Milano | LinkedIn",
+          "snippet": "Public profile: Beauty network leader · Milano. Milan.",
+          "discoveredAt": "2026-08-14T15:53:59.560Z"
+        },
+        {
+          "id": "lead_giulia_conti_src_2",
+          "platform": "website",
+          "url": "https://giuliaconti.it",
+          "title": "Velair — official site",
+          "snippet": "Company or personal website listing contact details and team information.",
+          "discoveredAt": "2026-08-14T15:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "ciao@giuliaconti.it",
+        "website": "https://giuliaconti.it"
+      },
+      "status": "qualified",
+      "saved": true,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-14T16:53:59.560Z"
+    },
+    {
+      "id": "lead_maria_petrova",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "María Petrova",
+      "headline": "Regional director · cosmetics distribution",
+      "company": "Nuvia Cosmetics",
+      "location": {
+        "country": "Spain",
+        "city": "Madrid"
+      },
+      "languages": [
+        "Spanish",
+        "Russian",
+        "English"
+      ],
+      "score": 93,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 29,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 3,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "linkedin",
+          "handle": "maria-petrova-md",
+          "url": "https://www.linkedin.com/in/maria-petrova-md/",
+          "followers": 6400
+        },
+        {
+          "platform": "instagram",
+          "handle": "@maria.petrova.md",
+          "url": "https://www.instagram.com/maria.petrova.md/",
+          "followers": 11200
+        }
+      ],
+      "summary": "Maria runs a multi-country distribution structure for a cosmetics brand. LinkedIn shows a decade of direct-sales leadership; her public posts regularly announce onboarding cohorts for new distributors.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "\"Direct sales & network marketing — 10 years, 4 countries\"",
+          "sourceUrl": "https://www.linkedin.com/in/maria-petrova-md/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.94,
+          "evidence": "Current role listed as Regional Director, cosmetics distribution.",
+          "sourceUrl": "https://www.linkedin.com/in/maria-petrova-md/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.88,
+          "evidence": "\"Открываю новый набор в команду с сентября\" (recruiting cohort announcement)",
+          "sourceUrl": "https://www.instagram.com/maria.petrova.md/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "\"Managing 6 city teams across Spain and Portugal\"",
+          "sourceUrl": "https://www.linkedin.com/in/maria-petrova-md/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "LinkedIn location: Madrid, Community of Madrid, Spain.",
+          "sourceUrl": "https://www.linkedin.com/in/maria-petrova-md/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.6,
+          "evidence": "Speaks at industry events; no personal domain found.",
+          "sourceUrl": "https://www.linkedin.com/in/maria-petrova-md/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.8,
+          "evidence": "Posts 2–3 times per week on LinkedIn.",
+          "sourceUrl": "https://www.linkedin.com/in/maria-petrova-md/",
+          "sourcePlatform": "linkedin"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_maria_petrova_src_0",
+          "platform": "linkedin",
+          "url": "https://www.linkedin.com/in/maria-petrova-md/",
+          "title": "María Petrova — Regional director · cosmetics distribution | LinkedIn",
+          "snippet": "Public profile: Regional director · cosmetics distribution. Madrid.",
+          "discoveredAt": "2026-08-17T13:53:59.560Z"
+        },
+        {
+          "id": "lead_maria_petrova_src_1",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/maria.petrova.md/",
+          "title": "María Petrova (@maria.petrova.md) · Instagram",
+          "snippet": "Regional director · cosmetics distribution · Madrid. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T13:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "m.petrova@nuvia-team.es"
+      },
+      "status": "reviewed",
+      "saved": true,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T14:53:59.560Z"
+    },
+    {
+      "id": "lead_valentina_greco",
+      "searchId": "srch_it_beauty",
+      "searchName": "Beauty founders — Italy",
+      "name": "Valentina Greco",
+      "headline": "Founder · skincare brand & partner network",
+      "company": "Greco Skin",
+      "location": {
+        "country": "Italy",
+        "city": "Naples"
+      },
+      "languages": [
+        "Italian",
+        "English",
+        "Spanish"
+      ],
+      "score": 93,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 27,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 20,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 17,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 5,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@valentina.grecoskin",
+          "url": "https://www.instagram.com/valentina.grecoskin/",
+          "followers": 38900
+        },
+        {
+          "platform": "linkedin",
+          "handle": "valentina-greco-skin",
+          "url": "https://www.linkedin.com/in/valentina-greco-skin/",
+          "followers": 5200
+        },
+        {
+          "platform": "website",
+          "handle": "grecoskin.it",
+          "url": "https://grecoskin.it"
+        }
+      ],
+      "summary": "Valentina founded a skincare brand distributed through a partner network across southern Italy. Recruiting and leadership are both documented publicly.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "\"Rete di partner indipendenti in tutto il Sud Italia\"",
+          "sourceUrl": "https://grecoskin.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.98,
+          "evidence": "Owns a skincare brand.",
+          "sourceUrl": "https://grecoskin.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.87,
+          "evidence": "\"Diventa partner Greco Skin — candidature aperte\"",
+          "sourceUrl": "https://grecoskin.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "\"Il nostro network conta 120 partner\"",
+          "sourceUrl": "https://www.linkedin.com/in/valentina-greco-skin/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Company registered in Naples.",
+          "sourceUrl": "https://grecoskin.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.94,
+          "evidence": "Founder brand with press coverage.",
+          "sourceUrl": "https://grecoskin.it",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.85,
+          "evidence": "4 posts per week.",
+          "sourceUrl": "https://www.instagram.com/valentina.grecoskin/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_valentina_greco_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/valentina.grecoskin/",
+          "title": "Valentina Greco (@valentina.grecoskin) · Instagram",
+          "snippet": "Founder · skincare brand & partner network · Naples. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-14T11:53:59.560Z"
+        },
+        {
+          "id": "lead_valentina_greco_src_1",
+          "platform": "linkedin",
+          "url": "https://www.linkedin.com/in/valentina-greco-skin/",
+          "title": "Valentina Greco — Founder · skincare brand & partner network | LinkedIn",
+          "snippet": "Public profile: Founder · skincare brand & partner network. Naples.",
+          "discoveredAt": "2026-08-14T11:53:59.560Z"
+        },
+        {
+          "id": "lead_valentina_greco_src_2",
+          "platform": "website",
+          "url": "https://grecoskin.it",
+          "title": "Greco Skin — official site",
+          "snippet": "Company or personal website listing contact details and team information.",
+          "discoveredAt": "2026-08-14T11:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "partner@grecoskin.it",
+        "website": "https://grecoskin.it"
+      },
+      "status": "reviewed",
+      "saved": true,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-14T12:53:59.560Z"
+    },
+    {
+      "id": "lead_natalia_sokol",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Natalia Sokol",
+      "headline": "Network marketing mentor · beauty & wellness",
+      "location": {
+        "country": "Spain",
+        "city": "Málaga"
+      },
+      "languages": [
+        "Russian",
+        "Ukrainian",
+        "Spanish",
+        "English"
+      ],
+      "score": 92,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 29,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 16,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 9,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 5,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@natalia.sokol.mentor",
+          "url": "https://www.instagram.com/natalia.sokol.mentor/",
+          "followers": 42100
+        },
+        {
+          "platform": "threads",
+          "handle": "@natalia.sokol",
+          "url": "https://www.threads.net/@natalia.sokol",
+          "followers": 5100
+        },
+        {
+          "platform": "blog",
+          "handle": "sokol-mentor.com",
+          "url": "https://sokol-mentor.com"
+        }
+      ],
+      "summary": "Natalia mentors Russian- and Ukrainian-speaking beauty entrepreneurs from Málaga. Her blog documents team-building methodology, and recruiting webinars run monthly.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.97,
+          "evidence": "\"12 лет в сетевом маркетинге, 3 компании\"",
+          "sourceUrl": "https://sokol-mentor.com",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.82,
+          "evidence": "Focus split between beauty and wellness product lines.",
+          "sourceUrl": "https://sokol-mentor.com",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "\"Вебинар для новых партнёров — каждый первый вторник\"",
+          "sourceUrl": "https://www.instagram.com/natalia.sokol.mentor/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.96,
+          "evidence": "\"Моя структура — 300+ партнёров в 5 странах\"",
+          "sourceUrl": "https://sokol-mentor.com",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "Bio: \"Málaga\"; blog mentions relocation to Spain in 2021.",
+          "sourceUrl": "https://www.instagram.com/natalia.sokol.mentor/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "Own blog, paid mentorship program, 42k followers.",
+          "sourceUrl": "https://sokol-mentor.com",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.97,
+          "evidence": "Daily stories; 3 blog posts per month.",
+          "sourceUrl": "https://www.instagram.com/natalia.sokol.mentor/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_natalia_sokol_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/natalia.sokol.mentor/",
+          "title": "Natalia Sokol (@natalia.sokol.mentor) · Instagram",
+          "snippet": "Network marketing mentor · beauty & wellness · Málaga. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T09:53:59.560Z"
+        },
+        {
+          "id": "lead_natalia_sokol_src_1",
+          "platform": "threads",
+          "url": "https://www.threads.net/@natalia.sokol",
+          "title": "Natalia Sokol · Threads",
+          "snippet": "Public Threads profile cross-linked from Instagram.",
+          "discoveredAt": "2026-08-17T09:53:59.560Z"
+        },
+        {
+          "id": "lead_natalia_sokol_src_2",
+          "platform": "blog",
+          "url": "https://sokol-mentor.com",
+          "title": "Natalia Sokol — blog",
+          "snippet": "Personal blog covering team building and product content.",
+          "discoveredAt": "2026-08-17T09:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "hello@sokol-mentor.com",
+        "website": "https://sokol-mentor.com"
+      },
+      "status": "contacted",
+      "saved": true,
+      "archived": false,
+      "notes": [
+        {
+          "id": "lead_natalia_sokol_note_1",
+          "body": "Sent a first message in Russian — mentioned her webinar cadence. Waiting for a reply.",
+          "author": "You",
+          "createdAt": "2026-08-17T12:53:59.560Z"
+        }
+      ],
+      "createdAt": "2026-08-17T10:53:59.560Z"
+    },
+    {
+      "id": "lead_yuliya_hoffmann",
+      "searchId": "srch_de_mihi",
+      "searchName": "MIHI distributors — Germany",
+      "name": "Yuliya Hoffmann",
+      "headline": "Team leader · beauty & skincare network",
+      "location": {
+        "country": "Germany",
+        "city": "Frankfurt"
+      },
+      "languages": [
+        "Ukrainian",
+        "Russian",
+        "German"
+      ],
+      "score": 92,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 29,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 13,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 4,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@yuliya.beauty.team",
+          "url": "https://www.instagram.com/yuliya.beauty.team/",
+          "followers": 19800
+        },
+        {
+          "platform": "facebook",
+          "handle": "yuliya.hoffmann.beauty",
+          "url": "https://www.facebook.com/yuliya.hoffmann.beauty",
+          "followers": 6100
+        },
+        {
+          "platform": "website",
+          "handle": "yuliya-team.de",
+          "url": "https://yuliya-team.de"
+        }
+      ],
+      "summary": "Yuliya leads a Ukrainian-speaking beauty team in the Rhine-Main region with a documented onboarding funnel on her own site.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "\"Наша команда — партнери бренду з 2019 року\"",
+          "sourceUrl": "https://yuliya-team.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.91,
+          "evidence": "Skincare product line presented on the site.",
+          "sourceUrl": "https://yuliya-team.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.89,
+          "evidence": "\"Заповни анкету — співбесіда протягом 48 годин\"",
+          "sourceUrl": "https://yuliya-team.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.88,
+          "evidence": "\"35 партнерів у моїй структурі\"",
+          "sourceUrl": "https://www.instagram.com/yuliya.beauty.team/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 0.96,
+          "evidence": "Site lists Frankfurt am Main.",
+          "sourceUrl": "https://yuliya-team.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.72,
+          "evidence": "Own domain and consistent identity across platforms.",
+          "sourceUrl": "https://yuliya-team.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.86,
+          "evidence": "4 posts per week plus daily stories.",
+          "sourceUrl": "https://www.instagram.com/yuliya.beauty.team/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_yuliya_hoffmann_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/yuliya.beauty.team/",
+          "title": "Yuliya Hoffmann (@yuliya.beauty.team) · Instagram",
+          "snippet": "Team leader · beauty & skincare network · Frankfurt. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-16T06:53:59.560Z"
+        },
+        {
+          "id": "lead_yuliya_hoffmann_src_1",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/yuliya.hoffmann.beauty",
+          "title": "Yuliya Hoffmann | Facebook",
+          "snippet": "Public page mentioning team leader · beauty & skincare network in Frankfurt.",
+          "discoveredAt": "2026-08-16T06:53:59.560Z"
+        },
+        {
+          "id": "lead_yuliya_hoffmann_src_2",
+          "platform": "website",
+          "url": "https://yuliya-team.de",
+          "title": "Yuliya Hoffmann — official site",
+          "snippet": "Company or personal website listing contact details and team information.",
+          "discoveredAt": "2026-08-16T06:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "team@yuliya-team.de",
+        "website": "https://yuliya-team.de"
+      },
+      "status": "reviewed",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-16T07:53:59.560Z"
+    },
+    {
+      "id": "lead_chiara_marino",
+      "searchId": "srch_it_beauty",
+      "searchName": "Beauty founders — Italy",
+      "name": "Chiara Marino",
+      "headline": "Beauty coach & team mentor",
+      "location": {
+        "country": "Italy",
+        "city": "Turin"
+      },
+      "languages": [
+        "Italian",
+        "French"
+      ],
+      "score": 89,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 28,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 17,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 12,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 4,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@chiara.beautycoach",
+          "url": "https://www.instagram.com/chiara.beautycoach/",
+          "followers": 16800
+        },
+        {
+          "platform": "threads",
+          "handle": "@chiara.beautycoach",
+          "url": "https://www.threads.net/@chiara.beautycoach",
+          "followers": 2100
+        },
+        {
+          "platform": "blog",
+          "handle": "chiaramarino.blog",
+          "url": "https://chiaramarino.blog"
+        }
+      ],
+      "summary": "Chiara coaches beauty consultants and documents duplication tactics on her blog. Mid-sized team, high content cadence.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "\"Il mio business è network marketing, non vendita diretta classica\"",
+          "sourceUrl": "https://chiaramarino.blog",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.89,
+          "evidence": "Beauty coaching niche stated throughout the blog.",
+          "sourceUrl": "https://chiaramarino.blog",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.84,
+          "evidence": "\"Prossimo start del team: lunedì\"",
+          "sourceUrl": "https://www.instagram.com/chiara.beautycoach/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.8,
+          "evidence": "\"Seguo 22 consulenti\"",
+          "sourceUrl": "https://chiaramarino.blog",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "Blog about page: Torino.",
+          "sourceUrl": "https://chiaramarino.blog",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.83,
+          "evidence": "Own blog and coaching offer.",
+          "sourceUrl": "https://chiaramarino.blog",
+          "sourcePlatform": "blog"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.91,
+          "evidence": "Daily stories, weekly posts.",
+          "sourceUrl": "https://www.instagram.com/chiara.beautycoach/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_chiara_marino_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/chiara.beautycoach/",
+          "title": "Chiara Marino (@chiara.beautycoach) · Instagram",
+          "snippet": "Beauty coach & team mentor · Turin. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-14T09:53:59.560Z"
+        },
+        {
+          "id": "lead_chiara_marino_src_1",
+          "platform": "threads",
+          "url": "https://www.threads.net/@chiara.beautycoach",
+          "title": "Chiara Marino · Threads",
+          "snippet": "Public Threads profile cross-linked from Instagram.",
+          "discoveredAt": "2026-08-14T09:53:59.560Z"
+        },
+        {
+          "id": "lead_chiara_marino_src_2",
+          "platform": "blog",
+          "url": "https://chiaramarino.blog",
+          "title": "Chiara Marino — blog",
+          "snippet": "Personal blog covering team building and product content.",
+          "discoveredAt": "2026-08-14T09:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "info@chiaramarino.blog",
+        "website": "https://chiaramarino.blog"
+      },
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-14T10:53:59.560Z"
+    },
+    {
+      "id": "lead_beatriz_lopes",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Beatriz Lopes",
+      "headline": "Cross-border beauty distributor (ES/PT)",
+      "location": {
+        "country": "Spain",
+        "city": "Vigo",
+        "region": "Galicia"
+      },
+      "languages": [
+        "Portuguese",
+        "Spanish",
+        "English"
+      ],
+      "score": 86,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 28,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 17,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 11,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 9,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 3,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@bea.lopes.beauty",
+          "url": "https://www.instagram.com/bea.lopes.beauty/",
+          "followers": 13900
+        },
+        {
+          "platform": "linkedin",
+          "handle": "beatriz-lopes-distrib",
+          "url": "https://www.linkedin.com/in/beatriz-lopes-distrib/",
+          "followers": 2200
+        }
+      ],
+      "summary": "Beatriz operates across the Spain–Portugal border with a two-country distributor structure. Consistent recruiting cadence and a small but real team.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.94,
+          "evidence": "\"Distribuidora em Espanha e Portugal — negócio de recomendação\"",
+          "sourceUrl": "https://www.linkedin.com/in/beatriz-lopes-distrib/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.88,
+          "evidence": "Cosmetics catalogue links in bio and posts.",
+          "sourceUrl": "https://www.instagram.com/bea.lopes.beauty/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.83,
+          "evidence": "\"Procuro parceiras para a equipa da Galiza\"",
+          "sourceUrl": "https://www.instagram.com/bea.lopes.beauty/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.7,
+          "evidence": "\"A minha equipa tem 15 consultoras\"",
+          "sourceUrl": "https://www.linkedin.com/in/beatriz-lopes-distrib/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "LinkedIn location: Vigo, Galicia, Spain.",
+          "sourceUrl": "https://www.linkedin.com/in/beatriz-lopes-distrib/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.55,
+          "evidence": "Active on two platforms, no personal domain.",
+          "sourceUrl": "https://www.instagram.com/bea.lopes.beauty/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.8,
+          "evidence": "3–4 posts per week.",
+          "sourceUrl": "https://www.instagram.com/bea.lopes.beauty/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_beatriz_lopes_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/bea.lopes.beauty/",
+          "title": "Beatriz Lopes (@bea.lopes.beauty) · Instagram",
+          "snippet": "Cross-border beauty distributor (ES/PT) · Vigo. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T04:53:59.560Z"
+        },
+        {
+          "id": "lead_beatriz_lopes_src_1",
+          "platform": "linkedin",
+          "url": "https://www.linkedin.com/in/beatriz-lopes-distrib/",
+          "title": "Beatriz Lopes — Cross-border beauty distributor (ES/PT) | LinkedIn",
+          "snippet": "Public profile: Cross-border beauty distributor (ES/PT). Vigo.",
+          "discoveredAt": "2026-08-17T04:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "beatriz.lopes.dist@gmail.com"
+      },
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T05:53:59.560Z"
+    },
+    {
+      "id": "lead_oksana_hrytsenko",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Oksana Hrytsenko",
+      "headline": "Beauty entrepreneur · team builder",
+      "location": {
+        "country": "Spain",
+        "city": "Alicante"
+      },
+      "languages": [
+        "Ukrainian",
+        "Russian",
+        "Spanish"
+      ],
+      "score": 85,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 27,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 9,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 3,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@oksana.beauty.team",
+          "url": "https://www.instagram.com/oksana.beauty.team/",
+          "followers": 15600
+        },
+        {
+          "platform": "facebook",
+          "handle": "oksana.hrytsenko.beauty",
+          "url": "https://www.facebook.com/oksana.hrytsenko.beauty",
+          "followers": 4200
+        },
+        {
+          "platform": "threads",
+          "handle": "@oksana.beauty",
+          "url": "https://www.threads.net/@oksana.beauty",
+          "followers": 900
+        }
+      ],
+      "summary": "Oksana builds a Ukrainian-speaking beauty team on the Costa Blanca. Recruiting posts are frequent and explicit; leadership evidence is emerging rather than established.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "\"Партнер бренду, будую свою команду\"",
+          "sourceUrl": "https://www.instagram.com/oksana.beauty.team/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "Skincare demos and product hauls dominate the feed.",
+          "sourceUrl": "https://www.instagram.com/oksana.beauty.team/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.91,
+          "evidence": "\"Шукаю 5 дівчат у команду — навчання безкоштовне\"",
+          "sourceUrl": "https://www.facebook.com/oksana.hrytsenko.beauty",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.62,
+          "evidence": "\"Моя міні-команда — 8 людей\"",
+          "sourceUrl": "https://www.instagram.com/oksana.beauty.team/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "Bio: \"Alicante, España\".",
+          "sourceUrl": "https://www.instagram.com/oksana.beauty.team/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.66,
+          "evidence": "Recognisable visual style; no own domain.",
+          "sourceUrl": "https://www.instagram.com/oksana.beauty.team/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "Posts 4–5 times per week.",
+          "sourceUrl": "https://www.instagram.com/oksana.beauty.team/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_oksana_hrytsenko_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/oksana.beauty.team/",
+          "title": "Oksana Hrytsenko (@oksana.beauty.team) · Instagram",
+          "snippet": "Beauty entrepreneur · team builder · Alicante. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T06:53:59.560Z"
+        },
+        {
+          "id": "lead_oksana_hrytsenko_src_1",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/oksana.hrytsenko.beauty",
+          "title": "Oksana Hrytsenko | Facebook",
+          "snippet": "Public page mentioning beauty entrepreneur · team builder in Alicante.",
+          "discoveredAt": "2026-08-17T06:53:59.560Z"
+        },
+        {
+          "id": "lead_oksana_hrytsenko_src_2",
+          "platform": "threads",
+          "url": "https://www.threads.net/@oksana.beauty",
+          "title": "Oksana Hrytsenko · Threads",
+          "snippet": "Public Threads profile cross-linked from Instagram.",
+          "discoveredAt": "2026-08-17T06:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "reviewed",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T07:53:59.560Z"
+    },
+    {
+      "id": "lead_elena_rossi",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Elena Rossi",
+      "headline": "Beauty consultant & content creator",
+      "location": {
+        "country": "Spain",
+        "city": "Valencia"
+      },
+      "languages": [
+        "Spanish",
+        "Italian"
+      ],
+      "score": 73,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 26,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 14,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 0,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 4,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@elena.glowlab",
+          "url": "https://www.instagram.com/elena.glowlab/",
+          "followers": 18300
+        },
+        {
+          "platform": "threads",
+          "handle": "@elena.glowlab",
+          "url": "https://www.threads.net/@elena.glowlab",
+          "followers": 2200
+        }
+      ],
+      "summary": "Elena is an active beauty content creator selling through a network marketing structure. Recruiting language is present but no team leadership evidence was found in public sources.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.86,
+          "evidence": "\"Consultora independiente\" plus a personal referral shop link.",
+          "sourceUrl": "https://www.instagram.com/elena.glowlab/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.97,
+          "evidence": "Feed is entirely skincare routines and product comparisons.",
+          "sourceUrl": "https://www.instagram.com/elena.glowlab/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.72,
+          "evidence": "\"¿Quieres unirte? Link en bio\" in three recent captions.",
+          "sourceUrl": "https://www.instagram.com/elena.glowlab/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Bio: \"Valencia 🇪🇸\"; stories geotagged in Valencia.",
+          "sourceUrl": "https://www.instagram.com/elena.glowlab/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.78,
+          "evidence": "Consistent visual identity, 18k followers, brand collaborations.",
+          "sourceUrl": "https://www.instagram.com/elena.glowlab/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "Daily stories, 22 posts in the last 30 days.",
+          "sourceUrl": "https://www.instagram.com/elena.glowlab/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_elena_rossi_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/elena.glowlab/",
+          "title": "Elena Rossi (@elena.glowlab) · Instagram",
+          "snippet": "Beauty consultant & content creator · Valencia. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T12:53:59.560Z"
+        },
+        {
+          "id": "lead_elena_rossi_src_1",
+          "platform": "threads",
+          "url": "https://www.threads.net/@elena.glowlab",
+          "title": "Elena Rossi · Threads",
+          "snippet": "Public Threads profile cross-linked from Instagram.",
+          "discoveredAt": "2026-08-17T12:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T13:53:59.560Z"
+    },
+    {
+      "id": "lead_pilar_moreno",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Pilar Moreno",
+      "headline": "Cosmetics sales team lead",
+      "company": "Aurelle",
+      "location": {
+        "country": "Spain",
+        "city": "Zaragoza"
+      },
+      "languages": [
+        "Spanish"
+      ],
+      "score": 73,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 20,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 11,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 13,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 0,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "linkedin",
+          "handle": "pilar-moreno-sales",
+          "url": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "followers": 1800
+        },
+        {
+          "platform": "instagram",
+          "handle": "@pilar.moreno.beauty",
+          "url": "https://www.instagram.com/pilar.moreno.beauty/",
+          "followers": 6700
+        }
+      ],
+      "summary": "Pilar leads a regional cosmetics sales team. Direct-sales background is clear; recruiting signals are limited to internal hiring language.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.68,
+          "evidence": "\"Venta directa de cosmética desde 2016\" — model not explicitly MLM.",
+          "sourceUrl": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.93,
+          "evidence": "Role title: Cosmetics Sales Team Lead at Aurelle.",
+          "sourceUrl": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.55,
+          "evidence": "\"Estamos ampliando el equipo comercial en Aragón\"",
+          "sourceUrl": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.85,
+          "evidence": "\"Responsable de 12 comerciales\"",
+          "sourceUrl": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "LinkedIn location: Zaragoza, Aragon, Spain.",
+          "sourceUrl": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "personalBrand",
+          "detected": false,
+          "confidence": 0.35,
+          "evidence": "No personal site; low posting cadence.",
+          "sourceUrl": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.5,
+          "evidence": "4 posts in the last 30 days.",
+          "sourceUrl": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "sourcePlatform": "linkedin"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_pilar_moreno_src_0",
+          "platform": "linkedin",
+          "url": "https://www.linkedin.com/in/pilar-moreno-sales/",
+          "title": "Pilar Moreno — Cosmetics sales team lead | LinkedIn",
+          "snippet": "Public profile: Cosmetics sales team lead. Zaragoza.",
+          "discoveredAt": "2026-08-17T08:53:59.560Z"
+        },
+        {
+          "id": "lead_pilar_moreno_src_1",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/pilar.moreno.beauty/",
+          "title": "Pilar Moreno (@pilar.moreno.beauty) · Instagram",
+          "snippet": "Cosmetics sales team lead · Zaragoza. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T08:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "p.moreno@aurelle-es.com"
+      },
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T09:53:59.560Z"
+    },
+    {
+      "id": "lead_ines_ferrer",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Inés Ferrer",
+      "headline": "Wellness & beauty network partner",
+      "location": {
+        "country": "Spain",
+        "city": "Palma"
+      },
+      "languages": [
+        "Spanish",
+        "German",
+        "English"
+      ],
+      "score": 71,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 26,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 12,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 16,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 8,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 9,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 0,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@ines.wellness.pm",
+          "url": "https://www.instagram.com/ines.wellness.pm/",
+          "followers": 7800
+        },
+        {
+          "platform": "facebook",
+          "handle": "ines.ferrer.wellness",
+          "url": "https://www.facebook.com/ines.ferrer.wellness",
+          "followers": 2100
+        }
+      ],
+      "summary": "Inés serves the German-speaking community in Mallorca with a wellness-leaning product mix. Beauty relevance is partial; recruiting is active.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.87,
+          "evidence": "\"Selbstständige Partnerin — Empfehlungsmarketing\"",
+          "sourceUrl": "https://www.facebook.com/ines.ferrer.wellness",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.61,
+          "evidence": "Mix of supplements and skincare; beauty is roughly a third of posts.",
+          "sourceUrl": "https://www.instagram.com/ines.wellness.pm/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.8,
+          "evidence": "\"Ich suche Partnerinnen auf Mallorca\"",
+          "sourceUrl": "https://www.facebook.com/ines.ferrer.wellness",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.5,
+          "evidence": "\"Mein kleines Team wächst\"",
+          "sourceUrl": "https://www.facebook.com/ines.ferrer.wellness",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "Bio: \"Mallorca\".",
+          "sourceUrl": "https://www.instagram.com/ines.wellness.pm/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": false,
+          "confidence": 0.45,
+          "evidence": "Moderate reach, no own domain.",
+          "sourceUrl": "https://www.instagram.com/ines.wellness.pm/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.72,
+          "evidence": "Weekly posts plus regular stories.",
+          "sourceUrl": "https://www.instagram.com/ines.wellness.pm/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_ines_ferrer_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/ines.wellness.pm/",
+          "title": "Inés Ferrer (@ines.wellness.pm) · Instagram",
+          "snippet": "Wellness & beauty network partner · Palma. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T02:53:59.560Z"
+        },
+        {
+          "id": "lead_ines_ferrer_src_1",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/ines.ferrer.wellness",
+          "title": "Inés Ferrer | Facebook",
+          "snippet": "Public page mentioning wellness & beauty network partner in Palma.",
+          "discoveredAt": "2026-08-17T02:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "contact_later",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T03:53:59.560Z"
+    },
+    {
+      "id": "lead_janina_weber",
+      "searchId": "srch_de_mihi",
+      "searchName": "MIHI distributors — Germany",
+      "name": "Janina Weber",
+      "headline": "Selbstständige Kosmetikberaterin",
+      "location": {
+        "country": "Germany",
+        "city": "Hamburg"
+      },
+      "languages": [
+        "German"
+      ],
+      "score": 71,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 27,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 15,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 0,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 0,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@janina.kosmetik.hh",
+          "url": "https://www.instagram.com/janina.kosmetik.hh/",
+          "followers": 8600
+        },
+        {
+          "platform": "facebook",
+          "handle": "janina.weber.kosmetik",
+          "url": "https://www.facebook.com/janina.weber.kosmetik",
+          "followers": 2800
+        }
+      ],
+      "summary": "Janina consults on cosmetics independently in Hamburg with visible partner recruiting, but no evidence of a team she leads.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.89,
+          "evidence": "\"Unabhängige Beraterin — Empfehlungsmarketing\"",
+          "sourceUrl": "https://www.facebook.com/janina.weber.kosmetik",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.94,
+          "evidence": "Skincare consultations advertised in every post.",
+          "sourceUrl": "https://www.instagram.com/janina.kosmetik.hh/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.76,
+          "evidence": "\"Du willst mitmachen? Schreib mir 'TEAM'\"",
+          "sourceUrl": "https://www.instagram.com/janina.kosmetik.hh/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Bio: \"Hamburg\".",
+          "sourceUrl": "https://www.instagram.com/janina.kosmetik.hh/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": false,
+          "confidence": 0.48,
+          "evidence": "Consistent template design, no own domain.",
+          "sourceUrl": "https://www.instagram.com/janina.kosmetik.hh/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.78,
+          "evidence": "12 posts in the last 30 days.",
+          "sourceUrl": "https://www.instagram.com/janina.kosmetik.hh/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_janina_weber_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/janina.kosmetik.hh/",
+          "title": "Janina Weber (@janina.kosmetik.hh) · Instagram",
+          "snippet": "Selbstständige Kosmetikberaterin · Hamburg. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-16T13:53:59.560Z"
+        },
+        {
+          "id": "lead_janina_weber_src_1",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/janina.weber.kosmetik",
+          "title": "Janina Weber | Facebook",
+          "snippet": "Public page mentioning selbstständige kosmetikberaterin in Hamburg.",
+          "discoveredAt": "2026-08-16T13:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-16T14:53:59.560Z"
+    },
+    {
+      "id": "lead_daniela_krause",
+      "searchId": "srch_de_mihi",
+      "searchName": "MIHI distributors — Germany",
+      "name": "Daniela Krause",
+      "headline": "Beauty-Partnerin & Content Creator",
+      "location": {
+        "country": "Germany",
+        "city": "Stuttgart"
+      },
+      "languages": [
+        "German"
+      ],
+      "score": 71,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 25,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 13,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 0,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 4,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@dani.beautypartner",
+          "url": "https://www.instagram.com/dani.beautypartner/",
+          "followers": 12400
+        },
+        {
+          "platform": "threads",
+          "handle": "@dani.beautypartner",
+          "url": "https://www.threads.net/@dani.beautypartner",
+          "followers": 1400
+        }
+      ],
+      "summary": "Daniela combines creator content with partner sales. Recruiting language appears in stories rather than permanent posts, so confidence is moderate.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.84,
+          "evidence": "\"Partnerin\" plus a personal referral shop link in bio.",
+          "sourceUrl": "https://www.instagram.com/dani.beautypartner/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "Skincare routines, before/after content.",
+          "sourceUrl": "https://www.instagram.com/dani.beautypartner/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.67,
+          "evidence": "Story highlight titled \"TEAM\" with a signup link.",
+          "sourceUrl": "https://www.instagram.com/dani.beautypartner/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": false,
+          "confidence": 0.4,
+          "evidence": "\"Erste eigene Partnerin an Board 🎉\"",
+          "sourceUrl": "https://www.instagram.com/dani.beautypartner/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Bio: \"Stuttgart\".",
+          "sourceUrl": "https://www.instagram.com/dani.beautypartner/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.7,
+          "evidence": "Distinct creator identity, brand deals.",
+          "sourceUrl": "https://www.instagram.com/dani.beautypartner/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "Near-daily posting.",
+          "sourceUrl": "https://www.instagram.com/dani.beautypartner/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_daniela_krause_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/dani.beautypartner/",
+          "title": "Daniela Krause (@dani.beautypartner) · Instagram",
+          "snippet": "Beauty-Partnerin & Content Creator · Stuttgart. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-16T08:53:59.560Z"
+        },
+        {
+          "id": "lead_daniela_krause_src_1",
+          "platform": "threads",
+          "url": "https://www.threads.net/@dani.beautypartner",
+          "title": "Daniela Krause · Threads",
+          "snippet": "Public Threads profile cross-linked from Instagram.",
+          "discoveredAt": "2026-08-16T08:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-16T09:53:59.560Z"
+    },
+    {
+      "id": "lead_francesca_bruno",
+      "searchId": "srch_it_beauty",
+      "searchName": "Beauty founders — Italy",
+      "name": "Francesca Bruno",
+      "headline": "Consulente beauty indipendente",
+      "location": {
+        "country": "Italy",
+        "city": "Rome"
+      },
+      "languages": [
+        "Italian"
+      ],
+      "score": 69,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 26,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 12,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 0,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 3,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@francesca.beauty.rm",
+          "url": "https://www.instagram.com/francesca.beauty.rm/",
+          "followers": 10200
+        },
+        {
+          "platform": "facebook",
+          "handle": "francesca.bruno.beauty",
+          "url": "https://www.facebook.com/francesca.bruno.beauty",
+          "followers": 3300
+        }
+      ],
+      "summary": "Francesca consults independently in Rome. Recruiting appears occasionally; no team evidence found in public sources.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.85,
+          "evidence": "\"Consulente indipendente\" with referral shop link.",
+          "sourceUrl": "https://www.instagram.com/francesca.beauty.rm/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.92,
+          "evidence": "Beauty routines and product reviews.",
+          "sourceUrl": "https://www.instagram.com/francesca.beauty.rm/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.6,
+          "evidence": "\"Vuoi lavorare con me? Scrivimi\"",
+          "sourceUrl": "https://www.facebook.com/francesca.bruno.beauty",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "leadership",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Bio: \"Roma\".",
+          "sourceUrl": "https://www.instagram.com/francesca.beauty.rm/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.5,
+          "evidence": "Steady presence on two platforms.",
+          "sourceUrl": "https://www.instagram.com/francesca.beauty.rm/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.74,
+          "evidence": "10 posts in the last 30 days.",
+          "sourceUrl": "https://www.instagram.com/francesca.beauty.rm/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_francesca_bruno_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/francesca.beauty.rm/",
+          "title": "Francesca Bruno (@francesca.beauty.rm) · Instagram",
+          "snippet": "Consulente beauty indipendente · Rome. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-14T13:53:59.560Z"
+        },
+        {
+          "id": "lead_francesca_bruno_src_1",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/francesca.bruno.beauty",
+          "title": "Francesca Bruno | Facebook",
+          "snippet": "Public page mentioning consulente beauty indipendente in Rome.",
+          "discoveredAt": "2026-08-14T13:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-14T14:53:59.560Z"
+    },
+    {
+      "id": "lead_alessia_ferrari",
+      "searchId": "srch_it_beauty",
+      "searchName": "Beauty founders — Italy",
+      "name": "Alessia Ferrari",
+      "headline": "Wellness distributor · Bologna",
+      "location": {
+        "country": "Italy",
+        "city": "Bologna"
+      },
+      "languages": [
+        "Italian"
+      ],
+      "score": 60,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 26,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 0,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 16,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 8,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 0,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "facebook",
+          "handle": "alessia.ferrari.wellness",
+          "url": "https://www.facebook.com/alessia.ferrari.wellness",
+          "followers": 5400
+        },
+        {
+          "platform": "instagram",
+          "handle": "@alessia.wellness.bo",
+          "url": "https://www.instagram.com/alessia.wellness.bo/",
+          "followers": 6200
+        }
+      ],
+      "summary": "Alessia distributes wellness products with a limited beauty overlap. Recruiting is active in Facebook groups.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.88,
+          "evidence": "\"Incaricata alle vendite — team in crescita\"",
+          "sourceUrl": "https://www.facebook.com/alessia.ferrari.wellness",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "beauty",
+          "detected": false,
+          "confidence": 0.45,
+          "evidence": "Mostly supplements; occasional skincare posts.",
+          "sourceUrl": "https://www.instagram.com/alessia.wellness.bo/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": true,
+          "confidence": 0.82,
+          "evidence": "\"Cerco persone motivate per il mio team\"",
+          "sourceUrl": "https://www.facebook.com/alessia.ferrari.wellness",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.55,
+          "evidence": "\"Il mio team è arrivato a 11 persone\"",
+          "sourceUrl": "https://www.facebook.com/alessia.ferrari.wellness",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Bio: \"Bologna\".",
+          "sourceUrl": "https://www.instagram.com/alessia.wellness.bo/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": false,
+          "confidence": 0.4,
+          "evidence": "Group-driven presence, no own site.",
+          "sourceUrl": "https://www.facebook.com/alessia.ferrari.wellness",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.68,
+          "evidence": "Weekly posts in two groups.",
+          "sourceUrl": "https://www.facebook.com/alessia.ferrari.wellness",
+          "sourcePlatform": "facebook"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_alessia_ferrari_src_0",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/alessia.ferrari.wellness",
+          "title": "Alessia Ferrari | Facebook",
+          "snippet": "Public page mentioning wellness distributor · bologna in Bologna.",
+          "discoveredAt": "2026-08-14T07:53:59.560Z"
+        },
+        {
+          "id": "lead_alessia_ferrari_src_1",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/alessia.wellness.bo/",
+          "title": "Alessia Ferrari (@alessia.wellness.bo) · Instagram",
+          "snippet": "Wellness distributor · Bologna · Bologna. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-14T07:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-14T08:53:59.560Z"
+    },
+    {
+      "id": "lead_lucia_fernandez",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Lucía Fernández",
+      "headline": "Skincare distributor · MIHI partner",
+      "company": "MIHI",
+      "location": {
+        "country": "Spain",
+        "city": "Bilbao"
+      },
+      "languages": [
+        "Spanish",
+        "Basque"
+      ],
+      "score": 58,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 27,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 0,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 0,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 3,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@lucia.skincare.bi",
+          "url": "https://www.instagram.com/lucia.skincare.bi/",
+          "followers": 9400
+        },
+        {
+          "platform": "facebook",
+          "handle": "lucia.fernandez.skin",
+          "url": "https://www.facebook.com/lucia.fernandez.skin",
+          "followers": 3400
+        }
+      ],
+      "summary": "Lucía sells MIHI products locally with steady posting activity. No public evidence of a team beneath her, which caps the leadership component.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": true,
+          "confidence": 0.91,
+          "evidence": "\"Distribuidora oficial MIHI en Bizkaia\"",
+          "sourceUrl": "https://www.facebook.com/lucia.fernandez.skin",
+          "sourcePlatform": "facebook"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "Product photos and routines; MIHI catalogue links.",
+          "sourceUrl": "https://www.instagram.com/lucia.skincare.bi/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": false,
+          "confidence": 0.44,
+          "evidence": "One mention: \"si te interesa el negocio, hablamos\".",
+          "sourceUrl": "https://www.instagram.com/lucia.skincare.bi/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "leadership",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Bio: \"Bilbao · envíos a toda España\".",
+          "sourceUrl": "https://www.instagram.com/lucia.skincare.bi/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.5,
+          "evidence": "Consistent posting, no independent brand assets.",
+          "sourceUrl": "https://www.instagram.com/lucia.skincare.bi/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.76,
+          "evidence": "9 posts in the last 30 days.",
+          "sourceUrl": "https://www.instagram.com/lucia.skincare.bi/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_lucia_fernandez_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/lucia.skincare.bi/",
+          "title": "Lucía Fernández (@lucia.skincare.bi) · Instagram",
+          "snippet": "Skincare distributor · MIHI partner · Bilbao. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T10:53:59.560Z"
+        },
+        {
+          "id": "lead_lucia_fernandez_src_1",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/lucia.fernandez.skin",
+          "title": "Lucía Fernández | Facebook",
+          "snippet": "Public page mentioning skincare distributor · mihi partner in Bilbao.",
+          "discoveredAt": "2026-08-17T10:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T11:53:59.560Z"
+    },
+    {
+      "id": "lead_miriam_schulz",
+      "searchId": "srch_de_mihi",
+      "searchName": "MIHI distributors — Germany",
+      "name": "Miriam Schulz",
+      "headline": "Vertriebsleiterin Kosmetik",
+      "company": "Lumea",
+      "location": {
+        "country": "Germany",
+        "city": "Berlin"
+      },
+      "languages": [
+        "German",
+        "English"
+      ],
+      "score": 43,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 0,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 0,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 14,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 0,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "linkedin",
+          "handle": "miriam-schulz-vertrieb",
+          "url": "https://www.linkedin.com/in/miriam-schulz-vertrieb/",
+          "followers": 4300
+        }
+      ],
+      "summary": "Miriam manages a classic cosmetics sales organisation. Leadership is strong, but the business model appears to be traditional distribution rather than network marketing.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": false,
+          "confidence": 0.35,
+          "evidence": "No referral or partner language; classic B2B distribution.",
+          "sourceUrl": "https://www.linkedin.com/in/miriam-schulz-vertrieb/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.95,
+          "evidence": "Title: Vertriebsleiterin Kosmetik at Lumea.",
+          "sourceUrl": "https://www.linkedin.com/in/miriam-schulz-vertrieb/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "recruiting",
+          "detected": false,
+          "confidence": 0.4,
+          "evidence": "Corporate job postings for sales reps.",
+          "sourceUrl": "https://www.linkedin.com/in/miriam-schulz-vertrieb/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "leadership",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "\"Verantwortlich für 25 Mitarbeitende\"",
+          "sourceUrl": "https://www.linkedin.com/in/miriam-schulz-vertrieb/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "LinkedIn location: Berlin, Germany.",
+          "sourceUrl": "https://www.linkedin.com/in/miriam-schulz-vertrieb/",
+          "sourcePlatform": "linkedin"
+        },
+        {
+          "type": "personalBrand",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "activity",
+          "detected": false,
+          "confidence": 0.45,
+          "evidence": "3 posts in the last 30 days.",
+          "sourceUrl": "https://www.linkedin.com/in/miriam-schulz-vertrieb/",
+          "sourcePlatform": "linkedin"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_miriam_schulz_src_0",
+          "platform": "linkedin",
+          "url": "https://www.linkedin.com/in/miriam-schulz-vertrieb/",
+          "title": "Miriam Schulz — Vertriebsleiterin Kosmetik | LinkedIn",
+          "snippet": "Public profile: Vertriebsleiterin Kosmetik. Berlin.",
+          "discoveredAt": "2026-08-16T10:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "m.schulz@lumea.de"
+      },
+      "status": "contact_later",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-16T11:53:59.560Z"
+    },
+    {
+      "id": "lead_rocio_navarro",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Rocío Navarro",
+      "headline": "Beauty affiliate & micro-influencer",
+      "location": {
+        "country": "Spain",
+        "city": "Granada"
+      },
+      "languages": [
+        "Spanish"
+      ],
+      "score": 31,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 0,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 18,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 0,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 0,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 3,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@rocio.navarro.glow",
+          "url": "https://www.instagram.com/rocio.navarro.glow/",
+          "followers": 4100
+        }
+      ],
+      "summary": "Rocío promotes cosmetics through affiliate links. No network structure or recruiting evidence — closer to an affiliate creator than a network partner.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": false,
+          "confidence": 0.38,
+          "evidence": "Affiliate discount codes only; no partner language.",
+          "sourceUrl": "https://www.instagram.com/rocio.navarro.glow/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.9,
+          "evidence": "Makeup and skincare content throughout.",
+          "sourceUrl": "https://www.instagram.com/rocio.navarro.glow/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "recruiting",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "leadership",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Bio: \"Granada\".",
+          "sourceUrl": "https://www.instagram.com/rocio.navarro.glow/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "personalBrand",
+          "detected": true,
+          "confidence": 0.5,
+          "evidence": "Small but consistent creator presence.",
+          "sourceUrl": "https://www.instagram.com/rocio.navarro.glow/",
+          "sourcePlatform": "instagram"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.7,
+          "evidence": "8 posts in the last 30 days.",
+          "sourceUrl": "https://www.instagram.com/rocio.navarro.glow/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_rocio_navarro_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/rocio.navarro.glow/",
+          "title": "Rocío Navarro (@rocio.navarro.glow) · Instagram",
+          "snippet": "Beauty affiliate & micro-influencer · Granada. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T01:53:59.560Z"
+        }
+      ],
+      "contacts": {},
+      "status": "new",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T02:53:59.560Z"
+    },
+    {
+      "id": "lead_sofia_marin",
+      "searchId": "srch_es_mihi",
+      "searchName": "MIHI Beauty Leaders Spain",
+      "name": "Sofía Marín",
+      "headline": "Esthetician · salon owner",
+      "company": "Estudio Marín",
+      "location": {
+        "country": "Spain",
+        "city": "Murcia"
+      },
+      "languages": [
+        "Spanish"
+      ],
+      "score": 30,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 0,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 20,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 0,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 0,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 0,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "instagram",
+          "handle": "@estudiomarin",
+          "url": "https://www.instagram.com/estudiomarin/",
+          "followers": 5300
+        },
+        {
+          "platform": "website",
+          "handle": "estudiomarin.es",
+          "url": "https://estudiomarin.es"
+        }
+      ],
+      "summary": "Sofía owns a beauty studio and retails cosmetics on site. She matches the beauty criterion strongly but shows no network-marketing or recruiting behaviour — likely a customer profile rather than a partner.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.98,
+          "evidence": "Salon services and retail listed on estudiomarin.es.",
+          "sourceUrl": "https://estudiomarin.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "recruiting",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "leadership",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Studio address in Murcia.",
+          "sourceUrl": "https://estudiomarin.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "personalBrand",
+          "detected": false,
+          "confidence": 0.42,
+          "evidence": "Salon brand rather than personal brand.",
+          "sourceUrl": "https://estudiomarin.es",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "activity",
+          "detected": true,
+          "confidence": 0.55,
+          "evidence": "6 posts in the last 30 days.",
+          "sourceUrl": "https://www.instagram.com/estudiomarin/",
+          "sourcePlatform": "instagram"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_sofia_marin_src_0",
+          "platform": "instagram",
+          "url": "https://www.instagram.com/estudiomarin/",
+          "title": "Sofía Marín (@estudiomarin) · Instagram",
+          "snippet": "Esthetician · salon owner · Murcia. Public profile discovered through web search.",
+          "discoveredAt": "2026-08-17T05:53:59.560Z"
+        },
+        {
+          "id": "lead_sofia_marin_src_1",
+          "platform": "website",
+          "url": "https://estudiomarin.es",
+          "title": "Estudio Marín — official site",
+          "snippet": "Company or personal website listing contact details and team information.",
+          "discoveredAt": "2026-08-17T05:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "hola@estudiomarin.es",
+        "website": "https://estudiomarin.es"
+      },
+      "status": "rejected",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-17T06:53:59.560Z"
+    },
+    {
+      "id": "lead_sabine_lang",
+      "searchId": "srch_de_mihi",
+      "searchName": "MIHI distributors — Germany",
+      "name": "Sabine Lang",
+      "headline": "Kosmetikstudio-Inhaberin",
+      "company": "Studio Lang",
+      "location": {
+        "country": "Germany",
+        "city": "Nuremberg"
+      },
+      "languages": [
+        "German"
+      ],
+      "score": 29,
+      "scoreBreakdown": [
+        {
+          "type": "mlm",
+          "awarded": 0,
+          "max": 30
+        },
+        {
+          "type": "beauty",
+          "awarded": 19,
+          "max": 20
+        },
+        {
+          "type": "recruiting",
+          "awarded": 0,
+          "max": 20
+        },
+        {
+          "type": "leadership",
+          "awarded": 0,
+          "max": 15
+        },
+        {
+          "type": "location",
+          "awarded": 10,
+          "max": 10
+        },
+        {
+          "type": "personalBrand",
+          "awarded": 0,
+          "max": 5
+        }
+      ],
+      "platforms": [
+        {
+          "platform": "website",
+          "handle": "studio-lang-kosmetik.de",
+          "url": "https://studio-lang-kosmetik.de"
+        },
+        {
+          "platform": "facebook",
+          "handle": "studio.lang.kosmetik",
+          "url": "https://www.facebook.com/studio.lang.kosmetik",
+          "followers": 1900
+        }
+      ],
+      "summary": "Sabine owns a cosmetics studio. Beauty match is unambiguous, network marketing signals are absent — kept for completeness rather than outreach.",
+      "signals": [
+        {
+          "type": "mlm",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "beauty",
+          "detected": true,
+          "confidence": 0.97,
+          "evidence": "Treatment menu published on the studio site.",
+          "sourceUrl": "https://studio-lang-kosmetik.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "recruiting",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "leadership",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "location",
+          "detected": true,
+          "confidence": 1,
+          "evidence": "Studio address in Nuremberg.",
+          "sourceUrl": "https://studio-lang-kosmetik.de",
+          "sourcePlatform": "website"
+        },
+        {
+          "type": "personalBrand",
+          "detected": false,
+          "confidence": 0
+        },
+        {
+          "type": "activity",
+          "detected": false,
+          "confidence": 0.4,
+          "evidence": "Occasional Facebook updates.",
+          "sourceUrl": "https://www.facebook.com/studio.lang.kosmetik",
+          "sourcePlatform": "facebook"
+        }
+      ],
+      "sources": [
+        {
+          "id": "lead_sabine_lang_src_0",
+          "platform": "website",
+          "url": "https://studio-lang-kosmetik.de",
+          "title": "Studio Lang — official site",
+          "snippet": "Company or personal website listing contact details and team information.",
+          "discoveredAt": "2026-08-16T04:53:59.560Z"
+        },
+        {
+          "id": "lead_sabine_lang_src_1",
+          "platform": "facebook",
+          "url": "https://www.facebook.com/studio.lang.kosmetik",
+          "title": "Sabine Lang | Facebook",
+          "snippet": "Public page mentioning kosmetikstudio-inhaberin in Nuremberg.",
+          "discoveredAt": "2026-08-16T04:53:59.560Z"
+        }
+      ],
+      "contacts": {
+        "email": "kontakt@studio-lang-kosmetik.de",
+        "website": "https://studio-lang-kosmetik.de"
+      },
+      "status": "rejected",
+      "saved": false,
+      "archived": false,
+      "notes": [],
+      "createdAt": "2026-08-16T05:53:59.560Z"
+    }
+  ]
+}

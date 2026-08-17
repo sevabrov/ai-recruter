@@ -11,6 +11,7 @@ import type {
   CreateSearchResponse,
   DashboardData,
   DashboardService,
+  HealthStatus,
   Lead,
   LeadFilters,
   LeadService,
@@ -22,6 +23,7 @@ import type {
   SearchService,
   SearchSummary,
   UpdateLeadInput,
+  WorkspaceService,
 } from "@/services/types";
 import { request } from "./http";
 
@@ -98,5 +100,16 @@ export class ApiLeadService implements LeadService {
 export class ApiDashboardService implements DashboardService {
   get() {
     return request<DashboardData>("/dashboard");
+  }
+}
+
+export class ApiWorkspaceService implements WorkspaceService {
+  health() {
+    return request<HealthStatus>("/health");
+  }
+
+  /** Debug-only on the server; Phase 8 puts it behind an admin role. */
+  async reset() {
+    await request<unknown>("/admin/reset", { method: "POST" });
   }
 }

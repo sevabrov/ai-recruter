@@ -3,51 +3,72 @@
 AI-assisted lead discovery across the **public web**: search criteria in, scored
 candidates with evidence out.
 
-**Current state: Phase 1 — clickable mock frontend.** No search API, scraper,
-model or database is called. Every number comes from fixtures, and the whole
-workflow (dashboard → wizard → simulated search → results → lead → save) is
-clickable end to end.
+**Current state: Phase 2 — backend skeleton.** The FastAPI service is live and
+the frontend runs against it: the browser talks to `http://localhost:8000`, and
+the whole workflow (dashboard → wizard → search → results → lead → save) works
+over HTTP.
+
+Still no external service and no database. Web search, page extraction and
+signal detection are fixture adapters — the pipeline around them is real, and
+`/health` reports `"pipeline": "fixture"` so demo output is never mistaken for
+live results.
 
 ```
 ai-recruiter/
 ├── frontend/               Next.js 16 · React 19 · TypeScript · Tailwind 4 · Radix UI
 │                           TanStack Query · Zustand
-├── docker-compose.yml      PostgreSQL 17 + Redis 7 + Adminer (nothing installed on the host)
+├── backend/                FastAPI · Pydantic · pytest — the API and the search pipeline
+├── docker-compose.yml      backend + PostgreSQL 17 + Redis 7 + Adminer (nothing on the host)
 ├── infra/postgres/init/    extensions created on first container start
-└── .env.example            server-side config: DB, Redis, provider keys (Phase 2+)
+└── .env.example            server-side config: DB, Redis, provider keys, limits
 ```
 
-Later phases add `backend/` (FastAPI, Celery workers, ScrapeGraphAI, Brave
-Search) next to `frontend/` — the compose file already sketches those services.
+Postgres and Redis are running-ready but unused: Phase 3 gives the backend a
+database, Phase 7 gives it workers.
 
 ---
 
 ## Running it
 
-Requires Node 22+ (`nvm use 22`).
+Two commands: the API in Docker, the frontend on Node 22+ (`nvm use 22`).
 
 ```bash
+docker compose up -d backend      # API on http://localhost:8000
+
 cd frontend
-npm install            # already done if you cloned with node_modules
-cp .env.local.example .env.local
-npm run dev            # http://localhost:3000
+npm install                       # already done if you cloned with node_modules
+cp .env.local.example .env.local  # NEXT_PUBLIC_DATA_SOURCE=api
+npm run dev                       # http://localhost:3000
 ```
+
+If the API is not running the app says so in the sidebar and in Settings rather
+than looking empty. To work without it, set `NEXT_PUBLIC_DATA_SOURCE=mock` and
+restart `npm run dev` — the Phase 1 fixtures still work.
 
 Other commands:
 
 ```bash
-npm run build          # production build
-npx tsc --noEmit       # typecheck
-npx eslint .           # lint
+# frontend
+npm run build                                            # production build
+npx tsc --noEmit                                         # typecheck
+npx eslint .                                             # lint
+
+# backend (nothing installed on the host)
+docker compose logs -f backend                           # structured JSON logs
+docker compose run --rm --no-deps backend pytest -q      # 79 tests
+docker compose run --rm --no-deps backend ruff check .   # lint
+docker compose build backend                             # after a dependency change
 ```
+
+API docs are served at <http://localhost:8000/docs>.
 
 ### Databases (Docker, nothing local)
 
-Not needed for Phase 1 — here so Phase 3 starts with one command.
+Not needed yet — here so Phase 3 starts with one command.
 
 ```bash
 cp .env.example .env
-docker compose up -d           # postgres :5432, redis :6379, adminer :8081
+docker compose up -d           # backend :8000, postgres :5432, redis :6379, adminer :8081
 docker compose ps              # health
 docker compose down            # stop, data kept in named volumes
 docker compose down -v         # stop and wipe data
@@ -89,40 +110,43 @@ Mono** (labels, queries, data).
 
 ---
 
-## Architecture — why the Phase 2 swap is a one-liner
+## Architecture — one switch, two data sources
 
-No component imports mock data. Data flows:
+No component imports a data source. Data flows:
 
 ```
 page/component  →  TanStack Query hook  →  service interface  →  implementation
                    src/services/hooks.ts   src/services/types.ts   mock/ or api/
 ```
 
-* [frontend/src/services/types.ts](frontend/src/services/types.ts) — the API contract: `Lead`, `LeadSignal`,
-  `Search`, `SearchProgress`, `DashboardData`, plus the `SearchService`,
-  `LeadService` and `DashboardService` interfaces.
-* [frontend/src/services/index.ts](frontend/src/services/index.ts) — the registry. `NEXT_PUBLIC_DATA_SOURCE=mock|api`
-  picks the implementation.
-* [frontend/src/services/mock/](frontend/src/services/mock/) — fixtures + a localStorage-backed store so saved
-  leads, statuses and notes survive a refresh.
-* [frontend/src/services/api/](frontend/src/services/api/) — already written against the endpoints from the
-  spec (`POST /searches`, `GET /searches/:id`, `GET /leads`, `PATCH /leads/:id`,
-  …). Inactive until the backend exists.
-* [frontend/src/mocks/](frontend/src/mocks/) — the fixture data itself (`leads.ts`, `searches.ts`,
-  `dashboard.ts`, `search-progress.ts`).
+`NEXT_PUBLIC_DATA_SOURCE` in [frontend/src/services/index.ts](frontend/src/services/index.ts) picks the
+implementation — `api` (default, the FastAPI backend) or `mock` (the Phase 1
+fixtures, useful with nothing else running). Not a single component changed when
+the backend arrived.
 
-Two rules the mock phase already follows so behaviour won't change later:
+* [frontend/src/services/types.ts](frontend/src/services/types.ts) — the contract both sides implement:
+  `Lead`, `LeadSignal`, `Search`, `SearchProgress`, `DashboardData`, `HealthStatus`.
+  [backend/tests/test_contract.py](backend/tests/test_contract.py) asserts the API keeps matching it.
+* [frontend/src/services/api/](frontend/src/services/api/) — the HTTP client.
+* [frontend/src/services/mock/](frontend/src/services/mock/) — fixtures + a localStorage store.
+* [backend/app/schemas/](backend/app/schemas/) — the same contract in Pydantic; camelCase over the
+  wire, snake_case query parameters.
 
-* **Scores are computed, not authored.** [frontend/src/lib/scoring.ts](frontend/src/lib/scoring.ts) turns signal
-  confidence × weight into points. The model detects signals; the code does the
-  arithmetic. Every lead page shows the full `+30 MLM / +20 Beauty / …`
-  breakdown.
-* **Progress is polled, not animated.** `GET /searches/:id` is polled every
-  ~0.7 s and the mock service derives status and counters from elapsed time, so
-  the progress screen reads real state rather than a client-side animation.
+Three rules the product follows in both modes:
 
-Provider keys (Brave, ScrapeGraphAI, OpenAI) live only in the server-side
-`.env`. The browser sees `NEXT_PUBLIC_*` variables only.
+* **Scores are computed, not authored.** [backend/app/services/scoring/scoring_service.py](backend/app/services/scoring/scoring_service.py)
+  turns `confidence × weight` into points. The model detects signals; code does
+  the arithmetic. Every lead page shows the `+30 MLM / +20 Beauty / …` breakdown.
+* **Progress is measured, not animated.** The worker writes counters as it goes;
+  the UI polls `GET /searches/:id` and renders what it is told.
+* **Keys never reach the browser.** Brave, ScrapeGraphAI and OpenAI keys are read
+  by the backend only; `/health` reports whether one is configured, never its
+  value.
+
+### Where the real providers plug in
+
+The pipeline is real end to end; three adapters at its edges are fixtures.
+Details and the phase-by-phase swap table are in [backend/README.md](backend/README.md).
 
 ---
 
@@ -132,38 +156,44 @@ Provider keys (Brave, ScrapeGraphAI, OpenAI) live only in the server-side
 |---|---|
 | `/` | Dashboard: stat tiles, recent searches, source share, score distribution, weekly discovery |
 | `/search/new` | 5-step wizard: who → where → signals & weights → sources → preview |
-| `/search/:id/progress` | Simulated pipeline (~9 s), live counters, generated queries, usage & cost, cancel |
+| `/search/:id/progress` | Live pipeline (~3 s), measured counters, generated queries, usage & cost, cancel |
 | `/search/:id/results` | Candidate table, filters (score/country/platform/signals/email/social), sorting, re-run |
 | `/leads` | All / Saved / Archived across searches |
 | `/leads/:id` | Score dial + breakdown, per-signal evidence with source links, AI summary, sources, notes, outreach draft |
 | `/searches` | Search history, running searches separated |
-| `/settings` | Theme picker, search defaults, integration status, concurrency limits, reset demo data |
+| `/settings` | Theme picker, search defaults, live backend status, concurrency limits, reset demo data |
 
 The wizard's **Fill example** button loads the MIHI / Spain scenario from the
 spec, which is the fastest way to walk the whole flow.
 
 ---
 
-## Known limitations (Phase 1, by design)
+## Known limitations (Phase 2, by design)
 
-* **Mock data only.** Nothing external is called. Dashboard aggregates describe a
-  fuller workspace than the fixture list — searches you start add to them.
-* **Search results are cloned from the fixture pool.** A new search re-scores
-  those candidates against *your* weights and geography (so criteria visibly
-  change scores and ranking), but it cannot discover new people.
-* **Simulated pipeline is ~9 s** and the counters are scripted, not measured.
-* **No authentication and no server state.** Saved leads, statuses and notes live
-  in browser localStorage; Settings → *Reset demo data* clears them.
-* **Deduplication, cost tracking and evidence are represented, not implemented** —
-  the UI shows what the backend will produce.
-* **Outreach drafts come from a template**, not a model. The request shape already
-  matches `POST /leads/:id/outreach`.
-* **Export, bulk actions and pagination controls are not built** (the contract
-  supports pagination; the demo lists fit one page).
+* **No new people are discovered.** The search provider and the extractor are
+  fixtures over a seeded catalogue of 24 candidates. A search runs the real
+  pipeline over them and re-scores them against your weights and geography — so
+  criteria visibly change the outcome — but it cannot reach the open web. That is
+  Phase 4–5.
+* **Signals come from the seed, not a model.** The scoring, evidence and
+  breakdown are real; detecting the signals is Phase 6.
+* **Nothing is persisted.** State lives in the API process, so a
+  `docker compose restart backend` returns to the seed. Phase 3 adds PostgreSQL.
+* **Jobs run inside the API process** as asyncio tasks. Concurrent searches
+  already do not block each other, but they do not survive a restart and cannot
+  scale across machines. Phase 7 moves them to Celery + Redis.
+* **No authentication.** Every request is attributed to one demo user, though
+  every query is already scoped by `user_id`. Phase 8.
+* **Outreach drafts come from a template**, not a model.
+* **Search runs are paced deliberately** (`PIPELINE_STEP_DELAY_MS=250`): fixture
+  adapters answer instantly and the progress screen would otherwise never be seen.
+* **Export, bulk actions and pagination controls are not built** (the API supports
+  pagination; the demo lists fit one page).
 
 ---
 
-## Next: Phase 2
+## Next: Phase 3
 
-Backend skeleton — FastAPI with `GET /health`, the endpoints from spec §57, and
-`NEXT_PUBLIC_DATA_SOURCE=api` flipping the frontend over. No UI rewrite needed.
+Database — PostgreSQL behind the existing `Repository` protocol, the entities
+from spec §23, and the seed loaded once instead of on every boot. The services
+and the API do not change.

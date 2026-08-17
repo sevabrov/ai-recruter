@@ -12,11 +12,18 @@ import {
   ApiDashboardService,
   ApiLeadService,
   ApiSearchService,
+  ApiWorkspaceService,
 } from "./api/api-services";
 import { MockDashboardService } from "./mock/mock-dashboard-service";
 import { MockLeadService } from "./mock/mock-lead-service";
 import { MockSearchService } from "./mock/mock-search-service";
-import type { DashboardService, LeadService, SearchService } from "./types";
+import { MockWorkspaceService } from "./mock/mock-workspace-service";
+import type {
+  DashboardService,
+  LeadService,
+  SearchService,
+  WorkspaceService,
+} from "./types";
 
 export type DataSource = "mock" | "api";
 
@@ -29,6 +36,7 @@ type ServiceRegistry = {
   searches: SearchService;
   leads: LeadService;
   dashboard: DashboardService;
+  workspace: WorkspaceService;
 };
 
 export const services: ServiceRegistry =
@@ -37,11 +45,13 @@ export const services: ServiceRegistry =
         searches: new ApiSearchService(),
         leads: new ApiLeadService(),
         dashboard: new ApiDashboardService(),
+        workspace: new ApiWorkspaceService(),
       }
     : {
         searches: new MockSearchService(),
         leads: new MockLeadService(),
         dashboard: new MockDashboardService(),
+        workspace: new MockWorkspaceService(),
       };
 
 export * from "./types";

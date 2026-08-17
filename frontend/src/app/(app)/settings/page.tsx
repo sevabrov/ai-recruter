@@ -1,6 +1,5 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
 import { Check, Database, Monitor, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
@@ -15,14 +14,41 @@ import { useTheme } from "@/lib/theme-provider";
 import { THEMES } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 import { DATA_SOURCE, IS_MOCK } from "@/services";
-import { resetMockState } from "@/services/mock/mock-db";
+import { API_BASE_URL } from "@/services/api/http";
+import { useBackendHealth, useResetWorkspace } from "@/services/hooks";
+import type { HealthStatus } from "@/services/types";
 
 /** Concurrency + provider settings are server-owned (spec §52); shown read-only. */
-const PROVIDERS = [
-  { name: "Brave Search", role: "Primary web search provider", phase: "Phase 4" },
-  { name: "ScrapeGraphAI", role: "Structured extraction from candidate pages", phase: "Phase 5" },
-  { name: "OpenAI", role: "Signal detection on extracted profiles", phase: "Phase 6" },
-  { name: "PostgreSQL + Redis", role: "Persistence and the worker queue", phase: "Phase 3 / 7" },
+const PROVIDERS: {
+  name: string;
+  role: string;
+  phase: string;
+  configured?: (health: HealthStatus) => boolean;
+}[] = [
+  {
+    name: "Brave Search",
+    role: "Primary web search provider",
+    phase: "Phase 4",
+    configured: (health) => health.providers.braveSearch,
+  },
+  {
+    name: "ScrapeGraphAI",
+    role: "Structured extraction from candidate pages",
+    phase: "Phase 5",
+    configured: (health) => health.providers.scrapegraph,
+  },
+  {
+    name: "OpenAI",
+    role: "Signal detection on extracted profiles",
+    phase: "Phase 6",
+    configured: (health) => health.providers.openai,
+  },
+  {
+    name: "PostgreSQL + Redis",
+    role: "Persistence and the worker queue",
+    phase: "Phase 3 / 7",
+    configured: (health) => health.storage === "postgres",
+  },
 ];
 
 const LIMITS = [
@@ -36,14 +62,26 @@ export default function SettingsPage() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [autoSaveHigh, setAutoSaveHigh] = useState(false);
   const [notifyDone, setNotifyDone] = useState(true);
-  const queryClient = useQueryClient();
   const { toast } = useToast();
+  const health = useBackendHealth();
+  const resetWorkspace = useResetWorkspace();
+
+  const sourceTone = IS_MOCK ? "warn" : health.isError ? "bad" : health.data ? "good" : "neutral";
 
   const reset = () => {
-    resetMockState();
-    queryClient.clear();
     setConfirmReset(false);
-    toast({ title: "Demo data reset", description: "Fixtures are back to their original state." });
+    resetWorkspace.mutate(undefined, {
+      onSuccess: () =>
+        toast({
+          title: "Demo data reset",
+          description: "Fixtures are back to their original state.",
+        }),
+      onError: (error) =>
+        toast({
+          title: "Reset failed",
+          description: error instanceof Error ? error.message : "The data source did not respond.",
+        }),
+    });
   };
 
   return (
@@ -139,32 +177,55 @@ export default function SettingsPage() {
           <CardHeader
             title="Data source"
             action={
-              <Badge tone={IS_MOCK ? "warn" : "good"} mono>
-                <Dot tone={IS_MOCK ? "warn" : "good"} />
+              <Badge tone={sourceTone} mono>
+                <Dot tone={sourceTone} />
                 {DATA_SOURCE}
               </Badge>
             }
           />
           <CardBody className="flex flex-col gap-4">
             <p className="text-sm text-fg-muted">
-              {IS_MOCK
-                ? "The app is running on in-browser fixtures. No search API, scraper or model is called. Switch by setting NEXT_PUBLIC_DATA_SOURCE=api once the backend is live."
-                : "The app is talking to the FastAPI backend."}
+              {IS_MOCK ? (
+                "The app is running on in-browser fixtures. No search API, scraper or model is called. Switch by setting NEXT_PUBLIC_DATA_SOURCE=api once the backend is live."
+              ) : health.isError ? (
+                <>
+                  No answer from <span className="font-mono text-xs">{API_BASE_URL}</span>. Start it
+                  with <span className="font-mono text-xs">docker compose up -d backend</span>.
+                </>
+              ) : health.data ? (
+                <>
+                  Connected to {health.data.service} v{health.data.version} (phase{" "}
+                  {health.data.phase}), storing data in {health.data.storage}. The{" "}
+                  {health.data.pipeline} pipeline is active.
+                </>
+              ) : (
+                "Connecting to the backend…"
+              )}
             </p>
 
             <div>
               <Eyebrow className="mb-2">Backend integrations</Eyebrow>
               <ul className="divide-y divide-line rounded-card border border-line">
-                {PROVIDERS.map((provider) => (
-                  <li key={provider.name} className="flex items-center gap-3 px-3.5 py-2.5">
-                    <Database className="size-3.5 shrink-0 text-fg-faint" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm">{provider.name}</span>
-                      <span className="block truncate text-xs text-fg-muted">{provider.role}</span>
-                    </span>
-                    <Badge>{provider.phase}</Badge>
-                  </li>
-                ))}
+                {PROVIDERS.map((provider) => {
+                  const configured = health.data ? provider.configured?.(health.data) : false;
+                  return (
+                    <li key={provider.name} className="flex items-center gap-3 px-3.5 py-2.5">
+                      <Database className="size-3.5 shrink-0 text-fg-faint" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm">{provider.name}</span>
+                        <span className="block truncate text-xs text-fg-muted">{provider.role}</span>
+                      </span>
+                      {configured ? (
+                        <Badge tone="good">
+                          <Dot tone="good" />
+                          configured
+                        </Badge>
+                      ) : (
+                        <Badge>{provider.phase}</Badge>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
@@ -212,7 +273,9 @@ export default function SettingsPage() {
         }
       >
         <p className="text-sm text-fg-muted">
-          This only touches browser storage — nothing is stored on a server in Phase 1.
+          {IS_MOCK
+            ? "This only touches browser storage — nothing is stored on a server in mock mode."
+            : "This re-seeds the backend workspace. Nothing outside this demo is affected."}
         </p>
       </Modal>
     </>

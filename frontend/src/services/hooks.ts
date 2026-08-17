@@ -26,6 +26,7 @@ import type {
 } from "@/services/types";
 
 export const queryKeys = {
+  health: ["health"] as const,
   dashboard: ["dashboard"] as const,
   searches: ["searches"] as const,
   search: (id: string) => ["search", id] as const,
@@ -34,6 +35,29 @@ export const queryKeys = {
   lead: (id: string) => ["lead", id] as const,
   facets: ["leads", "facets"] as const,
 };
+
+/**
+ * Liveness of whatever is answering. In API mode this is the difference between
+ * "no leads yet" and "the backend is not running", which the UI has to be able
+ * to tell the user.
+ */
+export function useBackendHealth() {
+  return useQuery({
+    queryKey: queryKeys.health,
+    queryFn: () => services.workspace.health(),
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+    retry: false,
+  });
+}
+
+export function useResetWorkspace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => services.workspace.reset(),
+    onSuccess: () => queryClient.clear(),
+  });
+}
 
 export function useDashboard() {
   return useQuery({

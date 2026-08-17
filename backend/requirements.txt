@@ -1,0 +1,10 @@
+# Runtime dependencies — Phase 2 (backend skeleton).
+#
+# Deliberately small. The stack from spec §4 arrives with the phase that needs
+# it: SQLAlchemy + asyncpg in Phase 3, celery + redis in Phase 7, the provider
+# SDKs (brave/scrapegraph/openai) in Phases 4–6.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.5
+pydantic-settings==2.7.1
