@@ -44,10 +44,15 @@ const PROVIDERS: {
     configured: (health) => health.providers.openai,
   },
   {
-    name: "PostgreSQL + Redis",
-    role: "Persistence and the worker queue",
-    phase: "Phase 3 / 7",
-    configured: (health) => health.storage === "postgres",
+    name: "PostgreSQL",
+    role: "Where searches, leads and notes live",
+    phase: "Phase 3",
+    configured: (health) => health.storage === "postgres" && health.database !== false,
+  },
+  {
+    name: "Redis + Celery",
+    role: "Distributed job queue for the workers",
+    phase: "Phase 7",
   },
 ];
 
@@ -66,7 +71,18 @@ export default function SettingsPage() {
   const health = useBackendHealth();
   const resetWorkspace = useResetWorkspace();
 
-  const sourceTone = IS_MOCK ? "warn" : health.isError ? "bad" : health.data ? "good" : "neutral";
+  // A backend whose database stopped answering is not "connected" — it is degraded,
+  // and saying so beats letting every screen fail with an empty state.
+  const degraded = health.data?.database === false;
+  const sourceTone = IS_MOCK
+    ? "warn"
+    : health.isError
+      ? "bad"
+      : degraded
+        ? "warn"
+        : health.data
+          ? "good"
+          : "neutral";
 
   const reset = () => {
     setConfirmReset(false);
@@ -192,10 +208,15 @@ export default function SettingsPage() {
                   No answer from <span className="font-mono text-xs">{API_BASE_URL}</span>. Start it
                   with <span className="font-mono text-xs">docker compose up -d backend</span>.
                 </>
+              ) : degraded ? (
+                <>
+                  {health.data?.service} is up but its database is not answering. Check it with{" "}
+                  <span className="font-mono text-xs">docker compose ps postgres</span>.
+                </>
               ) : health.data ? (
                 <>
                   Connected to {health.data.service} v{health.data.version} (phase{" "}
-                  {health.data.phase}), storing data in {health.data.storage}. The{" "}
+                  {health.data.phase}), storing the workspace in {health.data.storage}. The{" "}
                   {health.data.pipeline} pipeline is active.
                 </>
               ) : (
@@ -275,7 +296,7 @@ export default function SettingsPage() {
         <p className="text-sm text-fg-muted">
           {IS_MOCK
             ? "This only touches browser storage — nothing is stored on a server in mock mode."
-            : "This re-seeds the backend workspace. Nothing outside this demo is affected."}
+            : "This empties the workspace tables in PostgreSQL and re-applies the seed. Nothing outside this demo is affected."}
         </p>
       </Modal>
     </>

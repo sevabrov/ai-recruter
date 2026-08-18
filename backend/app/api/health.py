@@ -12,13 +12,18 @@ router = APIRouter(tags=["health"])
 @router.get("/health", response_model=HealthOut)
 async def health(container: ContainerDep) -> HealthOut:
     settings = container.settings
+    # A health check that does not touch the database would report "ok" while every
+    # other endpoint fails, so this one asks it a question.
+    database = await container.repository.ping()
+
     return HealthOut(
-        status="ok",
+        status="ok" if database else "degraded",
         service=settings.app_name,
         version=settings.version,
         phase=settings.phase,
         pipeline=pipeline_mode(settings),
-        storage="memory",
+        storage="postgres",
+        database=database,
         # Booleans only — a key's presence is public, its value never is.
         providers=ProviderStatus(
             brave_search=bool(settings.brave_search_api_key),

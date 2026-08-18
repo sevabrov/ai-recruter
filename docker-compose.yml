@@ -3,15 +3,15 @@
 # Nothing is installed on the host: the API, PostgreSQL and Redis all run in
 # containers and keep their data in named volumes.
 #
-#   docker compose up -d backend  start just the API (all Phase 2 needs)
-#   docker compose up -d          also start Postgres, Redis and Adminer
+#   docker compose up -d backend  the API and the database it depends on
+#   docker compose up -d          also start Redis and Adminer
 #   docker compose ps             check health
 #   docker compose down           stop (data survives)
 #   docker compose down -v        stop and delete the data volumes
 #
-# Postgres and Redis are not used yet: Phase 3 gives the backend a database and
-# Phase 7 moves jobs onto Redis. They are here so those phases start with one
-# command.
+# Postgres is the store as of Phase 3 — the API migrates itself on start, so an
+# empty volume needs no extra step. Redis is still unused: Phase 7 moves jobs onto
+# it. Adminer is a browser SQL client, so no database GUI is needed on the host.
 
 name: ai-recruiter
 
@@ -67,18 +67,24 @@ services:
     ports:
       - "${ADMINER_PORT:-8081}:8080"
 
-  # ------------------------------------------------------------------ Phase 2
-  # The API. Deliberately independent of postgres and redis: Phase 2 keeps state
-  # in memory, so `docker compose up -d backend` is enough to run the product.
+  # ------------------------------------------------------------------ the API
+  # `docker compose up -d backend` starts postgres too and waits for it to be
+  # healthy, then the API migrates the schema and seeds an empty database once.
   backend:
     build: ./backend
     container_name: air-backend
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     env_file:
       - path: .env
         required: false
     environment:
-      # Compose-only defaults; everything else comes from .env (spec §22).
+      # Compose-only values; everything else comes from .env (spec §22). The .env
+      # DATABASE_URL is host-side (localhost), so inside the network it is replaced
+      # by the service name.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-airecruiter}:${POSTGRES_PASSWORD:-airecruiter}@postgres:5432/${POSTGRES_DB:-airecruiter}
       CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
     ports:
       - "${BACKEND_PORT:-8000}:8000"
@@ -86,8 +92,10 @@ services:
       # Edit on the host, reload in the container.
       - ./backend/app:/app/app
       - ./backend/tests:/app/tests
-      # pytest and ruff read their configuration from here.
+      - ./backend/alembic:/app/alembic
+      # pytest, ruff and alembic read their configuration from here.
       - ./backend/pyproject.toml:/app/pyproject.toml:ro
+      - ./backend/alembic.ini:/app/alembic.ini:ro
     command:
       ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 

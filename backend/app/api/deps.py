@@ -14,9 +14,13 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from fastapi import Depends, Request
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import Settings, get_settings
-from app.db.memory import InMemoryRepository
+from app.core.logging import get_logger
+from app.db.bootstrap import upgrade_schema_async
+from app.db.engine import create_engine, create_session_factory
+from app.db.postgres import PostgresRepository
 from app.db.repository import Repository
 from app.db.seed import SeedData, load_seed
 from app.services.adapters import (
@@ -33,11 +37,14 @@ from app.services.search.query_generator import TemplateQueryGenerator
 from app.services.search.search_service import SearchService
 from app.workers.job_service import JobService
 
+log = get_logger(__name__)
+
 
 @dataclass
 class Container:
     settings: Settings
     seed: SeedData
+    engine: AsyncEngine
     repository: Repository
     jobs: JobService
     searches: SearchService
@@ -47,9 +54,15 @@ class Container:
 
 
 def build_container(settings: Settings | None = None) -> Container:
+    """
+    Wires everything together. Nothing here touches the network: the engine only
+    opens connections when a session is used, so building a container is cheap and
+    `open_container` owns the part that can fail.
+    """
     settings = settings or get_settings()
     seed = load_seed(settings.dev_user_id)
-    repository = InMemoryRepository(seed)
+    engine = create_engine(settings)
+    repository = PostgresRepository(create_session_factory(engine), seed)
 
     scoring = ScoringService()
     query_generator = TemplateQueryGenerator()
@@ -74,6 +87,7 @@ def build_container(settings: Settings | None = None) -> Container:
     return Container(
         settings=settings,
         seed=seed,
+        engine=engine,
         repository=repository,
         jobs=jobs,
         searches=searches,
@@ -81,6 +95,22 @@ def build_container(settings: Settings | None = None) -> Container:
         outreach=OutreachService(),
         dashboard=DashboardService(searches, leads, seed),
     )
+
+
+async def open_container(settings: Settings | None = None) -> Container:
+    """Build it, bring the schema up to date and seed an empty database once."""
+    container = build_container(settings)
+    if container.settings.run_migrations_on_startup:
+        await upgrade_schema_async(container.settings.database_url)
+    if await container.repository.ensure_seeded():
+        log.info("workspace_seeded")
+    return container
+
+
+async def close_container(container: Container) -> None:
+    """In-flight jobs stop first, then the pool is returned to the database."""
+    await container.jobs.shutdown()
+    await container.engine.dispose()
 
 
 def get_container(request: Request) -> Container:

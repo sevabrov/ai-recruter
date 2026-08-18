@@ -15,7 +15,7 @@ from typing import Annotated
 from fastapi import Depends, Query
 
 from app.models.common import LeadSort, LeadStatus, Platform, SignalType
-from app.services.leads.lead_service import LeadQuery
+from app.models.query import LeadQuery
 
 
 def lead_filters(

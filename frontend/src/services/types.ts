@@ -317,6 +317,8 @@ export interface HealthStatus {
   /** "fixture" until the real providers are configured (Phases 4–6). */
   pipeline: "fixture" | "live";
   storage: "browser" | "memory" | "postgres";
+  /** Whether the store answered a query just now (API mode only). */
+  database?: boolean;
   /** Whether a provider key is configured — never the key itself. */
   providers: { braveSearch: boolean; scrapegraph: boolean; openai: boolean };
 }

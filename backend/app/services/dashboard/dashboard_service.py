@@ -6,14 +6,14 @@ demo pretends older searches were pruned. Anything the user does on top of that
 is counted for real, so the tiles react to their own actions: start a search and
 the counts move, save a lead and the saved tile moves with it.
 
-Phase 3 replaces the Python arithmetic with SQL aggregates over the same numbers.
+Since Phase 3 the counting is done by the database: three COUNTs in one statement
+instead of loading every lead into Python to add them up.
 """
 
 from app.db.seed import SeedData
-from app.models.common import HIGH_QUALITY_THRESHOLD
 from app.schemas.dashboard import DashboardOut, DashboardStat, DashboardStats
 from app.schemas.search import SearchSummaryOut
-from app.services.leads.lead_service import LeadQuery, LeadService
+from app.services.leads.lead_service import LeadService
 from app.services.search.search_service import SearchService
 
 RECENT_LIMIT = 5
@@ -34,22 +34,19 @@ class DashboardService:
 
     async def get(self, user_id: str) -> DashboardOut:
         searches = await self.searches.list(user_id)
-        page = await self.leads.list(user_id, LeadQuery(page_size=10_000, include_archived=True))
-        leads = page.items
+        # Two aggregates: everything the user added on top of the seed, and the
+        # whole workspace (the saved tile counts seeded leads the user saved too).
+        own = await self.leads.stats(user_id, exclude_search_ids=sorted(self._seeded_search_ids))
+        everything = await self.leads.stats(user_id)
 
         own_searches = [s for s in searches if s.id not in self._seeded_search_ids]
-        own_leads = [lead for lead in leads if lead.search_id not in self._seeded_search_ids]
-        saved_now = sum(1 for lead in leads if lead.saved)
 
         base = self.seed.stats
         stats = DashboardStats(
-            total_leads=_bump(base["totalLeads"], len(own_leads)),
-            high_quality=_bump(
-                base["highQuality"],
-                sum(1 for lead in own_leads if lead.score >= HIGH_QUALITY_THRESHOLD),
-            ),
+            total_leads=_bump(base["totalLeads"], own.total),
+            high_quality=_bump(base["highQuality"], own.high_quality),
             searches=_bump(base["searches"], len(own_searches)),
-            saved_leads=_saved(base["savedLeads"], saved_now, self._seeded_saved),
+            saved_leads=_saved(base["savedLeads"], everything.saved, self._seeded_saved),
         )
 
         return DashboardOut(

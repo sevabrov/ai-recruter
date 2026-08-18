@@ -12,12 +12,15 @@ class ProviderStatus(CamelModel):
 
 
 class HealthOut(CamelModel):
+    #: "degraded" when the API is up but the database is not answering.
     status: str = "ok"
     service: str
     version: str
     phase: int
     #: "fixture" until Phase 4–6 replace the stub adapters with real providers.
     pipeline: str
-    #: "memory" until Phase 3 introduces PostgreSQL.
+    #: Where the workspace lives — "postgres" since Phase 3.
     storage: str
+    #: Whether the store just answered a query, not whether one is configured.
+    database: bool = True
     providers: ProviderStatus

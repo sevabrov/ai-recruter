@@ -8,8 +8,12 @@ byte-for-byte instead of being re-typed here. Regenerate with:
     node --experimental-strip-types --import ./register.mjs dump.mjs fixtures.json
 
 Timestamps are rebased on load: the newest fixture moment becomes "now", which
-keeps "3 hours ago" honest however long the file sits in git. Phase 3 loads the
-same file into PostgreSQL once, instead of on every boot.
+keeps "3 hours ago" honest however long the file sits in git.
+
+Since Phase 3 this file is *inserted once*, on the first boot against an empty
+database (`PostgresRepository.ensure_seeded`), so the demo workspace ages like real
+data from then on: it is a database, not a fixture replayed on every restart.
+`POST /admin/reset` re-applies it with the timestamps as rebased at startup.
 """
 
 import json
@@ -33,6 +37,7 @@ class SeedData:
     """The parsed seed: entities plus the aggregates the dashboard starts from."""
 
     def __init__(self, raw: dict[str, Any], user_id: str) -> None:
+        self.user_id = user_id
         shifted = _rebase(raw)
         self.searches: list[Search] = [_to_search(entry, user_id) for entry in shifted["searches"]]
         self.leads: list[Lead] = [_to_lead(entry, user_id) for entry in shifted["leads"]]

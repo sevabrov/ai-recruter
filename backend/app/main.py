@@ -3,11 +3,11 @@ AI Recruiter API — application entry point.
 
     uvicorn app.main:app --reload        (or: docker compose up -d backend)
 
-Phase 2 scope: the endpoints from spec §57 behind the contract the frontend
-already speaks, with the search pipeline running end to end on fixture adapters.
-No external service is called and no database is required — see `services/adapters.py`
-for exactly where the real providers plug in, and README.md for what each later
-phase replaces.
+Phase 3 scope: the endpoints from spec §57 behind the contract the frontend already
+speaks, the search pipeline running end to end, and PostgreSQL underneath — a
+restart no longer loses the workspace. No external service is called yet: see
+`services/adapters.py` for exactly where the real providers plug in, and README.md
+for what each later phase replaces.
 """
 
 from contextlib import asynccontextmanager
@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin, dashboard, health, jobs, leads, searches
-from app.api.deps import build_container
+from app.api.deps import close_container, open_container
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger
@@ -29,31 +29,25 @@ async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
     configure_logging("DEBUG" if settings.debug else "INFO")
 
-    container = build_container(settings)
+    container = await open_container(settings)
     app.state.container = container
-    log.info(
-        "api_started",
-        extra={
-            "phase": settings.phase,
-            "searches": len(container.seed.searches),
-            "leads": len(container.seed.leads),
-        },
-    )
+    log.info("api_started", extra={"phase": settings.phase, "storage": "postgres"})
 
     if settings.resume_running_searches:
         await _resume_interrupted(container)
 
     yield
 
-    await container.jobs.shutdown()
+    await close_container(container)
     log.info("api_stopped")
 
 
 async def _resume_interrupted(container) -> None:
     """
-    The seed contains a search that was still running when it was captured, and a
-    real restart can leave one behind too. Re-queueing them is what a worker pool
-    does on boot — nothing should sit frozen at 58%.
+    Now that searches are persisted this matters for real: a search interrupted by
+    a restart is stored mid-flight, and re-queueing it is what a worker pool does on
+    boot — nothing should sit frozen at 58%. (The seed contains one such search, so
+    the behaviour is visible on the very first start.)
     """
     for search in await container.repository.list_searches(container.settings.dev_user_id):
         if search.is_running:

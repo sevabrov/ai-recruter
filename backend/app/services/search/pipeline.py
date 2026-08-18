@@ -4,10 +4,10 @@ The search pipeline (spec §44).
     criteria → queries → provider → normalize → dedup URLs → candidate discovery
             → extraction → signal detection → scoring → lead dedup → storage
 
-Every arrow is real code here. What is *not* real in Phase 2 is the three
-adapters at the edges — the search provider, the extractor and the signal
-detector are fixture implementations (see `services/adapters.py`). Phases 4–6
-replace those three objects; this file does not change.
+Every arrow is real code here. What is *not* real yet is the three adapters at the
+edges — the search provider, the extractor and the signal detector are fixture
+implementations (see `services/adapters.py`). Phases 4–6 replace those three
+objects; this file does not change. Storage is real: `→ storage` is PostgreSQL.
 
 Two properties matter more than the stub data:
 
@@ -317,26 +317,18 @@ class SearchPipeline:
 
     async def _patch(self, search_id: str, **updates: object) -> Search | None:
         """
-        Read-modify-write against the store, so a cancel that landed between two
-        stages is never overwritten by stale progress. Returns None when the
-        search is gone or no longer running — the caller then stops.
+        A single locked read-modify-write in the store, so a cancel that landed
+        between two stages is never overwritten by stale progress. Returns None
+        when the search is gone or already finished — the caller then stops.
         """
-        current = await self.repo.get_search(search_id)
-        if current is None:
-            return None
-        if current.status in (SearchStatus.CANCELLED, SearchStatus.FAILED):
-            return None
-        updated = current.model_copy(update=updates)
-        await self.repo.save_search(updated)
-        return updated
+        return await self.repo.patch_search(search_id, updates)
 
     async def _mark_cancelled(self, search_id: str) -> None:
         current = await self.repo.get_search(search_id)
         if current and current.is_running:
-            await self.repo.save_search(
-                current.model_copy(
-                    update={"status": SearchStatus.CANCELLED, "completed_at": datetime.now(UTC)}
-                )
+            await self.repo.patch_search(
+                search_id,
+                {"status": SearchStatus.CANCELLED, "completed_at": datetime.now(UTC)},
             )
 
     def _costed(self) -> SearchUsage:

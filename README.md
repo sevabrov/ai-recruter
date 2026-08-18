@@ -3,28 +3,26 @@
 AI-assisted lead discovery across the **public web**: search criteria in, scored
 candidates with evidence out.
 
-**Current state: Phase 2 — backend skeleton.** The FastAPI service is live and
-the frontend runs against it: the browser talks to `http://localhost:8000`, and
-the whole workflow (dashboard → wizard → search → results → lead → save) works
-over HTTP.
+**Current state: Phase 3 — PostgreSQL.** The FastAPI service is live, the frontend
+runs against it, and the workspace is now stored: searches, leads, notes, statuses
+and job history survive `docker compose restart backend`. The whole workflow
+(dashboard → wizard → search → results → lead → save) works over HTTP.
 
-Still no external service and no database. Web search, page extraction and
-signal detection are fixture adapters — the pipeline around them is real, and
-`/health` reports `"pipeline": "fixture"` so demo output is never mistaken for
-live results.
+Still no external service. Web search, page extraction and signal detection are
+fixture adapters — the pipeline around them is real, and `/health` reports
+`"pipeline": "fixture"` so demo output is never mistaken for live results.
 
 ```
 ai-recruiter/
 ├── frontend/               Next.js 16 · React 19 · TypeScript · Tailwind 4 · Radix UI
 │                           TanStack Query · Zustand
-├── backend/                FastAPI · Pydantic · pytest — the API and the search pipeline
+├── backend/                FastAPI · SQLAlchemy · Alembic · pytest — API, pipeline, schema
 ├── docker-compose.yml      backend + PostgreSQL 17 + Redis 7 + Adminer (nothing on the host)
 ├── infra/postgres/init/    extensions created on first container start
 └── .env.example            server-side config: DB, Redis, provider keys, limits
 ```
 
-Postgres and Redis are running-ready but unused: Phase 3 gives the backend a
-database, Phase 7 gives it workers.
+Redis is running-ready but unused: Phase 7 moves jobs onto it.
 
 ---
 
@@ -33,7 +31,7 @@ database, Phase 7 gives it workers.
 Two commands: the API in Docker, the frontend on Node 22+ (`nvm use 22`).
 
 ```bash
-docker compose up -d backend      # API on http://localhost:8000
+docker compose up -d backend      # API on http://localhost:8000 (starts postgres too)
 
 cd frontend
 npm install                       # already done if you cloned with node_modules
@@ -41,9 +39,11 @@ cp .env.local.example .env.local  # NEXT_PUBLIC_DATA_SOURCE=api
 npm run dev                       # http://localhost:3000
 ```
 
-If the API is not running the app says so in the sidebar and in Settings rather
-than looking empty. To work without it, set `NEXT_PUBLIC_DATA_SOURCE=mock` and
-restart `npm run dev` — the Phase 1 fixtures still work.
+The API migrates its schema on start and seeds an empty database once, so the first
+run needs nothing extra. If the API — or its database — is not running, the app says
+so in the sidebar and in Settings rather than looking empty. To work without a
+backend at all, set `NEXT_PUBLIC_DATA_SOURCE=mock` and restart `npm run dev`; the
+Phase 1 fixtures still work.
 
 Other commands:
 
@@ -55,8 +55,9 @@ npx eslint .                                             # lint
 
 # backend (nothing installed on the host)
 docker compose logs -f backend                           # structured JSON logs
-docker compose run --rm --no-deps backend pytest -q      # 79 tests
+docker compose run --rm backend pytest -q                # 91 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .   # lint
+docker compose run --rm backend alembic current          # schema revision
 docker compose build backend                             # after a dependency change
 ```
 
@@ -64,15 +65,17 @@ API docs are served at <http://localhost:8000/docs>.
 
 ### Databases (Docker, nothing local)
 
-Not needed yet — here so Phase 3 starts with one command.
-
 ```bash
-cp .env.example .env
+cp .env.example .env           # optional: the defaults already work
 docker compose up -d           # backend :8000, postgres :5432, redis :6379, adminer :8081
 docker compose ps              # health
 docker compose down            # stop, data kept in named volumes
-docker compose down -v         # stop and wipe data
+docker compose down -v         # stop and wipe the workspace
 ```
+
+The workspace lives in the `postgres-data` volume. To start over from the seed,
+either `POST /admin/reset` (the *Reset demo data* button in Settings) or
+`docker compose down -v && docker compose up -d backend`.
 
 Adminer opens at <http://localhost:8081> (server `postgres`, user/password from
 `.env`).
@@ -132,7 +135,7 @@ the backend arrived.
 * [backend/app/schemas/](backend/app/schemas/) — the same contract in Pydantic; camelCase over the
   wire, snake_case query parameters.
 
-Three rules the product follows in both modes:
+Four rules the product follows in both modes:
 
 * **Scores are computed, not authored.** [backend/app/services/scoring/scoring_service.py](backend/app/services/scoring/scoring_service.py)
   turns `confidence × weight` into points. The model detects signals; code does
@@ -142,6 +145,10 @@ Three rules the product follows in both modes:
 * **Keys never reach the browser.** Brave, ScrapeGraphAI and OpenAI keys are read
   by the backend only; `/health` reports whether one is configured, never its
   value.
+* **Questions travel to the store, not rows to Python.** The `/leads` filters,
+  sorting and paging are one SQL statement behind
+  [backend/app/db/repository.py](backend/app/db/repository.py) — the protocol the
+  services depend on, so nothing above it knows there is a database.
 
 ### Where the real providers plug in
 
@@ -168,7 +175,7 @@ spec, which is the fastest way to walk the whole flow.
 
 ---
 
-## Known limitations (Phase 2, by design)
+## Known limitations (Phase 3, by design)
 
 * **No new people are discovered.** The search provider and the extractor are
   fixtures over a seeded catalogue of 24 candidates. A search runs the real
@@ -177,14 +184,16 @@ spec, which is the fastest way to walk the whole flow.
   Phase 4–5.
 * **Signals come from the seed, not a model.** The scoring, evidence and
   breakdown are real; detecting the signals is Phase 6.
-* **Nothing is persisted.** State lives in the API process, so a
-  `docker compose restart backend` returns to the seed. Phase 3 adds PostgreSQL.
-* **Jobs run inside the API process** as asyncio tasks. Concurrent searches
-  already do not block each other, but they do not survive a restart and cannot
-  scale across machines. Phase 7 moves them to Celery + Redis.
-* **No authentication.** Every request is attributed to one demo user, though
+* **Jobs run inside the API process** as asyncio tasks. Concurrent searches do not
+  block each other and the job records are now persisted, but a restart cannot
+  resume a job in the middle of a stage — it re-queues the whole search — and they
+  cannot scale across machines. Phase 7 moves them to Celery + Redis.
+* **The dashboard's charts stay seeded.** The tiles are counted by the database and
+  react to what you do; the source split, score distribution and weekly curve are
+  still the fixture aggregates.
+* **No authentication.** Every request is attributed to one demo user row, though
   every query is already scoped by `user_id`. Phase 8.
-* **Outreach drafts come from a template**, not a model.
+* **Outreach drafts come from a template**, not a model, and are not stored.
 * **Search runs are paced deliberately** (`PIPELINE_STEP_DELAY_MS=250`): fixture
   adapters answer instantly and the progress screen would otherwise never be seen.
 * **Export, bulk actions and pagination controls are not built** (the API supports
@@ -192,8 +201,9 @@ spec, which is the fastest way to walk the whole flow.
 
 ---
 
-## Next: Phase 3
+## Next: Phase 4
 
-Database — PostgreSQL behind the existing `Repository` protocol, the entities
-from spec §23, and the seed loaded once instead of on every boot. The services
-and the API do not change.
+Real web search — `BraveSearchProvider` behind the existing `SearchProvider`
+interface, used as soon as `BRAVE_SEARCH_API_KEY` is set, with the fixture provider
+staying as the fallback. That is the phase where searches start finding people the
+seed has never heard of. Nothing above `services/adapters.py` changes.

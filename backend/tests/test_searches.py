@@ -4,7 +4,7 @@ Search lifecycle — the flow the client clicks through (spec §12–14, §39, �
 
 import time
 
-from tests.conftest import MIHI_SPAIN, run_search, start_search, wait_for
+from tests.conftest import MIHI_SPAIN, run_search, start_search, wait_for, wait_for_job
 
 
 def test_create_returns_immediately_with_a_queued_search(client):
@@ -163,8 +163,7 @@ def test_invalid_criteria_are_rejected(client):
 def test_jobs_are_recorded_for_every_search(client):
     search = run_search(client)
 
-    jobs = client.get("/jobs").json()
-    job = next(entry for entry in jobs["items"] if entry["searchId"] == search["id"])
+    job = wait_for_job(client, search["id"])
 
     assert job["kind"] == "run_search"
     assert job["status"] == "succeeded"

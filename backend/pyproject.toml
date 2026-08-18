@@ -22,3 +22,13 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 # Typographic dashes and § are deliberate: comments cite spec sections verbatim,
 # and the seeded fixtures are multilingual.
 ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+# Migrations are generated: `op.create_table(...)` lines are left as Alembic wrote
+# them, so a future autogenerate produces a clean diff instead of reformatting.
+"alembic/versions/*.py" = ["E501"]
+
+[tool.ruff.lint.isort]
+# There is an `alembic/` directory in this project, but `import alembic` is the
+# tool, not local code.
+known-third-party = ["alembic"]

@@ -85,21 +85,35 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 function DataSourceFooter() {
   const { data, isError, isPending } = useBackendHealth();
 
-  const tone = IS_MOCK ? "warn" : isError ? "bad" : isPending ? "neutral" : "good";
+  const degraded = data?.database === false;
+
+  const tone = IS_MOCK
+    ? "warn"
+    : isError
+      ? "bad"
+      : isPending
+        ? "neutral"
+        : degraded
+          ? "warn"
+          : "good";
   const title = IS_MOCK
     ? "Phase 1 · mock data"
     : isError
       ? "Backend unreachable"
       : isPending
         ? "Connecting…"
-        : `Live backend · v${data?.version}`;
+        : degraded
+          ? "Database unreachable"
+          : `Live backend · v${data?.version}`;
   const detail = IS_MOCK
     ? "No external services are called. Every number is fixture data."
     : isError
       ? `No answer from ${API_BASE_URL}. Start it with: docker compose up -d backend`
-      : data?.pipeline === "fixture"
-        ? "Connected. Search providers are not configured yet, so results come from the seeded catalogue."
-        : "Connected to the FastAPI backend.";
+      : degraded
+        ? "The API is running but PostgreSQL is not answering: docker compose up -d postgres"
+        : data?.pipeline === "fixture"
+          ? "Connected. Search providers are not configured yet, so results come from the seeded catalogue."
+          : "Connected to the FastAPI backend.";
 
   return (
     <div className="border-t border-line px-4 py-3">

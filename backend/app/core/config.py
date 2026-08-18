@@ -21,8 +21,8 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ app
     app_name: str = "ai-recruiter-api"
-    version: str = "0.2.0"
-    phase: int = 2
+    version: str = "0.3.0"
+    phase: int = 3
     debug: bool = True
 
     # Browsers must be able to talk to us with credentials, so origins are
@@ -34,9 +34,19 @@ class Settings(BaseSettings):
     dev_user_id: str = "user_demo"
 
     # ------------------------------------------------------------ persistence
-    # Unused in Phase 2 (the repository is in-memory) — declared so Phase 3 only
-    # has to swap the implementation.
+    # The default is the host-side URL, so `uvicorn app.main:app` on a laptop finds
+    # the compose Postgres. Inside compose the service name is passed in instead.
     database_url: str = "postgresql+asyncpg://airecruiter:airecruiter@localhost:5432/airecruiter"
+    # The pool has to cover the pipeline's per-stage workers (see the concurrency
+    # limits below) plus the requests arriving while a search runs.
+    db_pool_size: int = 10
+    db_max_overflow: int = 10
+    #: Log every statement. Useful when a query looks wrong, far too loud otherwise.
+    db_echo: bool = False
+    #: `alembic upgrade head` during startup, so one command brings up a new volume.
+    run_migrations_on_startup: bool = True
+
+    # Phase 7 (Celery broker). Not connected yet.
     redis_url: str = "redis://localhost:6379/0"
 
     # -------------------------------------------------------------- providers

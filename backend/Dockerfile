@@ -4,7 +4,8 @@
 # all live in here.
 #
 #   docker compose up -d backend                     http://localhost:8000
-#   docker compose run --rm backend pytest -q        run the suite
+#   docker compose run --rm backend pytest -q        run the suite (needs postgres)
+#   docker compose run --rm backend alembic current  schema revision
 #
 # Dev dependencies are part of the image on purpose — this is the phase where the
 # suite is run inside the container. A slim production target (runtime deps only,
@@ -23,7 +24,8 @@ WORKDIR /app
 COPY requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
-COPY pyproject.toml ./
+COPY pyproject.toml alembic.ini ./
+COPY alembic ./alembic
 COPY app ./app
 COPY tests ./tests
 
