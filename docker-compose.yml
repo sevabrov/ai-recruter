@@ -12,6 +12,10 @@
 # Postgres is the store as of Phase 3 — the API migrates itself on start, so an
 # empty volume needs no extra step. Redis is still unused: Phase 7 moves jobs onto
 # it. Adminer is a browser SQL client, so no database GUI is needed on the host.
+#
+# Nothing here calls out to the internet unless `.env` carries a provider key:
+# with BRAVE_SEARCH_API_KEY set, searches query the live web (Phase 4); without
+# one they run over the seeded catalogue.
 
 name: ai-recruiter
 

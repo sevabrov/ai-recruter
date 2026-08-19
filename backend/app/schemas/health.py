@@ -11,14 +11,26 @@ class ProviderStatus(CamelModel):
     openai: bool
 
 
+class StageStatus(CamelModel):
+    """
+    Which adapter is behind each pipeline stage, so "is this real?" is answerable
+    from outside: `search: "brave"` is the live web, `"fixture"` is the catalogue.
+    """
+
+    search: str
+    extraction: str
+    signals: str
+
+
 class HealthOut(CamelModel):
     #: "degraded" when the API is up but the database is not answering.
     status: str = "ok"
     service: str
     version: str
     phase: int
-    #: "fixture" until Phase 4–6 replace the stub adapters with real providers.
+    #: "fixture" (nothing external), "partial" (some stages live) or "live".
     pipeline: str
+    stages: StageStatus
     #: Where the workspace lives — "postgres" since Phase 3.
     storage: str
     #: Whether the store just answered a query, not whether one is configured.

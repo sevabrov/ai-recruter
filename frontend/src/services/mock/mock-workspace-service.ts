@@ -12,6 +12,7 @@ export class MockWorkspaceService implements WorkspaceService {
       phase: 1,
       pipeline: "fixture",
       storage: "browser",
+      stages: { search: "fixture", extraction: "fixture", signals: "fixture" },
       providers: { braveSearch: false, scrapegraph: false, openai: false },
     };
   }

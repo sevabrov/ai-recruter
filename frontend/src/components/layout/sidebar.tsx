@@ -113,7 +113,9 @@ function DataSourceFooter() {
         ? "The API is running but PostgreSQL is not answering: docker compose up -d postgres"
         : data?.pipeline === "fixture"
           ? "Connected. Search providers are not configured yet, so results come from the seeded catalogue."
-          : "Connected to the FastAPI backend.";
+          : data?.stages?.search && data.stages.search !== "fixture"
+            ? `Connected. New searches query the live web through ${data.stages.search}.`
+            : "Connected to the FastAPI backend.";
 
   return (
     <div className="border-t border-line px-4 py-3">

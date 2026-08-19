@@ -21,6 +21,9 @@ CONNECTION_FAILURES = (OSError, InterfaceError, OperationalError, DisconnectionE
 class AppError(Exception):
     status_code = 500
     code = "internal_error"
+    #: Whether doing the exact same thing again could succeed. `core/retry.py`
+    #: reads this, so "the key is wrong" costs one call instead of three.
+    retryable = False
 
     def __init__(self, message: str, **context: object) -> None:
         super().__init__(message)
@@ -41,10 +44,26 @@ class ConflictError(AppError):
 
 
 class ProviderError(AppError):
-    """An external provider failed after exhausting retries (Phase 4+)."""
+    """
+    An external provider failed. The default is *not* retryable: a query the
+    provider refused will be refused again. The subclasses below say otherwise.
+    """
 
     status_code = 502
     code = "provider_error"
+
+
+class ProviderUnavailableError(ProviderError):
+    """A timeout, a rate limit or a 5xx — the same call may well work in a moment."""
+
+    code = "provider_unavailable"
+    retryable = True
+
+
+class ProviderAuthError(ProviderError):
+    """The provider rejected our credentials. Retrying spends calls for nothing."""
+
+    code = "provider_auth_failed"
 
 
 class StorageError(AppError):

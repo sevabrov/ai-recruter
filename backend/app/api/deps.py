@@ -27,12 +27,14 @@ from app.services.adapters import (
     build_profile_extractor,
     build_search_provider,
     build_signal_detector,
+    use_live_search,
 )
 from app.services.dashboard.dashboard_service import DashboardService
 from app.services.leads.lead_service import LeadService
 from app.services.leads.outreach import OutreachService
 from app.services.scoring.scoring_service import ScoringService
 from app.services.search.pipeline import SearchPipeline
+from app.services.search.providers.base import SearchProvider
 from app.services.search.query_generator import TemplateQueryGenerator
 from app.services.search.search_service import SearchService
 from app.workers.job_service import JobService
@@ -46,6 +48,7 @@ class Container:
     seed: SeedData
     engine: AsyncEngine
     repository: Repository
+    provider: SearchProvider
     jobs: JobService
     searches: SearchService
     leads: LeadService
@@ -68,13 +71,24 @@ def build_container(settings: Settings | None = None) -> Container:
     query_generator = TemplateQueryGenerator()
     catalogue = seed.catalogue
 
+    # The provider is shared by every job on purpose: it owns the connection pool
+    # and the per-key rate limiter, neither of which may be duplicated per search.
+    provider = build_search_provider(settings, catalogue)
+    # Demo pacing is for fixtures. Real providers bring their own latency, and
+    # adding a quarter of a second per step to it would be nothing but a delay.
+    pipeline_settings = (
+        settings.model_copy(update={"pipeline_step_delay_ms": 0})
+        if use_live_search(settings)
+        else settings
+    )
+
     def pipeline_factory() -> SearchPipeline:
         # One pipeline per job: it holds that run's progress and usage counters.
         return SearchPipeline(
             repository=repository,
-            settings=settings,
+            settings=pipeline_settings,
             query_generator=query_generator,
-            provider=build_search_provider(settings, catalogue),
+            provider=provider,
             extractor=build_profile_extractor(settings, catalogue),
             detector=build_signal_detector(settings),
             scoring=scoring,
@@ -89,6 +103,7 @@ def build_container(settings: Settings | None = None) -> Container:
         seed=seed,
         engine=engine,
         repository=repository,
+        provider=provider,
         jobs=jobs,
         searches=searches,
         leads=leads,
@@ -108,8 +123,12 @@ async def open_container(settings: Settings | None = None) -> Container:
 
 
 async def close_container(container: Container) -> None:
-    """In-flight jobs stop first, then the pool is returned to the database."""
+    """
+    In-flight jobs stop first — they are the only thing still using the provider's
+    sockets or the database pool — then both are released.
+    """
     await container.jobs.shutdown()
+    await container.provider.aclose()
     await container.engine.dispose()
 
 

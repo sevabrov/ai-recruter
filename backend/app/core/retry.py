@@ -1,9 +1,13 @@
 """
 Retry with exponential backoff (spec §51).
 
-External services will fail; nothing may retry forever. The fixture adapters of
-Phase 2 never fail, so this wrapper is currently a straight pass-through — it
-exists because Phases 4–6 wrap every provider call in it.
+External services will fail, and nothing may retry forever. Two rules:
+
+* the number of attempts is bounded by configuration (`MAX_RETRIES`);
+* an error that says "this will fail again" is not retried at all — a rejected
+  API key or a malformed query costs one call, not three. Errors advertise that
+  themselves through `AppError.retryable`, so this module needs no list of
+  provider-specific status codes.
 """
 
 import asyncio
@@ -30,6 +34,14 @@ async def retry_async(
             return await operation()
         except retry_on as error:
             last = error
+            # Unknown failures (a timeout, a dropped socket) are worth another go;
+            # a domain error only is when it says so.
+            if not getattr(error, "retryable", True):
+                log.warning(
+                    "retry_pointless",
+                    extra={"label": label, "error": type(error).__name__},
+                )
+                raise
             if attempt >= attempts:
                 break
             delay = base_delay * 2 ** (attempt - 1)

@@ -10,8 +10,11 @@ which is enough to make the pipeline behave like the real thing:
 * every query also returns non-people (a post, a company page, a shop), so
   candidate discovery has to reject something
 
-No network, no keys, deterministic for a given query. Phase 4 deletes it from the
-registry and nothing else changes.
+No network, no keys, deterministic for a given query. Since Phase 4 it is the
+fallback rather than the default: it runs when no `BRAVE_SEARCH_API_KEY` is
+configured (or `SEARCH_PROVIDER=fixture` asks for it), which keeps the demo — and
+the test suite — working without a paid account. `SearchMarket` is ignored: the
+catalogue has no index to point at a country.
 """
 
 import hashlib
@@ -19,7 +22,7 @@ import hashlib
 from app.models.common import Platform
 from app.models.lead import Lead
 from app.models.source import ProviderResult
-from app.services.search.providers.base import SearchProvider
+from app.services.search.providers.base import SearchMarket, SearchProvider
 
 SITE_PLATFORMS: dict[str, Platform] = {
     "instagram.com": Platform.INSTAGRAM,
@@ -43,7 +46,9 @@ class FixtureSearchProvider(SearchProvider):
         self._catalogue = catalogue
         self._results_per_query = results_per_query
 
-    async def search(self, query: str, limit: int = 20) -> list[ProviderResult]:
+    async def search(
+        self, query: str, limit: int = 20, *, market: SearchMarket | None = None
+    ) -> list[ProviderResult]:
         terms, negatives, platform = _parse(query)
 
         ranked: list[tuple[int, str, Lead]] = []

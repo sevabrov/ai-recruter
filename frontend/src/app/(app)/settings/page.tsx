@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Database, Monitor, Trash2 } from "lucide-react";
+import { Check, Database, Monitor, Radio, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge, Dot } from "@/components/ui/badge";
@@ -22,37 +22,39 @@ import type { HealthStatus } from "@/services/types";
 const PROVIDERS: {
   name: string;
   role: string;
-  phase: string;
+  /** What the badge says while this one is not configured. */
+  pending: string;
   configured?: (health: HealthStatus) => boolean;
 }[] = [
   {
     name: "Brave Search",
     role: "Primary web search provider",
-    phase: "Phase 4",
+    // Implemented in Phase 4: the only thing missing is a subscription token.
+    pending: "add BRAVE_SEARCH_API_KEY",
     configured: (health) => health.providers.braveSearch,
   },
   {
     name: "ScrapeGraphAI",
     role: "Structured extraction from candidate pages",
-    phase: "Phase 5",
+    pending: "Phase 5",
     configured: (health) => health.providers.scrapegraph,
   },
   {
     name: "OpenAI",
     role: "Signal detection on extracted profiles",
-    phase: "Phase 6",
+    pending: "Phase 6",
     configured: (health) => health.providers.openai,
   },
   {
     name: "PostgreSQL",
     role: "Where searches, leads and notes live",
-    phase: "Phase 3",
+    pending: "Phase 3",
     configured: (health) => health.storage === "postgres" && health.database !== false,
   },
   {
     name: "Redis + Celery",
     role: "Distributed job queue for the workers",
-    phase: "Phase 7",
+    pending: "Phase 7",
   },
 ];
 
@@ -60,7 +62,30 @@ const LIMITS = [
   { key: "SEARCH_CONCURRENCY", value: "10" },
   { key: "EXTRACTION_CONCURRENCY", value: "10" },
   { key: "LLM_CONCURRENCY", value: "10" },
+  { key: "BRAVE_RATE_LIMIT_PER_SECOND", value: "1" },
 ];
+
+/**
+ * What each pipeline stage is actually running. The backend reports it, because
+ * "is this real?" should be answerable without reading the server's environment.
+ */
+const STAGES: { key: keyof NonNullable<HealthStatus["stages"]>; label: string }[] = [
+  { key: "search", label: "Web search" },
+  { key: "extraction", label: "Page extraction" },
+  { key: "signals", label: "Signal detection" },
+];
+
+const ADAPTERS: Record<string, { name: string; live: boolean; hint: string }> = {
+  brave: { name: "Brave Search", live: true, hint: "Live public web results" },
+  scrapegraph: { name: "ScrapeGraphAI", live: true, hint: "Reads the candidate page" },
+  llm: { name: "OpenAI", live: true, hint: "Judges each signal on the profile" },
+  snippet: {
+    name: "Search snippets",
+    live: false,
+    hint: "Profiles built from result metadata, not from the page — Phase 5",
+  },
+  fixture: { name: "Fixture", live: false, hint: "The seeded catalogue of 24 candidates" },
+};
 
 export default function SettingsPage() {
   const { preference, resolved, setPreference } = useTheme();
@@ -216,8 +241,12 @@ export default function SettingsPage() {
               ) : health.data ? (
                 <>
                   Connected to {health.data.service} v{health.data.version} (phase{" "}
-                  {health.data.phase}), storing the workspace in {health.data.storage}. The{" "}
-                  {health.data.pipeline} pipeline is active.
+                  {health.data.phase}), storing the workspace in {health.data.storage}.{" "}
+                  {health.data.pipeline === "fixture"
+                    ? "No external service is called: searches run over the seeded catalogue."
+                    : health.data.pipeline === "partial"
+                      ? "New searches query the live web; the stages below say what is real and what is still a stand-in."
+                      : "Every pipeline stage is running against a real provider."}
                 </>
               ) : (
                 "Connecting to the backend…"
@@ -242,13 +271,52 @@ export default function SettingsPage() {
                           configured
                         </Badge>
                       ) : (
-                        <Badge>{provider.phase}</Badge>
+                        <Badge>{provider.pending}</Badge>
                       )}
                     </li>
                   );
                 })}
               </ul>
             </div>
+
+            {health.data?.stages ? (
+              <div>
+                <Eyebrow className="mb-2">Pipeline stages</Eyebrow>
+                <ul className="divide-y divide-line rounded-card border border-line">
+                  {STAGES.map((stage) => {
+                    const value = health.data?.stages?.[stage.key] ?? "fixture";
+                    const adapter = ADAPTERS[value] ?? {
+                      name: value,
+                      live: false,
+                      hint: "Unknown adapter",
+                    };
+                    return (
+                      <li key={stage.key} className="flex items-center gap-3 px-3.5 py-2.5">
+                        <Radio className="size-3.5 shrink-0 text-fg-faint" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm">
+                            {stage.label} · {adapter.name}
+                          </span>
+                          <span className="block truncate text-xs text-fg-muted">
+                            {adapter.hint}
+                          </span>
+                        </span>
+                        <Badge tone={adapter.live ? "good" : undefined}>
+                          {adapter.live ? (
+                            <>
+                              <Dot tone="good" />
+                              live
+                            </>
+                          ) : (
+                            "stand-in"
+                          )}
+                        </Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
 
             <div>
               <Eyebrow className="mb-2">Concurrency limits (server-side)</Eyebrow>

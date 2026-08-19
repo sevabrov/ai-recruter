@@ -3,8 +3,8 @@
 from fastapi import APIRouter
 
 from app.api.deps import ContainerDep
-from app.schemas.health import HealthOut, ProviderStatus
-from app.services.adapters import pipeline_mode
+from app.schemas.health import HealthOut, ProviderStatus, StageStatus
+from app.services.adapters import pipeline_mode, stage_modes
 
 router = APIRouter(tags=["health"])
 
@@ -22,6 +22,7 @@ async def health(container: ContainerDep) -> HealthOut:
         version=settings.version,
         phase=settings.phase,
         pipeline=pipeline_mode(settings),
+        stages=StageStatus(**stage_modes(settings)),
         storage="postgres",
         database=database,
         # Booleans only — a key's presence is public, its value never is.

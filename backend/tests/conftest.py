@@ -89,6 +89,10 @@ def settings(clean_database: str) -> Settings:
         brave_search_api_key="",
         scrapegraph_api_key="",
         openai_api_key="",
+        # Belt and braces: even handed a key, nothing here may call the live web.
+        # The tests that do exercise Brave build the provider themselves, with a
+        # mock transport (tests/test_brave_provider.py, tests/test_live_search.py).
+        search_provider="fixture",
     )
 
 

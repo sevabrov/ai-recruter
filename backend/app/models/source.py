@@ -34,6 +34,15 @@ class ProviderResult(BaseModel):
     query: str
     provider: str
 
+    #: What the index knows about the page beyond its text. `page_age` is the only
+    #: recency evidence available before anything is fetched, which is what makes
+    #: an "active" observation possible at all; the fixture provider leaves both
+    #: empty, so nothing downstream may assume they are set.
+    page_age: datetime | None = None
+    age_label: str | None = None
+    #: The result's own language tag ("es"), not the query's.
+    language: str | None = None
+
 
 class UrlKind(StrEnum):
     """Classification from CandidateDiscoveryService (spec §32)."""
@@ -57,3 +66,7 @@ class DiscoveredUrl(BaseModel):
     snippet: str
     query: str
     provider: str
+
+    page_age: datetime | None = None
+    age_label: str | None = None
+    language: str | None = None

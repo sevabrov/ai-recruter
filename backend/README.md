@@ -1,12 +1,21 @@
 # AI Recruiter API
 
-FastAPI backend. **Phase 3 — PostgreSQL**: the endpoints from spec §57 behind the
-contract the frontend already speaks, the search pipeline running end to end, and
-the workspace stored in a versioned database instead of the API process.
+FastAPI backend. **Phase 4 — real web search**: the endpoints from spec §57 behind
+the contract the frontend already speaks, the pipeline running end to end, the
+workspace in a versioned PostgreSQL schema — and, with one key set, candidates
+discovered on the live public web instead of in the seeded catalogue.
 
-No external service is called yet. The three edges that would call out — web
-search, page extraction, signal detection — are fixture adapters, and `/health`
-says so (`"pipeline": "fixture"`).
+```bash
+BRAVE_SEARCH_API_KEY=…   # in .env — that is the whole switch
+```
+
+Without it nothing calls out and the demo works exactly as before. `/health` always
+says which stage is real:
+
+```json
+{"pipeline": "partial",
+ "stages": {"search": "brave", "extraction": "snippet", "signals": "fixture"}}
+```
 
 ---
 
@@ -24,7 +33,7 @@ docker compose down                     # stop; the data volume survives
 Interactive API docs: <http://localhost:8000/docs>.
 
 ```bash
-docker compose run --rm backend pytest -q            # 91 tests (needs postgres)
+docker compose run --rm backend pytest -q            # 143 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .
 docker compose run --rm --no-deps backend ruff format .
 ```
@@ -112,8 +121,65 @@ client sends. Optional fields are omitted rather than sent as `null`, because
 that is what `field?:` means in TypeScript.
 
 Errors always carry a code: `404 not_found`, `409 conflict`, `502 provider_error`,
-`503 database_unavailable` (the store is unreachable — the driver's message, which
-contains the connection string, never reaches the browser).
+`502 provider_unavailable` (a timeout or a rate limit — worth retrying),
+`502 provider_auth_failed` (the provider rejected our key) and
+`503 database_unavailable` (the store is unreachable). None of them quote a key or
+a connection string; a provider failure inside a search is stored on the search as
+`error` instead, which is what the results screen shows.
+
+---
+
+## Live web search (spec §27–30, §46–48)
+
+```
+criteria → 4–12 generated queries → Brave (one billed call each, ≤20 results)
+        → canonicalize → classify → dedup → real candidate URLs
+```
+
+Set `BRAVE_SEARCH_API_KEY` and restart the backend. What changes:
+
+* **Queries carry a market.** `country=ES` for a Spain search — a much stronger
+  signal than the country's name in the query text. Brave has no market for
+  Czechia or Ukraine, and those searches go worldwide rather than send a parameter
+  that would fail (`services/search/markets.py`). `search_lang` is only sent when
+  the user asked for exactly one language: three languages means "any of them".
+* **One query is one billed call.** `count` is capped at Brave's maximum of 20 and
+  no paging is attempted, so `usage.searchApiCalls` on the search record is exactly
+  what was spent (§54).
+* **The rate limit belongs to the key, not to the search.** The free and Base plans
+  allow one request per second no matter how many searches are running, so the
+  provider is built once per process and every job queues behind the same limiter
+  (`BRAVE_RATE_LIMIT_PER_SECOND`). A live search therefore takes roughly a second
+  per query, and the progress screen shows it happening.
+* **Failures are classified** (§51). A timeout, a 429 or a 5xx is retried with
+  backoff — and a 429's `Retry-After` moves the limiter, so the next attempt waits
+  as long as Brave asked. A 401/403 is *not* retried: a wrong key would otherwise
+  cost three calls per query, and the search fails with "check
+  BRAVE_SEARCH_API_KEY" instead. One query failing no longer fails the search;
+  only a search where nothing came back does.
+* **The key stays server-side** (§55): it travels in `X-Subscription-Token`, never
+  in a URL, a log line or an error message.
+
+### The extraction gap
+
+Phase 5 is what reads a candidate's page. Until then, live searches are extracted
+by `SnippetProfileExtractor`, which builds a profile from **the result metadata the
+search API already returned** — title, description, the index's page age and
+language — and never opens a URL. It is honest about being thin:
+
+* every profile records `extractor: "snippet"`;
+* confidence is capped at 0.65, because a description is not a page;
+* a title it cannot read a person's name out of returns nothing, so shops, brand
+  accounts and articles do not become leads;
+* signals are keyword sightings (`services/extraction/vocabulary.py`, one file so
+  Phase 6 can delete it in one commit) with the sentence they were found in as
+  evidence. Judging them stays the detector's and the scoring service's job.
+
+The visible consequence: leads found on the open web score lower than the seeded
+ones, and one person appearing on Instagram *and* on their own domain stays two
+leads — the strong keys `deduplicate` merges on (shared URL, handle, e-mail,
+website) are exactly what a snippet does not carry. Both improve in Phase 5, when
+the page itself is read.
 
 ---
 
@@ -130,9 +196,9 @@ criteria → query generation → provider → URL normalization → dedup
 | Piece | Today | Replaced in |
 |---|---|---|
 | Query generation (§29) | deterministic templates | — (an AI generator is optional later) |
-| Search provider (§27–28) | `FixtureSearchProvider` over the seeded catalogue | Phase 4 — `BraveSearchProvider` |
+| Search provider (§27–28) | **`BraveSearchProvider`** when a key is set, `FixtureSearchProvider` otherwise | — |
 | URL normalization + discovery (§31–32) | real | — |
-| Extraction (§33–34) | `FixtureProfileExtractor` | Phase 5 — `ScrapeGraphProfileExtractor` |
+| Extraction (§33–34) | `SnippetProfileExtractor` in live mode, `FixtureProfileExtractor` in the demo | Phase 5 — `ScrapeGraphProfileExtractor` |
 | Signal detection (§36) | `FixtureSignalDetector` | Phase 6 — `LlmSignalDetector` |
 | Scoring (§37–38) | real, deterministic | — |
 | Deduplication (§45) | real, strong keys only | later: entity resolution |
@@ -142,8 +208,9 @@ criteria → query generation → provider → URL normalization → dedup
 | Auth (§55) | one demo user row, every query scoped by `user_id` | Phase 8 |
 
 Swapping an adapter is a decision in [app/services/adapters.py](app/services/adapters.py): a
-provider is used as soon as its key is configured, otherwise the fixture keeps
-the product working. Nothing else in the codebase names a vendor.
+provider is used as soon as its key is configured, otherwise a stand-in keeps the
+product working. Nothing else in the codebase names a vendor — `SEARCH_PROVIDER=fixture`
+forces the demo back on even with a key present, which is what the test suite uses.
 
 ---
 
@@ -153,7 +220,7 @@ the product working. Nothing else in the codebase names a vendor.
 app/
   main.py            app factory, CORS, lifespan, error handlers
   api/               routers, query parameters, the composition root (deps.py)
-  core/              config, structured logging, errors, retry
+  core/              config, structured logging, errors, retry, rate limits
   models/            domain entities and the query objects (Pydantic, snake_case)
   schemas/           API DTOs (camelCase aliases) — the contract
   db/
@@ -165,16 +232,17 @@ app/
     bootstrap.py     `alembic upgrade head`
     seed.py          the demo workspace, generated from the Phase 1 fixtures
   services/
-    search/          query generator, providers, url_tools, deduplicator, pipeline
-    scraping/        extraction interface + adapters
-    extraction/      signal detection interface + adapters
+    search/          query generator, providers, url_tools, markets, dedup, pipeline
+    scraping/        extraction interface + adapters (scrapegraph, snippet, fixture)
+    extraction/      signal detection interface + adapters, keyword vocabulary
     scoring/         the deterministic scoring engine
     leads/           lifecycle, notes, outreach drafting
     dashboard/       aggregates
     adapters.py      which implementation is wired to what
   workers/           job service + the run_search task
 alembic/versions/    the schema, versioned
-tests/               91 tests: contract, scoring, pipeline units, lifecycle, filters, persistence
+tests/               143 tests: contract, scoring, pipeline units, lifecycle, filters,
+                     persistence, the Brave provider, snippet extraction, a live search
 ```
 
 ### Seed data
@@ -186,10 +254,11 @@ so the workspace ages like real data; a search that was still running when the s
 was captured is re-queued at startup — the same thing a worker pool does after a
 restart.
 
-New searches rediscover those same people through the pipeline and re-score them
-against the criteria you chose, so geography and weights visibly change the
-result. What the fixture adapters cannot do is find anybody new; that starts in
-Phase 4.
+Without a Brave key, new searches rediscover those same people through the pipeline
+and re-score them against the criteria you chose, so geography and weights visibly
+change the result — they just cannot find anybody new. With a key, the catalogue is
+out of the picture entirely: the URLs come from the web and the seeded people are
+unreachable, because none of their URLs exist.
 
 ### Configuration
 
@@ -199,8 +268,8 @@ are read in `core/config.py` and nowhere else, and never leave the server:
 
 `PIPELINE_STEP_DELAY_MS` (default 250) is demo pacing only: fixture adapters
 answer instantly, so without it a search finishes in about a second and the
-progress screen is never seen. Set it to `0` for an instant run; it disappears
-when real providers bring their own latency.
+progress screen is never seen. It is ignored in live mode — Brave brings its own
+latency — and `0` gives an instant fixture run.
 
 The suite runs against `DATABASE_URL`'s database name with `_test` appended,
 created on demand — it never touches the workspace database.

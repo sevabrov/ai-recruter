@@ -114,6 +114,9 @@ def discover(results: list[ProviderResult]) -> list[DiscoveredUrl]:
             snippet=result.snippet,
             query=result.query,
             provider=result.provider,
+            page_age=result.page_age,
+            age_label=result.age_label,
+            language=result.language,
         )
     return list(seen.values())
 

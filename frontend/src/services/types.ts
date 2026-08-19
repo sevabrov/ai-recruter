@@ -314,11 +314,17 @@ export interface HealthStatus {
   version: string;
   /** Which delivery phase the data source belongs to. */
   phase: number;
-  /** "fixture" until the real providers are configured (Phases 4–6). */
-  pipeline: "fixture" | "live";
+  /**
+   * "fixture" while nothing external is called, "live" once every stage has a real
+   * service behind it, "partial" in between — Phase 4 with a Brave key searches the
+   * real web but still reads and judges with stand-ins.
+   */
+  pipeline: "fixture" | "partial" | "live";
   storage: "browser" | "memory" | "postgres";
   /** Whether the store answered a query just now (API mode only). */
   database?: boolean;
+  /** Which adapter is behind each pipeline stage (API mode only). */
+  stages?: { search: string; extraction: string; signals: string };
   /** Whether a provider key is configured — never the key itself. */
   providers: { braveSearch: boolean; scrapegraph: boolean; openai: boolean };
 }

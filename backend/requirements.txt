@@ -1,13 +1,17 @@
-# Runtime dependencies — Phase 3 (PostgreSQL).
+# Runtime dependencies — Phase 4 (real web search).
 #
 # Deliberately small. The rest of the stack from spec §4 arrives with the phase
-# that needs it: celery + redis in Phase 7, the provider SDKs
-# (brave/scrapegraph/openai) in Phases 4–6.
+# that needs it: scrapegraph-py in Phase 5, openai in Phase 6, celery + redis in
+# Phase 7. Brave needs no SDK — it is one documented GET.
 
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.5
 pydantic-settings==2.7.1
+
+# The HTTP client for outbound provider calls (spec §28). Already present as a
+# FastAPI test dependency; pinned here because it is now needed in production.
+httpx==0.28.1
 
 # Storage (spec §23). asyncpg because every request path is async; alembic
 # because the schema has to be versioned from the first table onwards.

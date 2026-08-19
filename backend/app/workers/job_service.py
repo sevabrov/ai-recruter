@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 
 from app.core.logging import get_logger
 from app.db.repository import Repository
+from app.models.common import SearchStatus
 from app.models.job import Job, JobKind, JobStatus
 from app.models.search import Search
 from app.services.search.pipeline import SearchPipeline
@@ -91,7 +92,23 @@ class JobService:
             log.exception("job_failed", extra={"job_id": job.id})
             await self._finish(job, JobStatus.FAILED, error=str(error))
         else:
-            await self._finish(job, JobStatus.SUCCEEDED)
+            await self._finish(job, *await self._outcome(job))
+
+    async def _outcome(self, job: Job) -> tuple[JobStatus, str | None]:
+        """
+        The pipeline handles its own failures — a provider that never answered
+        leaves a `failed` search and returns cleanly — so the job's status has to be
+        read off the search. Otherwise the operator view says "succeeded" about a
+        search that produced an error message.
+        """
+        search = await self.repo.get_search(job.search_id or "")
+        if search is None:
+            return JobStatus.FAILED, "The search disappeared while the job was running"
+        if search.status is SearchStatus.FAILED:
+            return JobStatus.FAILED, search.error
+        if search.status is SearchStatus.CANCELLED:
+            return JobStatus.CANCELLED, None
+        return JobStatus.SUCCEEDED, None
 
     async def _finish(self, job: Job, status: JobStatus, error: str | None = None) -> None:
         current = await self.repo.get_job(job.id) or job

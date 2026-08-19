@@ -4,10 +4,11 @@ The search pipeline (spec §44).
     criteria → queries → provider → normalize → dedup URLs → candidate discovery
             → extraction → signal detection → scoring → lead dedup → storage
 
-Every arrow is real code here. What is *not* real yet is the three adapters at the
-edges — the search provider, the extractor and the signal detector are fixture
-implementations (see `services/adapters.py`). Phases 4–6 replace those three
-objects; this file does not change. Storage is real: `→ storage` is PostgreSQL.
+Every arrow is real code here, and since Phase 4 the first two are real services
+too: with `BRAVE_SEARCH_API_KEY` set, `→ provider` is the live web and the URLs
+that come out of `→ dedup` are pages that exist. Reading those pages properly is
+Phase 5 and judging them is Phase 6 — which adapter is behind each stage is
+`services/adapters.py`'s business, not this file's. Storage is PostgreSQL.
 
 Two properties matter more than the stub data:
 
@@ -17,6 +18,7 @@ Two properties matter more than the stub data:
 """
 
 import asyncio
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 from app.core.config import Settings
@@ -32,7 +34,7 @@ from app.services.extraction.signal_detector import SignalDetector
 from app.services.scoring.scoring_service import ScoringService
 from app.services.scraping.base import ProfileExtractor
 from app.services.search.deduplicator import deduplicate
-from app.services.search.providers.base import SearchProvider
+from app.services.search.providers.base import SearchMarket, SearchProvider
 from app.services.search.query_generator import QueryGenerator
 from app.services.search.url_tools import candidates, discover
 
@@ -136,8 +138,16 @@ class SearchPipeline:
     async def _run_queries(
         self, search: Search, queries: list[GeneratedQuery]
     ) -> list[ProviderResult]:
-        """Queries fan out concurrently (spec §30) under SEARCH_CONCURRENCY (§52)."""
+        """
+        Queries fan out concurrently (spec §30) under SEARCH_CONCURRENCY (§52), and
+        each one is aimed at the country the user asked for.
+
+        One query failing is not the search failing: real providers rate-limit and
+        time out, and eleven good queries are worth more than an error page. Only a
+        search where *nothing* came back reports the provider's error.
+        """
         await self._enter(search.id, SearchStage.WEB_SEARCH)
+        market = SearchMarket.from_criteria(search.criteria)
         semaphore = asyncio.Semaphore(self.settings.search_concurrency)
         collected: list[ProviderResult] = []
         done = 0
@@ -147,19 +157,35 @@ class SearchPipeline:
             async with semaphore:
                 await self._tick()
                 results = await retry_async(
-                    lambda: self.provider.search(entry.query),
+                    lambda: self.provider.search(entry.query, market=market),
                     attempts=self.settings.max_retries,
                     label=f"search:{self.provider.name}",
                 )
             entry.result_count = len(results)
             collected.extend(results)
             done += 1
+            # One query is one billed call: the provider is capped at a single
+            # request per query, so this stays exact (spec §54).
             self._usage.search_api_calls += 1
             self._progress.queries_completed = done
             self._progress.urls_discovered = len(collected)
             await self._save(search.id, SearchStage.WEB_SEARCH, done / max(1, len(queries)))
 
-        await asyncio.gather(*(run_one(entry) for entry in queries))
+        outcomes = await asyncio.gather(
+            *(run_one(entry) for entry in queries), return_exceptions=True
+        )
+        failures = [outcome for outcome in outcomes if isinstance(outcome, BaseException)]
+        for failure in failures:
+            if isinstance(failure, SearchCancelled | asyncio.CancelledError):
+                raise failure
+        if failures and not collected:
+            raise failures[0]
+        if failures:
+            log.warning(
+                "web_search_partial",
+                extra={"failed_queries": len(failures), "of": len(queries)},
+            )
+
         await self._save(search.id, SearchStage.WEB_SEARCH, 1.0, queries=queries)
         log.info("web_search_completed", extra={"raw_results": len(collected)})
         return collected
@@ -363,7 +389,12 @@ def _build_lead(
     index: int,
 ) -> Lead:
     return Lead(
-        id=f"{search.id}__{_slug(profile.name or profile.canonical_url)}",
+        # The name alone is not unique on the open web — two real people called
+        # María García would otherwise be one row, so the URL settles it.
+        id=(
+            f"{search.id}__{_slug(profile.name or profile.canonical_url)}"
+            f"_{_digest(profile.canonical_url)}"
+        ),
         user_id=search.user_id,
         search_id=search.id,
         search_name=search.name,
@@ -388,3 +419,7 @@ def _build_lead(
 def _slug(value: str) -> str:
     cleaned = "".join(char if char.isalnum() else "_" for char in value.lower())
     return "_".join(part for part in cleaned.split("_") if part)[:64]
+
+
+def _digest(value: str) -> str:
+    return hashlib.sha1(value.encode()).hexdigest()[:8]

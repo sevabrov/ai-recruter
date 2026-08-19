@@ -21,8 +21,8 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ app
     app_name: str = "ai-recruiter-api"
-    version: str = "0.3.0"
-    phase: int = 3
+    version: str = "0.4.0"
+    phase: int = 4
     debug: bool = True
 
     # Browsers must be able to talk to us with credentials, so origins are
@@ -50,14 +50,29 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # -------------------------------------------------------------- providers
-    # Phase 4–6. Empty means "not configured": the pipeline falls back to the
-    # fixture adapters and says so in the response.
+    # Empty means "not configured": the pipeline falls back to a stand-in adapter
+    # and `/health` reports which stage is live (spec §46–47).
     brave_search_api_key: str = ""
     scrapegraph_api_key: str = ""
     openai_api_key: str = ""
     google_cse_api_key: str = ""
     google_cse_engine_id: str = ""
+    #: "brave" — live as soon as the key is there; "fixture" — never, whatever keys
+    #: are set, which is what the test suite and an offline demo want.
     search_provider: str = "brave"
+
+    # ---------------------------------------------- Brave Search (spec §28, §52)
+    brave_endpoint: str = "https://api.search.brave.com/res/v1/web/search"
+    #: Brave's own maximum per request is 20, and one query stays one billed call.
+    brave_results_per_query: int = 20
+    brave_timeout_seconds: float = 10.0
+    #: The free and Base plans allow one request per second *per key*, so this is a
+    #: property of the subscription rather than of a search. Raise it with the plan;
+    #: 0 turns the throttle off.
+    brave_rate_limit_per_second: float = 1.0
+    #: A professional lead search should see public profiles the default filter can
+    #: hide; "moderate" and "strict" are the other values Brave accepts.
+    brave_safesearch: str = "off"
 
     # ----------------------------------------------------- limits (spec §52)
     search_concurrency: int = 10
@@ -76,8 +91,8 @@ class Settings(BaseSettings):
     # whole search would finish in about a second and the progress screen would
     # never be seen. Each pipeline step therefore pauses briefly, which keeps the
     # run in the "seconds, not minutes" band the spec asks for (§13).
-    # Set to 0 for an instant demo; real providers bring their own latency and
-    # this drops to 0 for good in Phase 4.
+    # Ignored once live search is on: a real provider brings its own latency
+    # (see api/deps.py). Set to 0 for an instant fixture run.
     pipeline_step_delay_ms: int = 250
 
     # A search left mid-flight by a restart is re-queued at startup instead of
