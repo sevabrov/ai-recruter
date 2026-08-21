@@ -24,7 +24,9 @@ from app.db.postgres import PostgresRepository
 from app.db.repository import Repository
 from app.db.seed import SeedData, load_seed
 from app.services.adapters import (
+    ReaderResources,
     build_profile_extractor,
+    build_reader_resources,
     build_search_provider,
     build_signal_detector,
     use_live_search,
@@ -49,6 +51,8 @@ class Container:
     engine: AsyncEngine
     repository: Repository
     provider: SearchProvider
+    #: None until a ScrapeGraphAI key is configured.
+    reader: ReaderResources | None
     jobs: JobService
     searches: SearchService
     leads: LeadService
@@ -73,7 +77,10 @@ def build_container(settings: Settings | None = None) -> Container:
 
     # The provider is shared by every job on purpose: it owns the connection pool
     # and the per-key rate limiter, neither of which may be duplicated per search.
+    # The page reader's sockets and limiter are shared for the same reason, while
+    # the extractor around them is per job because its cost counters are.
     provider = build_search_provider(settings, catalogue)
+    reader = build_reader_resources(settings)
     # Demo pacing is for fixtures. Real providers bring their own latency, and
     # adding a quarter of a second per step to it would be nothing but a delay.
     pipeline_settings = (
@@ -83,13 +90,14 @@ def build_container(settings: Settings | None = None) -> Container:
     )
 
     def pipeline_factory() -> SearchPipeline:
-        # One pipeline per job: it holds that run's progress and usage counters.
+        # One pipeline per job: it holds that run's progress and usage counters, and
+        # so does its extractor chain — the page reader counts credits per search.
         return SearchPipeline(
             repository=repository,
             settings=pipeline_settings,
             query_generator=query_generator,
             provider=provider,
-            extractor=build_profile_extractor(settings, catalogue),
+            extractor=build_profile_extractor(settings, catalogue, repository, reader),
             detector=build_signal_detector(settings),
             scoring=scoring,
         )
@@ -104,6 +112,7 @@ def build_container(settings: Settings | None = None) -> Container:
         engine=engine,
         repository=repository,
         provider=provider,
+        reader=reader,
         jobs=jobs,
         searches=searches,
         leads=leads,
@@ -124,11 +133,13 @@ async def open_container(settings: Settings | None = None) -> Container:
 
 async def close_container(container: Container) -> None:
     """
-    In-flight jobs stop first — they are the only thing still using the provider's
-    sockets or the database pool — then both are released.
+    In-flight jobs stop first — they are the only thing still using the providers'
+    sockets or the database pool — then everything is released.
     """
     await container.jobs.shutdown()
     await container.provider.aclose()
+    if container.reader is not None:
+        await container.reader.aclose()
     await container.engine.dispose()
 
 

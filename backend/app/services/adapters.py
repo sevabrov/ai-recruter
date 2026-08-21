@@ -14,18 +14,28 @@ search above it:
   from the result metadata the search API returned, because a live search that
   reported nothing would be worse than the demo. Never invented from the
   catalogue: with a Brave key set, the seeded people are unreachable.
-* live search + ScrapeGraphAI — Phase 5, when the extractor can read the page.
+* **live search + ScrapeGraphAI** — Phase 5. The candidate pages are opened and
+  read, through a cache so no page is paid for twice, with the snippet extractor
+  behind it for the pages that will not open at all.
 """
 
+from dataclasses import dataclass
+
+import httpx
+
 from app.core.config import Settings
+from app.core.limits import RateLimiter
 from app.core.logging import get_logger
+from app.db.repository import Repository
 from app.models.lead import Lead
 from app.services.extraction.signal_detector import (
     FixtureSignalDetector,
     LlmSignalDetector,
     SignalDetector,
 )
-from app.services.scraping.base import ProfileExtractor
+from app.services.scraping.base import ExtractionCost, ProfileExtractor
+from app.services.scraping.cache import CachedPageReader
+from app.services.scraping.fallback import FallbackProfileExtractor
 from app.services.scraping.fixture_extractor import FixtureProfileExtractor
 from app.services.scraping.scrapegraph_extractor import ScrapeGraphProfileExtractor
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
@@ -75,13 +85,92 @@ def build_search_provider(settings: Settings, catalogue: list[Lead]) -> SearchPr
     )
 
 
-def build_profile_extractor(settings: Settings, catalogue: list[Lead]) -> ProfileExtractor:
-    if settings.scrapegraph_api_key:
-        return ScrapeGraphProfileExtractor(settings.scrapegraph_api_key)
-    if use_live_search(settings):
-        # The catalogue is useless here: none of its URLs exist on the open web.
-        return SnippetProfileExtractor()
-    return FixtureProfileExtractor(catalogue)
+def use_page_reading(settings: Settings) -> bool:
+    return bool(settings.scrapegraph_api_key)
+
+
+@dataclass
+class ReaderResources:
+    """
+    What the page reader must *not* duplicate per search: the connection pool and
+    the rate limiter. The limit is a property of the API key (spec §52), so every
+    concurrent search has to queue behind the same one — while the cost counters
+    stay per search, which is why the extractor itself is still built per job.
+    """
+
+    client: httpx.AsyncClient
+    limiter: RateLimiter
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
+
+
+def build_reader_resources(settings: Settings) -> ReaderResources | None:
+    if not use_page_reading(settings):
+        return None
+    return ReaderResources(
+        client=httpx.AsyncClient(timeout=httpx.Timeout(settings.scrapegraph_timeout_seconds)),
+        limiter=RateLimiter(settings.scrapegraph_rate_limit_per_second),
+    )
+
+
+def build_profile_extractor(
+    settings: Settings,
+    catalogue: list[Lead],
+    repository: Repository | None = None,
+    resources: ReaderResources | None = None,
+) -> ProfileExtractor:
+    """
+    Built once per job, because the cost counters belong to one search.
+
+    With a ScrapeGraphAI key the stage becomes a chain — read, cached, with a
+    stand-in behind it — assembled here so the pipeline still sees one extractor:
+
+        FallbackProfileExtractor(          the page would not open → snippet
+            CachedPageReader(              read it once (spec §53)
+                ScrapeGraphProfileExtractor(…)))
+
+    The cache needs a repository. Without one (a unit test, a script) the reader is
+    used directly: correct, just not free the second time.
+    """
+    if not use_page_reading(settings):
+        if use_live_search(settings):
+            # The catalogue is useless here: none of its URLs exist on the open web.
+            return SnippetProfileExtractor()
+        return FixtureProfileExtractor(catalogue)
+
+    cost = ExtractionCost()
+    reader = ScrapeGraphProfileExtractor(
+        settings.scrapegraph_api_key,
+        endpoint=settings.scrapegraph_endpoint,
+        timeout_seconds=settings.scrapegraph_timeout_seconds,
+        rate_limit_per_second=settings.scrapegraph_rate_limit_per_second,
+        cost=cost,
+        client=resources.client if resources else None,
+        limiter=resources.limiter if resources else None,
+    )
+    log.info(
+        "page_reading_enabled",
+        extra={
+            "reader": reader.name,
+            "cache_ttl_hours": settings.scrape_cache_ttl_hours,
+            "fallback": settings.scrapegraph_fallback_to_snippets,
+        },
+    )
+
+    cached: ScrapeGraphProfileExtractor | CachedPageReader = reader
+    if repository is not None:
+        cached = CachedPageReader(
+            reader, repository, ttl_hours=settings.scrape_cache_ttl_hours, cost=cost
+        )
+    if not settings.scrapegraph_fallback_to_snippets:
+        return cached
+    return FallbackProfileExtractor(
+        cached,
+        SnippetProfileExtractor(),
+        attempts=settings.max_retries,
+        cost=cost,
+    )
 
 
 def build_signal_detector(settings: Settings) -> SignalDetector:
@@ -96,7 +185,7 @@ def stage_modes(settings: Settings) -> dict[str, str]:
         "search": BraveSearchProvider.name if use_live_search(settings) else "fixture",
         "extraction": (
             ScrapeGraphProfileExtractor.name
-            if settings.scrapegraph_api_key
+            if use_page_reading(settings)
             else SnippetProfileExtractor.name
             if use_live_search(settings)
             else FixtureProfileExtractor.name
@@ -110,8 +199,9 @@ def stage_modes(settings: Settings) -> dict[str, str]:
 def pipeline_mode(settings: Settings) -> str:
     """
     `fixture` while nothing external is called, `live` once every stage has a real
-    service behind it, and `partial` in between — which is where Phase 4 leaves a
-    workspace with a Brave key: real search, stand-in reading and judging.
+    service behind it, and `partial` in between — which is where a workspace with a
+    Brave and a ScrapeGraphAI key sits: real search, real page reading, and signals
+    still detected by the keyword stand-in until Phase 6.
     """
     stages = stage_modes(settings)
     real = {

@@ -3,15 +3,19 @@
 AI-assisted lead discovery across the **public web**: search criteria in, scored
 candidates with evidence out.
 
-**Current state: Phase 4 — real web search.** The FastAPI service is live, the
-frontend runs against it, the workspace is stored in PostgreSQL, and searches can
-now reach the open web: with `BRAVE_SEARCH_API_KEY` in `.env`, criteria turn into
-real queries, real URLs and candidates nobody typed in advance.
+**Current state: Phase 5 — reading the pages.** The FastAPI service is live, the
+frontend runs against it, the workspace is stored in PostgreSQL, searches reach the
+open web, and each candidate's page is now opened and read:
 
-That key is the whole switch, and it is optional. Without it the app runs exactly as
-before over a seeded catalogue of 24 candidates, so the demo works offline. Reading
-a candidate's page (ScrapeGraphAI, Phase 5) and judging it with a model (Phase 6)
-are still stand-ins, and `/health` names the adapter behind every stage — demo
+```bash
+BRAVE_SEARCH_API_KEY=…   # criteria → real queries → real URLs          (Phase 4)
+SCRAPEGRAPH_API_KEY=…    # those URLs → the profile the page states     (Phase 5)
+```
+
+Both are optional. With neither, the app runs exactly as before over a seeded
+catalogue of 24 candidates, so the demo works offline; with only the first, profiles
+are built from search results instead of pages. Judging a profile with a model is
+still a stand-in (Phase 6), and `/health` names the adapter behind every stage — demo
 output is never dressed up as live results.
 
 ```
@@ -63,6 +67,25 @@ seconds and the progress screen shows it happening. Searches started before the 
 was added keep their old results; new ones go to the web. Settings → *Pipeline stages*
 shows the same thing the `/health` call above does.
 
+### Reading the pages it finds
+
+```bash
+# SCRAPEGRAPH_API_KEY=…                    sign in at https://scrapegraphai.com/login
+docker compose up -d backend               # restart picks the key up
+curl -s localhost:8000/health | jq .stages # {"extraction": "scrapegraph", …}
+curl -s localhost:8000/sources             # which platforms actually let us in
+```
+
+Now a candidate's own page is what becomes the lead: headline, city, languages,
+follower count, contacts and the links they publish — which is also what lets one
+person found on Instagram *and* on their own site stop being two leads. Reading a page
+costs a credit, so every page is read once and cached for a week (`SCRAPE_CACHE_TTL_HOURS`),
+and the usage card separates *pages read* from *from cache*.
+
+Not every URL can be read — Instagram often shows a login wall to a server. Those
+pages fall back to the search result rather than losing the lead, and every outcome is
+counted per platform in Settings → *Reading the sources*.
+
 Other commands:
 
 ```bash
@@ -73,7 +96,7 @@ npx eslint .                                             # lint
 
 # backend (nothing installed on the host)
 docker compose logs -f backend                           # structured JSON logs
-docker compose run --rm backend pytest -q                # 143 tests (needs postgres)
+docker compose run --rm backend pytest -q                # 200 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .   # lint
 docker compose run --rm backend alembic current          # schema revision
 docker compose build backend                             # after a dependency change
@@ -170,9 +193,10 @@ Four rules the product follows in both modes:
 
 ### Where the real providers plug in
 
-The pipeline is real end to end. Its first edge — web search — is a real provider as
-soon as its key is set; the other two are stand-ins until Phases 5 and 6. Details and
-the phase-by-phase swap table are in [backend/README.md](backend/README.md).
+The pipeline is real end to end. Two of its three edges are real providers as soon as
+their keys are set — web search and page extraction — and signal detection is a
+stand-in until Phase 6. Details and the phase-by-phase swap table are in
+[backend/README.md](backend/README.md).
 
 ---
 
@@ -182,35 +206,37 @@ the phase-by-phase swap table are in [backend/README.md](backend/README.md).
 |---|---|
 | `/` | Dashboard: stat tiles, recent searches, source share, score distribution, weekly discovery |
 | `/search/new` | 5-step wizard: who → where → signals & weights → sources → preview |
-| `/search/:id/progress` | Live pipeline (~3 s on fixtures, a few seconds live), measured counters, generated queries, usage & cost, cancel |
+| `/search/:id/progress` | Live pipeline (~3 s on fixtures, longer live), measured counters, generated queries, pages read vs. cached, usage & cost, cancel |
 | `/search/:id/results` | Candidate table, filters (score/country/platform/signals/email/social), sorting, re-run |
 | `/leads` | All / Saved / Archived across searches |
 | `/leads/:id` | Score dial + breakdown, per-signal evidence with source links, AI summary, sources, notes, outreach draft |
 | `/searches` | Search history, running searches separated |
-| `/settings` | Theme picker, search defaults, live backend status, which adapter each pipeline stage runs, concurrency limits, reset demo data |
+| `/settings` | Theme picker, search defaults, live backend status, which adapter each pipeline stage runs, which sources can be read, concurrency limits, reset demo data |
 
 The wizard's **Fill example** button loads the MIHI / Spain scenario from the
 spec, which is the fastest way to walk the whole flow.
 
 ---
 
-## Known limitations (Phase 4, by design)
+## Known limitations (Phase 5, by design)
 
 * **Nobody is discovered without a key.** Out of the box the search provider and the
   extractor work over the seeded catalogue of 24 candidates: the real pipeline runs
   and re-scores them against your weights and geography, but it cannot reach the open
   web. Set `BRAVE_SEARCH_API_KEY` and it can.
-* **A live search reads result snippets, not pages.** Profiles found on the web are
-  built from what the search API returned — title, description, page age, language —
-  so they are thinner than the seeded ones and score lower, and the extractor drops
-  anything it cannot read a person's name out of. Phase 5 (ScrapeGraphAI) reads the
-  page itself.
-* **One person can still appear twice** when found on two platforms. Merging happens
-  on strong keys only (shared URL, handle, e-mail, website) and a search snippet
-  carries none of the links that connect an Instagram profile to a personal site.
-  Reading the pages in Phase 5 is what closes that.
-* **Signals are keyword sightings, not judgement.** Scoring, evidence and the
-  breakdown are real and deterministic; a model reading the profile is Phase 6.
+* **Without `SCRAPEGRAPH_API_KEY`, a live search reads result snippets, not pages.**
+  Those profiles are built from what the search API returned — title, description,
+  page age, language — so they are thinner than the seeded ones and score lower.
+* **Some platforms cannot be read at all.** Instagram and Facebook show servers a
+  login or consent screen more often than not; those leads fall back to the search
+  snippet and say so. `GET /sources` and Settings → *Reading the sources* report the
+  hit rate per platform, measured from this workspace's own attempts.
+* **One person can still appear twice** when the pages that would connect them are the
+  ones that would not open. Merging is on strong keys only — shared URL, handle,
+  e-mail, website — and a page that was read contributes the links a snippet cannot.
+* **Signals are keyword sightings, not judgement.** The page reader quotes what the
+  page says and the scoring is real and deterministic, but nothing weighs context,
+  irony or negation yet. A model reading the profile is Phase 6.
 * **Jobs run inside the API process** as asyncio tasks. Concurrent searches do not
   block each other and the job records are persisted, but a restart cannot resume a
   job in the middle of a stage — it re-queues the whole search — and they cannot
@@ -229,11 +255,12 @@ spec, which is the fastest way to walk the whole flow.
 
 ---
 
-## Next: Phase 5
+## Next: Phase 6
 
-Real extraction — `ScrapeGraphProfileExtractor` behind the existing
-`ProfileExtractor` interface, used as soon as `SCRAPEGRAPH_API_KEY` is set. That is
-the phase where a candidate's own page is read instead of the search result that
-pointed at it: fuller profiles, higher confidence, cross-platform links that let one
-person stop being two leads — and a scrape cache, because pages cost credits (spec
-§53). Nothing above `services/adapters.py` changes.
+AI candidate analysis — `LlmSignalDetector` behind the existing `SignalDetector`
+interface, used as soon as `OPENAI_API_KEY` is set. Each signal is judged on the text
+the page reader extracted, one structured call per profile: detected, confidence, the
+verbatim evidence and where it came from. The model never sees or returns a score —
+the backend keeps the arithmetic (spec §37) — and `services/extraction/vocabulary.py`,
+the keyword list standing in for judgement today, is deleted in one commit. Nothing
+above `services/adapters.py` changes.

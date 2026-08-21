@@ -111,6 +111,9 @@ def test_search_payload_shape(client):
     assert set(search["usage"]) == {
         "searchApiCalls",
         "pagesAnalyzed",
+        "pagesRead",
+        "pagesCached",
+        "scrapeCredits",
         "llmCalls",
         "estimatedCostEur",
     }

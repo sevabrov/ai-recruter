@@ -121,6 +121,9 @@ export default function SearchProgressPage() {
             <CardBody className="flex flex-col gap-2 text-sm">
               <Row label="Search API calls" value={formatNumber(search.usage.searchApiCalls)} />
               <Row label="Pages analyzed" value={formatNumber(search.usage.pagesAnalyzed)} />
+              {/* Read is what was paid for; cached is what an earlier search paid for. */}
+              <Row label="Pages read" value={formatNumber(search.usage.pagesRead)} />
+              <Row label="From cache" value={formatNumber(search.usage.pagesCached)} />
               <Row label="LLM calls" value={formatNumber(search.usage.llmCalls)} />
               <div className="hairline my-1" />
               <Row

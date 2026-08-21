@@ -94,7 +94,13 @@ export interface GeneratedQuery {
 
 export interface SearchUsage {
   searchApiCalls: number;
+  /** Candidate pages the extraction stage handled. */
   pagesAnalyzed: number;
+  /** …of which were actually fetched, and are what the page bill is based on. */
+  pagesRead: number;
+  /** …and of which came from the scrape cache, at no cost. */
+  pagesCached: number;
+  scrapeCredits: number;
   llmCalls: number;
   estimatedCostEur: number;
 }
@@ -329,6 +335,35 @@ export interface HealthStatus {
   providers: { braveSearch: boolean; scrapegraph: boolean; openai: boolean };
 }
 
+/**
+ * How one platform responds to being read. Measured, not assumed: the backend
+ * counts the outcome of every page it has opened, because "nobody was found on
+ * Instagram" and "Instagram showed us a login wall" are different problems.
+ */
+export interface SourceReliability {
+  platform: Platform;
+  pages: number;
+  usable: number;
+  notAPerson: number;
+  empty: number;
+  blocked: number;
+  failed: number;
+  /** `usable / pages`, 0–1. */
+  usableShare: number;
+  lastReadAt?: string;
+}
+
+export interface SourcesReport {
+  /** Which adapter reads pages, or the stand-in that stands in for one. */
+  reader: string;
+  /** Whether pages are fetched at all, as opposed to read off the search results. */
+  live: boolean;
+  cacheTtlHours: number;
+  /** What happens to a page that will not open. */
+  fallback: string;
+  items: SourceReliability[];
+}
+
 /* ------------------------------------------------------- service interfaces */
 
 export interface SearchService {
@@ -359,5 +394,7 @@ export interface DashboardService {
  */
 export interface WorkspaceService {
   health(): Promise<HealthStatus>;
+  /** Which sources can actually be read, from the backend's own record. */
+  sources(): Promise<SourcesReport>;
   reset(): Promise<void>;
 }

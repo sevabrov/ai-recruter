@@ -29,15 +29,26 @@ from app.db.engine import SessionFactory
 from app.db.mappers import (
     apply_job,
     apply_lead,
+    apply_scrape,
     apply_search,
     note_row,
+    scrape_key,
     to_job,
     to_lead,
+    to_scrape,
     to_search,
 )
 from app.db.repository import Repository
 from app.db.seed import SeedData
-from app.db.tables import JobRow, LeadNoteRow, LeadRow, SearchRow, SeedStateRow, UserRow
+from app.db.tables import (
+    JobRow,
+    LeadNoteRow,
+    LeadRow,
+    ScrapeRow,
+    SearchRow,
+    SeedStateRow,
+    UserRow,
+)
 from app.models.common import (
     HIGH_QUALITY_THRESHOLD,
     SOCIAL_PLATFORMS,
@@ -48,6 +59,7 @@ from app.models.common import (
 from app.models.job import Job
 from app.models.lead import Lead, LeadNote
 from app.models.query import LeadQuery, LeadStats, Page
+from app.models.scrape import USABLE_OUTCOMES, ScrapeOutcome, ScrapeRecord, SourceReliability
 from app.models.search import Search
 
 log = get_logger(__name__)
@@ -59,6 +71,8 @@ SEED_KEY = "demo-workspace"
 FINISHED_STATUSES = (SearchStatus.CANCELLED.value, SearchStatus.FAILED.value)
 
 #: Tables the demo reset clears. Users survive: the accounts are not demo data.
+#: Neither does `scrape_cache` — those pages were paid for in credits (spec §53),
+#: and a reset of the demo workspace is no reason to buy them again.
 RESET_TABLES = "lead_notes, leads, jobs, searches, seed_state"
 
 
@@ -220,6 +234,55 @@ class PostgresRepository(Repository):
                 session.add(row)
             apply_job(row, job)
 
+    # --------------------------------------------------------- scrape cache
+    async def get_scrape(self, canonical_url: str) -> ScrapeRecord | None:
+        async with self._session() as session:
+            row = await session.get(ScrapeRow, scrape_key(canonical_url))
+            return to_scrape(row) if row else None
+
+    async def save_scrape(self, record: ScrapeRecord) -> None:
+        async with self._session() as session, session.begin():
+            row = await session.get(ScrapeRow, scrape_key(record.canonical_url))
+            if row is None:
+                row = ScrapeRow()
+                session.add(row)
+            apply_scrape(row, record)
+
+    async def source_reliability(self) -> list[SourceReliability]:
+        """
+        One row per platform, counted in the database: a workspace that has read
+        thousands of pages must not load them to answer this.
+        """
+        counts = {
+            outcome: func.count().filter(ScrapeRow.outcome == outcome.value).label(outcome.value)
+            for outcome in ScrapeOutcome
+        }
+        stmt = select(
+            ScrapeRow.platform.label("platform"),
+            func.count().label("pages"),
+            func.max(ScrapeRow.last_scraped_at).label("last_read_at"),
+            *counts.values(),
+        ).group_by(ScrapeRow.platform)
+
+        async with self._session() as session:
+            rows = {row.platform: row for row in await session.execute(stmt)}
+
+        # Enum order, not alphabetical, and only platforms that were actually tried.
+        return [
+            SourceReliability(
+                platform=platform,
+                pages=row.pages,
+                usable=sum(getattr(row, outcome.value) for outcome in USABLE_OUTCOMES),
+                not_a_person=row.not_a_person,
+                empty=row.empty,
+                blocked=row.blocked,
+                failed=row.failed,
+                last_read_at=row.last_read_at,
+            )
+            for platform in Platform
+            if (row := rows.get(platform.value)) is not None
+        ]
+
     # ------------------------------------------------------------- lifecycle
     async def ping(self) -> bool:
         try:
@@ -291,6 +354,7 @@ class PostgresRepository(Repository):
             await session.execute(delete(LeadRow))
             await session.execute(delete(JobRow))
             await session.execute(delete(SearchRow))
+            await session.execute(delete(ScrapeRow))
             await session.execute(delete(SeedStateRow))
 
 

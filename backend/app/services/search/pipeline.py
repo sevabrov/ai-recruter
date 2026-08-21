@@ -4,10 +4,10 @@ The search pipeline (spec §44).
     criteria → queries → provider → normalize → dedup URLs → candidate discovery
             → extraction → signal detection → scoring → lead dedup → storage
 
-Every arrow is real code here, and since Phase 4 the first two are real services
-too: with `BRAVE_SEARCH_API_KEY` set, `→ provider` is the live web and the URLs
-that come out of `→ dedup` are pages that exist. Reading those pages properly is
-Phase 5 and judging them is Phase 6 — which adapter is behind each stage is
+Every arrow is real code here, and most of them are real services now: with
+`BRAVE_SEARCH_API_KEY` set, `→ provider` is the live web (Phase 4), and with
+`SCRAPEGRAPH_API_KEY` set, `→ extraction` opens the pages it found and reads them
+(Phase 5). Judging what was read is Phase 6. Which adapter is behind each stage is
 `services/adapters.py`'s business, not this file's. Storage is PostgreSQL.
 
 Two properties matter more than the stub data:
@@ -32,7 +32,7 @@ from app.models.search import GeneratedQuery, Search, SearchProgress, SearchUsag
 from app.models.source import DiscoveredUrl, ProviderResult
 from app.services.extraction.signal_detector import SignalDetector
 from app.services.scoring.scoring_service import ScoringService
-from app.services.scraping.base import ProfileExtractor
+from app.services.scraping.base import ProfileExtractor, cost_of
 from app.services.search.deduplicator import deduplicate
 from app.services.search.providers.base import SearchMarket, SearchProvider
 from app.services.search.query_generator import QueryGenerator
@@ -212,6 +212,15 @@ class SearchPipeline:
 
     # --------------------------------------------------------------- stage 4
     async def _extract(self, search: Search, urls: list[DiscoveredUrl]) -> list[ExtractedProfile]:
+        """
+        Candidate URLs are read concurrently under EXTRACTION_CONCURRENCY (spec §35)
+        — never one at a time, never unlimited.
+
+        What "read" means is the extractor's business (`services/adapters.py`), and
+        since Phase 5 it can cost money: the chain reports how many pages it fetched
+        and how many the cache saved, and those are copied into the search's usage
+        rather than inferred from the number of URLs (§53–54).
+        """
         await self._enter(search.id, SearchStage.EXTRACTING)
         semaphore = asyncio.Semaphore(self.settings.extraction_concurrency)
         profiles: list[ExtractedProfile] = []
@@ -233,14 +242,37 @@ class SearchPipeline:
 
             processed += 1
             self._usage.pages_analyzed += 1
+            self._bill_extraction()
             if profile and profile.is_person:
                 profiles.append(profile)
             self._progress.profiles_processed = processed
             await self._save(search.id, SearchStage.EXTRACTING, processed / max(1, len(urls)))
 
         await asyncio.gather(*(extract_one(url) for url in urls))
-        log.info("extraction_completed", extra={"profiles": len(profiles), "pages": processed})
+        self._bill_extraction()
+        spent = cost_of(self.extractor)
+        log.info(
+            "extraction_completed",
+            extra={
+                "profiles": len(profiles),
+                "pages": processed,
+                "pages_read": self._usage.pages_read,
+                "pages_cached": self._usage.pages_cached,
+                # Reported by the reader itself. Phase 6 puts tokens on the usage
+                # screen, when the LLM stage starts spending them too (spec §54).
+                "tokens_in": spent.tokens_in,
+                "tokens_out": spent.tokens_out,
+                "read_by": {profile.extractor for profile in profiles},
+            },
+        )
         return profiles
+
+    def _bill_extraction(self) -> None:
+        """Copy what the extractor chain has spent so far into this run's usage."""
+        spent = cost_of(self.extractor)
+        self._usage.pages_read = spent.pages_read
+        self._usage.pages_cached = spent.pages_cached
+        self._usage.scrape_credits = spent.credits
 
     # --------------------------------------------------------------- stage 5
     async def _score(self, search: Search, profiles: list[ExtractedProfile]) -> list[Lead]:
@@ -358,11 +390,17 @@ class SearchPipeline:
             )
 
     def _costed(self) -> SearchUsage:
-        """Usage is money (spec §54); unit costs are configuration."""
+        """
+        Usage is money (spec §54); unit costs are configuration.
+
+        Pages are billed by what was *read*, not by what was looked at: a page the
+        cache answered was paid for by an earlier search, and charging for it again
+        would make the cache invisible in the only place it matters.
+        """
         settings = self.settings
         cost = (
             self._usage.search_api_calls * settings.cost_per_search_call_eur
-            + self._usage.pages_analyzed * settings.cost_per_page_eur
+            + self._usage.pages_read * settings.cost_per_page_eur
             + self._usage.llm_calls * settings.cost_per_llm_call_eur
         )
         return self._usage.model_copy(update={"estimated_cost_eur": round(cost, 2)})

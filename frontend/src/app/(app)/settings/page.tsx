@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Database, Monitor, Radio, Trash2 } from "lucide-react";
+import { Check, Database, FileSearch, Monitor, Radio, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge, Dot } from "@/components/ui/badge";
@@ -12,10 +12,10 @@ import { Modal } from "@/components/ui/overlay";
 import { useToast } from "@/components/ui/toast";
 import { useTheme } from "@/lib/theme-provider";
 import { THEMES } from "@/lib/themes";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import { DATA_SOURCE, IS_MOCK } from "@/services";
 import { API_BASE_URL } from "@/services/api/http";
-import { useBackendHealth, useResetWorkspace } from "@/services/hooks";
+import { useBackendHealth, useResetWorkspace, useSourceReport } from "@/services/hooks";
 import type { HealthStatus } from "@/services/types";
 
 /** Concurrency + provider settings are server-owned (spec §52); shown read-only. */
@@ -36,7 +36,8 @@ const PROVIDERS: {
   {
     name: "ScrapeGraphAI",
     role: "Structured extraction from candidate pages",
-    pending: "Phase 5",
+    // Implemented in Phase 5: the only thing missing is an API key.
+    pending: "add SCRAPEGRAPH_API_KEY",
     configured: (health) => health.providers.scrapegraph,
   },
   {
@@ -63,6 +64,7 @@ const LIMITS = [
   { key: "EXTRACTION_CONCURRENCY", value: "10" },
   { key: "LLM_CONCURRENCY", value: "10" },
   { key: "BRAVE_RATE_LIMIT_PER_SECOND", value: "1" },
+  { key: "SCRAPEGRAPH_RATE_LIMIT_PER_SECOND", value: "5" },
 ];
 
 /**
@@ -77,14 +79,37 @@ const STAGES: { key: keyof NonNullable<HealthStatus["stages"]>; label: string }[
 
 const ADAPTERS: Record<string, { name: string; live: boolean; hint: string }> = {
   brave: { name: "Brave Search", live: true, hint: "Live public web results" },
-  scrapegraph: { name: "ScrapeGraphAI", live: true, hint: "Reads the candidate page" },
+  scrapegraph: {
+    name: "ScrapeGraphAI",
+    live: true,
+    hint: "Opens each candidate page and extracts the profile it states",
+  },
   llm: { name: "OpenAI", live: true, hint: "Judges each signal on the profile" },
   snippet: {
     name: "Search snippets",
     live: false,
-    hint: "Profiles built from result metadata, not from the page — Phase 5",
+    hint: "Profiles built from result metadata, not from the page — add SCRAPEGRAPH_API_KEY",
   },
   fixture: { name: "Fixture", live: false, hint: "The seeded catalogue of 24 candidates" },
+};
+
+/** What each recorded outcome means, in the order the columns should read. */
+const OUTCOMES: { key: "usable" | "notAPerson" | "blocked" | "empty" | "failed"; label: string }[] =
+  [
+    { key: "usable", label: "read" },
+    { key: "notAPerson", label: "not a person" },
+    { key: "blocked", label: "blocked" },
+    { key: "empty", label: "empty" },
+    { key: "failed", label: "failed" },
+  ];
+
+const PLATFORM_LABELS: Record<string, string> = {
+  instagram: "Instagram",
+  linkedin: "LinkedIn",
+  facebook: "Facebook",
+  threads: "Threads",
+  website: "Personal sites",
+  blog: "Blogs",
 };
 
 export default function SettingsPage() {
@@ -94,6 +119,7 @@ export default function SettingsPage() {
   const [notifyDone, setNotifyDone] = useState(true);
   const { toast } = useToast();
   const health = useBackendHealth();
+  const sources = useSourceReport();
   const resetWorkspace = useResetWorkspace();
 
   // A backend whose database stopped answering is not "connected" — it is degraded,
@@ -331,6 +357,66 @@ export default function SettingsPage() {
                 ))}
               </ul>
             </div>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Reading the sources"
+            hint="Measured from the pages this workspace has opened — not an assumption about the platforms"
+            action={<FileSearch className="size-3.5 text-fg-faint" />}
+          />
+          <CardBody className="flex flex-col gap-4">
+            <p className="text-sm text-fg-muted">
+              {sources.data ? (
+                <>
+                  {sources.data.fallback} A page is read once and reused for{" "}
+                  {sources.data.cacheTtlHours} hours, so the same profile is never paid for twice.
+                </>
+              ) : sources.isError ? (
+                "The backend did not answer this one."
+              ) : (
+                "Loading the reading record…"
+              )}
+            </p>
+
+            {sources.data && sources.data.items.length > 0 ? (
+              <ul className="divide-y divide-line rounded-card border border-line">
+                {sources.data.items.map((row) => {
+                  const share = Math.round(row.usableShare * 100);
+                  return (
+                    <li key={row.platform} className="flex flex-col gap-2 px-3.5 py-2.5">
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span className="text-sm">
+                          {PLATFORM_LABELS[row.platform] ?? row.platform}
+                        </span>
+                        <Badge tone={share >= 60 ? "good" : share > 0 ? "warn" : undefined} mono>
+                          {share}% usable
+                        </Badge>
+                      </span>
+                      <span className="flex flex-wrap items-center gap-1.5 text-xs text-fg-muted">
+                        <span className="num">{formatNumber(row.pages)} pages</span>
+                        {OUTCOMES.filter((outcome) => row[outcome.key] > 0).map((outcome) => (
+                          <span
+                            key={outcome.key}
+                            className="num rounded-ctl border border-line bg-surface-2 px-2 py-0.5"
+                          >
+                            {row[outcome.key]} {outcome.label}
+                          </span>
+                        ))}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : sources.data ? (
+              <p className="rounded-card border border-line bg-surface-2 px-3.5 py-2.5 text-xs text-fg-muted">
+                No page has been read yet.{" "}
+                {sources.data.live
+                  ? "Run a search and this fills in per platform."
+                  : "Reading starts once SCRAPEGRAPH_API_KEY is set."}
+              </p>
+            ) : null}
           </CardBody>
         </Card>
 

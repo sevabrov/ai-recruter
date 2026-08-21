@@ -72,6 +72,10 @@ class GeneratedQuerySchema(CamelModel):
 class SearchUsageSchema(CamelModel):
     search_api_calls: int
     pages_analyzed: int
+    #: Pages actually fetched and billed, and pages served from the scrape cache.
+    pages_read: int
+    pages_cached: int
+    scrape_credits: int
     llm_calls: int
     estimated_cost_eur: float
 

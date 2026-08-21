@@ -30,8 +30,10 @@ from app.core.config import Settings
 from app.db.bootstrap import upgrade_schema
 from app.main import create_app
 
-#: Cleared between tests. `users` is included so the seeding path runs in full.
-TABLES = "lead_notes, leads, jobs, searches, seed_state, users"
+#: Cleared between tests. `users` is included so the seeding path runs in full, and
+#: `scrape_cache` because a page read by one test must not be a cache hit in the
+#: next one — the product keeps it across a reset on purpose (pages cost credits).
+TABLES = "lead_notes, leads, jobs, searches, seed_state, users, scrape_cache"
 
 #: The wizard's "Fill example" scenario, in the shape the frontend posts.
 MIHI_SPAIN: dict[str, Any] = {
@@ -90,8 +92,9 @@ def settings(clean_database: str) -> Settings:
         scrapegraph_api_key="",
         openai_api_key="",
         # Belt and braces: even handed a key, nothing here may call the live web.
-        # The tests that do exercise Brave build the provider themselves, with a
-        # mock transport (tests/test_brave_provider.py, tests/test_live_search.py).
+        # The tests that do exercise the providers build them themselves, with a
+        # mock transport (test_brave_provider, test_scrapegraph_extractor,
+        # test_live_search, test_scrape_cache).
         search_provider="fixture",
     )
 

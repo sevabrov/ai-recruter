@@ -14,8 +14,9 @@
 # it. Adminer is a browser SQL client, so no database GUI is needed on the host.
 #
 # Nothing here calls out to the internet unless `.env` carries a provider key:
-# with BRAVE_SEARCH_API_KEY set, searches query the live web (Phase 4); without
-# one they run over the seeded catalogue.
+# with BRAVE_SEARCH_API_KEY set, searches query the live web (Phase 4); with
+# SCRAPEGRAPH_API_KEY set as well, the pages they find are opened and read
+# (Phase 5). Without either, everything runs over the seeded catalogue.
 
 name: ai-recruiter
 

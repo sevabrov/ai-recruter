@@ -21,8 +21,12 @@ Identity comes from the shapes the platforms actually publish:
     Anna López | Facebook
     Anna López (@anna.lopez) on Threads
 
-Phase 5 replaces this class with `ScrapeGraphProfileExtractor`, which reads the
-page itself and can fill the fields this one has to leave empty.
+Phase 5 added `ScrapeGraphProfileExtractor`, which reads the page itself. This one
+did not become dead code, because the spec is explicit that not every social URL
+can be scraped: when the page will not open, the search result is still the best
+evidence available, and a lead built from it beats no lead at all. Which of the two
+produced a profile is recorded on it (`extractor`), so the difference is never
+guesswork — see `services/scraping/fallback.py`.
 """
 
 import hashlib
@@ -42,69 +46,16 @@ from app.services.extraction.vocabulary import (
     quote,
 )
 from app.services.scraping.base import ProfileExtractor
+from app.services.scraping.names import clean as _clean
+from app.services.scraping.names import commercial as _commercial
+from app.services.scraping.names import looks_like_a_person as _looks_like_a_person
+from app.services.scraping.names import plausible_name as _plausible_name
 from app.services.search.markets import language_name
 
 log = get_logger(__name__)
 
 #: The ceiling for anything read out of a search snippet. Certainty needs a page.
 MAX_CONFIDENCE = 0.65
-
-#: Words that mean the title is not a person, whatever else it looks like.
-NOT_A_PERSON = {
-    "about",
-    "academy",
-    "agency",
-    "blog",
-    "boutique",
-    "careers",
-    "clinic",
-    "company",
-    "contact",
-    "products",
-    "profiles",
-    "shop",
-    "store",
-    "team",
-    "gmbh",
-    "ltd",
-    "llc",
-    "inc",
-    "srl",
-    "official",
-    "login",
-    "sign",
-    "photos",
-    "videos",
-    "instagram",
-    "facebook",
-    "linkedin",
-    "threads",
-}
-
-#: A brand's own account is the single most common false positive in a search for
-#: people: it ranks high, its title reads like a name and its handle gives it away.
-#: Localised, because the account is in the country being searched.
-BRAND_MARKERS = {
-    "official",
-    "oficial",
-    "oficialna",
-    "oficjalny",
-    "offiziell",
-    "ufficiale",
-    "officiel",
-    "brand",
-    "tienda",
-    "negozio",
-    "sklep",
-    "loja",
-    "магазин",
-    "cosmetics",
-    "cosmetica",
-    "cosmética",
-}
-
-#: Lowercase in the middle of a name is normal: "Ana de la Cruz", "Jan van Dijk".
-PARTICLES = {"de", "del", "della", "di", "da", "dos", "la", "le", "van", "von", "der", "den", "bin"}
 
 HANDLE_IN_TITLE = re.compile(r"^(?P<name>[^(|•·]{2,60}?)\s*\(@(?P<handle>[\w.\-]{2,40})\)")
 HANDLE_IN_TEXT = re.compile(
@@ -252,38 +203,6 @@ def _own_site(url: DiscoveredUrl) -> tuple[str, str | None, str | None, str | No
 def _segments(title: str) -> list[str]:
     cleaned = TRAILING_PLATFORM.sub("", _clean(title))
     return [segment for part in SEPARATORS.split(cleaned) if (segment := _clean(part))]
-
-
-def _clean(value: str) -> str:
-    return re.sub(r"\s+", " ", value or "").strip(" \t\n\r-–—|·•,")
-
-
-def _looks_like_a_person(text: str) -> bool:
-    """Two to four name-shaped words. Deliberately strict: a false name is a lead."""
-    words = text.split()
-    if not 2 <= len(words) <= 4 or len(text) > 60:
-        return False
-    if _commercial(text):
-        return False
-    if any(character.isdigit() for character in text):
-        return False
-    return all(word[0].isupper() or word.lower() in PARTICLES for word in words)
-
-
-def _plausible_name(text: str) -> bool:
-    """The lighter check, for titles where a handle already vouches for the name."""
-    words = text.split()
-    if not words or len(words) > 5 or len(text) > 60:
-        return False
-    if _commercial(text):
-        return False
-    return any(character.isalpha() for character in text)
-
-
-def _commercial(text: str) -> bool:
-    """A page or an account belonging to a business rather than to a person."""
-    tokens = {token for token in re.split(r"[^\w]+", text.lower()) if token}
-    return bool(tokens & (NOT_A_PERSON | BRAND_MARKERS))
 
 
 def _slug(canonical_url: str, marker: str) -> str | None:

@@ -22,6 +22,7 @@ import type {
   Search,
   SearchService,
   SearchSummary,
+  SourcesReport,
   UpdateLeadInput,
   WorkspaceService,
 } from "@/services/types";
@@ -106,6 +107,10 @@ export class ApiDashboardService implements DashboardService {
 export class ApiWorkspaceService implements WorkspaceService {
   health() {
     return request<HealthStatus>("/health");
+  }
+
+  sources() {
+    return request<SourcesReport>("/sources");
   }
 
   /** Debug-only on the server; Phase 8 puts it behind an admin role. */

@@ -129,6 +129,10 @@ function search(
     usage: {
       searchApiCalls: 12,
       pagesAnalyzed: 104,
+      // Read + cached add up to analyzed: a page the cache answered cost nothing.
+      pagesRead: 96,
+      pagesCached: 8,
+      scrapeCredits: 96,
       llmCalls: 67,
       estimatedCostEur: 1.84,
     },
@@ -144,7 +148,15 @@ function search(
 export const MOCK_SEARCHES: Search[] = [
   search("srch_es_mihi", "MIHI Beauty Leaders Spain", ES_CRITERIA, "completed", 3, {
     leadCount: 153,
-    usage: { searchApiCalls: 14, pagesAnalyzed: 187, llmCalls: 126, estimatedCostEur: 2.41 },
+    usage: {
+      searchApiCalls: 14,
+      pagesAnalyzed: 187,
+      pagesRead: 173,
+      pagesCached: 14,
+      scrapeCredits: 173,
+      llmCalls: 126,
+      estimatedCostEur: 2.41,
+    },
     progress: completedProgress({
       queries: 14,
       queriesCompleted: 14,
@@ -157,7 +169,15 @@ export const MOCK_SEARCHES: Search[] = [
   }),
   search("srch_de_mihi", "MIHI distributors — Germany", DE_CRITERIA, "completed", 28, {
     leadCount: 84,
-    usage: { searchApiCalls: 11, pagesAnalyzed: 132, llmCalls: 88, estimatedCostEur: 1.63 },
+    usage: {
+      searchApiCalls: 11,
+      pagesAnalyzed: 132,
+      pagesRead: 118,
+      pagesCached: 14,
+      scrapeCredits: 118,
+      llmCalls: 88,
+      estimatedCostEur: 1.63,
+    },
     progress: completedProgress({
       queries: 11,
       queriesCompleted: 11,
@@ -183,11 +203,27 @@ export const MOCK_SEARCHES: Search[] = [
       percent: 58,
       stage: "extracting",
     },
-    usage: { searchApiCalls: 12, pagesAnalyzed: 41, llmCalls: 24, estimatedCostEur: 0.62 },
+    usage: {
+      searchApiCalls: 12,
+      pagesAnalyzed: 41,
+      pagesRead: 33,
+      pagesCached: 8,
+      scrapeCredits: 33,
+      llmCalls: 24,
+      estimatedCostEur: 0.62,
+    },
   }),
   search("srch_it_beauty", "Beauty founders — Italy", IT_CRITERIA, "completed", 76, {
     leadCount: 61,
-    usage: { searchApiCalls: 9, pagesAnalyzed: 96, llmCalls: 58, estimatedCostEur: 1.12 },
+    usage: {
+      searchApiCalls: 9,
+      pagesAnalyzed: 96,
+      pagesRead: 96,
+      pagesCached: 0,
+      scrapeCredits: 96,
+      llmCalls: 58,
+      estimatedCostEur: 1.12,
+    },
     progress: completedProgress({
       queries: 9,
       queriesCompleted: 9,

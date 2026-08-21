@@ -20,6 +20,7 @@ from app.models.common import Platform
 from app.models.job import Job
 from app.models.lead import Lead, LeadNote
 from app.models.query import LeadQuery, LeadStats, Page
+from app.models.scrape import ScrapeRecord, SourceReliability
 from app.models.search import Search
 
 
@@ -79,6 +80,19 @@ class Repository(Protocol):
     async def get_job(self, job_id: str) -> Job | None: ...
 
     async def save_job(self, job: Job) -> None: ...
+
+    # --------------------------------------------------------- scrape cache
+    async def get_scrape(self, canonical_url: str) -> ScrapeRecord | None:
+        """The last recorded read of this page, however long ago (spec §53)."""
+
+    async def save_scrape(self, record: ScrapeRecord) -> None:
+        """Insert or replace the entry for `record.canonical_url`."""
+
+    async def source_reliability(self) -> list[SourceReliability]:
+        """
+        Per-platform counts of what reading actually yielded — the answer to
+        Milestone 5's "record which sources consistently provide usable content".
+        """
 
     # ------------------------------------------------------------- lifecycle
     async def ping(self) -> bool:

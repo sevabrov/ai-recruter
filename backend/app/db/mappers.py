@@ -12,11 +12,13 @@ models from `app/models/`; everything below it works with the tables in
   recomputed on every write and cannot drift from what is displayed.
 """
 
+import hashlib
 from typing import Any
 
-from app.db.tables import JobRow, LeadNoteRow, LeadRow, SearchRow
+from app.db.tables import JobRow, LeadNoteRow, LeadRow, ScrapeRow, SearchRow
 from app.models.job import Job
 from app.models.lead import Lead, LeadNote
+from app.models.scrape import ScrapeRecord
 from app.models.search import Search
 
 
@@ -183,5 +185,45 @@ def to_job(row: JobRow) -> Job:
             "created_at": row.created_at,
             "started_at": row.started_at,
             "finished_at": row.finished_at,
+        }
+    )
+
+
+# --------------------------------------------------------------- scrape cache
+def scrape_key(canonical_url: str) -> str:
+    """The row's identity: one canonical URL is one entry, however long it is."""
+    return hashlib.sha256(canonical_url.encode()).hexdigest()[:64]
+
+
+def apply_scrape(row: ScrapeRow, record: ScrapeRecord) -> ScrapeRow:
+    row.key = scrape_key(record.canonical_url)
+    row.canonical_url = record.canonical_url
+    row.url = record.url
+    row.platform = record.platform.value
+    row.reader = record.reader
+    row.outcome = record.outcome.value
+    row.content_hash = record.content_hash
+    row.detail = record.detail
+    row.attempts = record.attempts
+    row.profile = record.profile.model_dump(mode="json") if record.profile else None
+    row.first_seen_at = record.first_seen_at
+    row.last_scraped_at = record.last_scraped_at
+    return row
+
+
+def to_scrape(row: ScrapeRow) -> ScrapeRecord:
+    return ScrapeRecord.model_validate(
+        {
+            "canonical_url": row.canonical_url,
+            "url": row.url,
+            "platform": row.platform,
+            "reader": row.reader,
+            "outcome": row.outcome,
+            "content_hash": row.content_hash,
+            "detail": row.detail,
+            "attempts": row.attempts,
+            "profile": row.profile,
+            "first_seen_at": row.first_seen_at,
+            "last_scraped_at": row.last_scraped_at,
         }
     )

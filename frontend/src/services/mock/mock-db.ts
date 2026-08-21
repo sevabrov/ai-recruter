@@ -182,6 +182,10 @@ export function projectSearch(search: Search): Search {
     usage: {
       searchApiCalls: progress.queriesCompleted,
       pagesAnalyzed: progress.profilesProcessed,
+      // The mock has no scrape cache, so every page it "analyzed" it also read.
+      pagesRead: progress.profilesProcessed,
+      pagesCached: 0,
+      scrapeCredits: progress.profilesProcessed,
       llmCalls: Math.round(progress.profilesProcessed * 1.4),
       estimatedCostEur: Number((progress.profilesProcessed * 0.0142).toFixed(2)),
     },
@@ -261,7 +265,15 @@ export function createSearch(input: CreateSearchInput): Search {
     leadCount: 0,
     highQualityCount: 0,
     progress: progressAt(0, leads.length, leads.filter((lead) => lead.score >= 85).length),
-    usage: { searchApiCalls: 0, pagesAnalyzed: 0, llmCalls: 0, estimatedCostEur: 0 },
+    usage: {
+      searchApiCalls: 0,
+      pagesAnalyzed: 0,
+      pagesRead: 0,
+      pagesCached: 0,
+      scrapeCredits: 0,
+      llmCalls: 0,
+      estimatedCostEur: 0,
+    },
     queries: generateQueryPreview(input.criteria, 12).map((query, index) => ({
       id: `q_${index + 1}`,
       query,

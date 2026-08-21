@@ -220,6 +220,45 @@ class JobRow(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class ScrapeRow(Base):
+    """
+    The scrape cache (spec §53) and, from the same rows, the record of which
+    sources can be read at all (Milestone 5).
+
+    The primary key is a hash of the canonical URL rather than the URL itself: a
+    profile URL with a long query string would otherwise be too big for a btree
+    index, and a cache that starts refusing rows is worse than no cache.
+
+    There is no `user_id` here on purpose — a page is a page, and nothing in this
+    table is derived from anyone's criteria. It is the one table shared across
+    users, which is exactly why it holds no personal data of the account's.
+    """
+
+    __tablename__ = "scrape_cache"
+    __table_args__ = (
+        # The reliability report groups by platform and counts by outcome.
+        Index("ix_scrape_cache_platform_outcome", "platform", "outcome"),
+    )
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    canonical_url: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False)
+    #: Which adapter read the page. A cached answer is only reused by its own reader.
+    reader: Mapped[str] = mapped_column(String(32), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    content_hash: Mapped[str | None] = mapped_column(String(64))
+    detail: Mapped[str | None] = mapped_column(Text)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    #: The extracted profile, whole. Null for every outcome except a usable read.
+    profile: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_scraped_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+
+
 class SeedStateRow(Base):
     """
     Why the seed is applied once and not on every boot.

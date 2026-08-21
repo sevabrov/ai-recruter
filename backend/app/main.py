@@ -3,11 +3,13 @@ AI Recruiter API — application entry point.
 
     uvicorn app.main:app --reload        (or: docker compose up -d backend)
 
-Phase 3 scope: the endpoints from spec §57 behind the contract the frontend already
-speaks, the search pipeline running end to end, and PostgreSQL underneath — a
-restart no longer loses the workspace. No external service is called yet: see
-`services/adapters.py` for exactly where the real providers plug in, and README.md
-for what each later phase replaces.
+Phase 5 scope: the endpoints from spec §57 behind the contract the frontend already
+speaks, the search pipeline running end to end over PostgreSQL, live web search
+(Phase 4) and — with a ScrapeGraphAI key — the candidate pages actually read and
+extracted into the strict schema from §34, through a cache so no page is paid for
+twice. Signal detection is still the keyword stand-in until Phase 6; see
+`services/adapters.py` for what is plugged in where, and README.md for what each
+later phase replaces.
 """
 
 from contextlib import asynccontextmanager
@@ -15,7 +17,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, dashboard, health, jobs, leads, searches
+from app.api import admin, dashboard, health, jobs, leads, searches, sources
 from app.api.deps import close_container, open_container
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
@@ -82,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(leads.router)
     app.include_router(dashboard.router)
     app.include_router(jobs.router)
+    app.include_router(sources.router)
     if settings.debug:
         app.include_router(admin.router)
 

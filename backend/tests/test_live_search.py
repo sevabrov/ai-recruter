@@ -128,7 +128,7 @@ async def run_live(settings: Settings, handler, **criteria: object):
             user_id=settings.dev_user_id,
             name="Live web search",
             status=SearchStatus.QUEUED,
-            criteria=SearchCriteria.model_validate({**_criteria(), **criteria}),
+            criteria=SearchCriteria.model_validate({**live_criteria(), **criteria}),
         )
         await container.repository.save_search(search)
 
@@ -143,7 +143,7 @@ async def run_live(settings: Settings, handler, **criteria: object):
         await close_container(container)
 
 
-def _criteria() -> dict:
+def live_criteria() -> dict:
     """The wizard's example scenario, in snake_case as the domain model wants it."""
     return {
         "industry": MIHI_SPAIN["industry"],

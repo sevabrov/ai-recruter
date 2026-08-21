@@ -1,20 +1,22 @@
 # AI Recruiter API
 
-FastAPI backend. **Phase 4 — real web search**: the endpoints from spec §57 behind
+FastAPI backend. **Phase 5 — reading the pages**: the endpoints from spec §57 behind
 the contract the frontend already speaks, the pipeline running end to end, the
-workspace in a versioned PostgreSQL schema — and, with one key set, candidates
-discovered on the live public web instead of in the seeded catalogue.
+workspace in a versioned PostgreSQL schema, candidates discovered on the live public
+web (Phase 4) — and now each candidate's page opened and extracted into the strict
+schema from §34.
 
 ```bash
-BRAVE_SEARCH_API_KEY=…   # in .env — that is the whole switch
+BRAVE_SEARCH_API_KEY=…   # in .env — finds real URLs
+SCRAPEGRAPH_API_KEY=…    # in .env — reads what is on them
 ```
 
-Without it nothing calls out and the demo works exactly as before. `/health` always
-says which stage is real:
+Neither is required: without them nothing calls out and the demo works exactly as
+before. `/health` always says which stage is real:
 
 ```json
 {"pipeline": "partial",
- "stages": {"search": "brave", "extraction": "snippet", "signals": "fixture"}}
+ "stages": {"search": "brave", "extraction": "scrapegraph", "signals": "fixture"}}
 ```
 
 ---
@@ -33,7 +35,7 @@ docker compose down                     # stop; the data volume survives
 Interactive API docs: <http://localhost:8000/docs>.
 
 ```bash
-docker compose run --rm backend pytest -q            # 143 tests (needs postgres)
+docker compose run --rm backend pytest -q            # 200 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .
 docker compose run --rm --no-deps backend ruff format .
 ```
@@ -50,8 +52,15 @@ against a reachable `DATABASE_URL`.
 
 ```
 users ─┬─< searches ─< leads ─< lead_notes
-       └─< jobs                 seed_state   (the "seeded once" marker)
+       └─< jobs                 seed_state    (the "seeded once" marker)
+                                scrape_cache  (one row per page ever read)
 ```
+
+`scrape_cache` is the one table with no `user_id`: a page is a page, nothing in it
+is derived from anyone's criteria, and two users searching for the same person should
+not pay twice. Its key is a hash of the canonical URL, so a profile link with a long
+query string cannot outgrow the index. `POST /admin/reset` deliberately leaves it
+alone — those pages were paid for in credits.
 
 Migrations are the source of truth for the schema — `alembic/versions/` — and the
 API runs `alembic upgrade head` at startup, so an empty volume needs no extra step.
@@ -113,6 +122,7 @@ at the rows.
 | POST | `/leads/:id/outreach` | drafts a message (template until Phase 8) |
 | GET | `/dashboard` | tiles, recent searches, distributions |
 | GET | `/jobs`, `/jobs/:id` | operator view of background work; survives a restart |
+| GET | `/sources` | which platforms can actually be read, counted from the scrape cache |
 | POST | `/admin/reset` | re-seeds the workspace; debug builds only |
 
 Responses are camelCase to match `frontend/src/services/types.ts`; query
@@ -160,26 +170,92 @@ Set `BRAVE_SEARCH_API_KEY` and restart the backend. What changes:
 * **The key stays server-side** (§55): it travels in `X-Subscription-Token`, never
   in a URL, a log line or an error message.
 
-### The extraction gap
+---
 
-Phase 5 is what reads a candidate's page. Until then, live searches are extracted
-by `SnippetProfileExtractor`, which builds a profile from **the result metadata the
-search API already returned** — title, description, the index's page age and
-language — and never opens a URL. It is honest about being thin:
+## Reading the pages (spec §33–35, §53)
 
-* every profile records `extractor: "snippet"`;
-* confidence is capped at 0.65, because a description is not a page;
-* a title it cannot read a person's name out of returns nothing, so shops, brand
-  accounts and articles do not become leads;
-* signals are keyword sightings (`services/extraction/vocabulary.py`, one file so
-  Phase 6 can delete it in one commit) with the sentence they were found in as
-  evidence. Judging them stays the detector's and the scoring service's job.
+```
+candidate URL → scrape cache → POST v2-api.scrapegraphai.com/api/extract
+             → PageExtraction (§34) → ExtractedProfile + one observation per
+                signal, each with the quote that justifies it
+```
 
-The visible consequence: leads found on the open web score lower than the seeded
-ones, and one person appearing on Instagram *and* on their own domain stays two
-leads — the strong keys `deduplicate` merges on (shared URL, handle, e-mail,
-website) are exactly what a snippet does not carry. Both improve in Phase 5, when
-the page itself is read.
+Set `SCRAPEGRAPH_API_KEY` and restart. Keys come from the current ScrapeGraphAI
+platform (sign in at scrapegraphai.com/login); the `dashboard.scrapegraphai.com`
+dashboard and its `v1/smartscraper` endpoint are deprecated, and `SCRAPEGRAPH_ENDPOINT`
+is configuration so an account on either one works. What changes:
+
+* **The profile comes from the page.** Headline, company, city, languages, handle,
+  follower and post counts, e-mail, and the links the person publishes — instead of
+  a search result's title and description.
+* **Structured output only** (§34). The request is `{url, prompt, schema}` and the
+  schema is `PageExtraction`'s (`services/scraping/page_schema.py`), so the model
+  cannot answer in prose, and a response that does not fit it is treated as an
+  unreadable page rather than parsed loosely. Reading a malformed answer generously
+  is precisely how invented data gets in.
+* **No quote, no signal.** Every signal must arrive with a verbatim quote from the
+  page; a `detected: true` with nothing behind it is recorded as not detected. Page
+  confidence is capped at 0.9 — a model summarised what it saw, and Phase 6 is what
+  re-judges it.
+* **One person on two platforms is now one lead.** Her Instagram bio links to her
+  site, so both records carry the same website and `deduplicate` merges them on a
+  strong key (§45). That link is exactly what a search snippet never carries — it is
+  the clearest thing page reading buys.
+* **A page is read once** (§53). The cache is keyed by canonical URL and stores the
+  *outcome*, so a login wall costs one credit rather than one per search. Cached
+  pages are free and the search's usage says so: `pagesRead` is what was billed,
+  `pagesCached` is what an earlier search paid for. `SCRAPE_CACHE_TTL_HOURS=0`
+  disables reuse without losing the record. The tokens the service reports
+  (`usage.promptTokens` / `completionTokens`) are counted per search and logged;
+  they reach the usage screen in Phase 6, when the LLM stage starts spending them too.
+* **Concurrency is bounded** by `EXTRACTION_CONCURRENCY` (§35), never one URL at a
+  time and never unlimited. The per-key rate limit is shared by every search in the
+  process, like Brave's.
+* **The key stays server-side** (§55): `SGAI-APIKEY`, never a URL, a log line or an
+  error message.
+
+### Not every URL can be read
+
+The milestone is explicit about this, and it is true: Instagram shows a login wall
+to a datacentre IP more often than not, Facebook shows a consent screen, LinkedIn
+depends on the day. So the stage is a chain (`services/scraping/fallback.py`):
+
+| The page… | What happens | Recorded as |
+|---|---|---|
+| opened | the profile it states, `extractor: "scrapegraph"` | `ok` |
+| is a shop, a brand, an article | nothing, and the snippet gets no second vote | `not_a_person` |
+| would not open | the search result is used instead, `extractor: "snippet"` | `blocked` |
+| yielded nothing usable | same fallback | `empty` |
+| the reader failed | same fallback; a refused key or an empty balance stops the reader for the rest of the search | `failed` |
+
+Failures are classified from the API's own error envelope — `auth_invalid_key` (403)
+and `insufficient_credits` (402) are not retried, `rate_limited` (429) moves the
+limiter by `Retry-After`, `internal_error` (5xx) and timeouts are retried with backoff
+(§51).
+
+Set `SCRAPEGRAPH_FALLBACK_TO_SNIPPETS=false` to drop unreadable pages instead. Either
+way the outcome is counted, and `GET /sources` reports it per platform — which is
+Milestone 5's "record which sources consistently provide usable content", measured
+rather than assumed:
+
+```json
+{"reader": "scrapegraph", "live": true, "cacheTtlHours": 168,
+ "items": [{"platform": "linkedin", "pages": 24, "usable": 19, "blocked": 3,
+            "notAPerson": 2, "usableShare": 0.792}]}
+```
+
+Settings → *Reading the sources* shows the same table.
+
+### The snippet extractor is still there
+
+Without a ScrapeGraphAI key, live searches are extracted by
+`SnippetProfileExtractor`, which builds a profile from the result metadata the search
+API already returned and never opens a URL. It is honest about being thin: every
+profile records `extractor: "snippet"`, confidence is capped at 0.65, a title it
+cannot read a name out of returns nothing, and signals are keyword sightings
+(`services/extraction/vocabulary.py`, one file so Phase 6 can delete it in one
+commit) quoted with the sentence they were found in. It is also the fallback above,
+which is why it did not become dead code.
 
 ---
 
@@ -198,11 +274,12 @@ criteria → query generation → provider → URL normalization → dedup
 | Query generation (§29) | deterministic templates | — (an AI generator is optional later) |
 | Search provider (§27–28) | **`BraveSearchProvider`** when a key is set, `FixtureSearchProvider` otherwise | — |
 | URL normalization + discovery (§31–32) | real | — |
-| Extraction (§33–34) | `SnippetProfileExtractor` in live mode, `FixtureProfileExtractor` in the demo | Phase 5 — `ScrapeGraphProfileExtractor` |
-| Signal detection (§36) | `FixtureSignalDetector` | Phase 6 — `LlmSignalDetector` |
+| Extraction (§33–34) | **`ScrapeGraphProfileExtractor`** when a key is set (cached, with the snippet extractor as fallback), `FixtureProfileExtractor` in the demo | — |
+| Scrape cache (§53) | real, PostgreSQL, per canonical URL | — |
+| Signal detection (§36) | `FixtureSignalDetector` — keyword sightings from the page's own text | Phase 6 — `LlmSignalDetector` |
 | Scoring (§37–38) | real, deterministic | — |
-| Deduplication (§45) | real, strong keys only | later: entity resolution |
-| Cost tracking (§54) | real, unit costs from config | — |
+| Deduplication (§45) | real, strong keys only — now including the links a page publishes | later: entity resolution |
+| Cost tracking (§54) | real: search calls, pages read, pages cached, credits, unit costs from config | — |
 | Storage (§23) | **PostgreSQL 17 + Alembic** | — |
 | Jobs (§39–41) | asyncio tasks in the API process, recorded in the database | Phase 7 — Celery + Redis |
 | Auth (§55) | one demo user row, every query scoped by `user_id` | Phase 8 |
@@ -233,7 +310,13 @@ app/
     seed.py          the demo workspace, generated from the Phase 1 fixtures
   services/
     search/          query generator, providers, url_tools, markets, dedup, pipeline
-    scraping/        extraction interface + adapters (scrapegraph, snippet, fixture)
+    scraping/        base.py       the extraction and page-reading interfaces
+                     page_schema.py the strict §34 schema, the prompt, the mapping
+                     scrapegraph_extractor.py  the real page reader
+                     cache.py      read once, remember the outcome (§53)
+                     fallback.py   what to do when a page will not open
+                     names.py      is this the name of a person?
+                     snippet_extractor.py / fixture_extractor.py  the stand-ins
     extraction/      signal detection interface + adapters, keyword vocabulary
     scoring/         the deterministic scoring engine
     leads/           lifecycle, notes, outreach drafting
@@ -241,8 +324,9 @@ app/
     adapters.py      which implementation is wired to what
   workers/           job service + the run_search task
 alembic/versions/    the schema, versioned
-tests/               143 tests: contract, scoring, pipeline units, lifecycle, filters,
-                     persistence, the Brave provider, snippet extraction, a live search
+tests/               200 tests: contract, scoring, pipeline units, lifecycle, filters,
+                     persistence, the Brave provider, the ScrapeGraphAI reader, the
+                     scrape cache, snippet extraction, and two live end-to-end runs
 ```
 
 ### Seed data
@@ -258,7 +342,9 @@ Without a Brave key, new searches rediscover those same people through the pipel
 and re-score them against the criteria you chose, so geography and weights visibly
 change the result — they just cannot find anybody new. With a key, the catalogue is
 out of the picture entirely: the URLs come from the web and the seeded people are
-unreachable, because none of their URLs exist.
+unreachable, because none of their URLs exist. The seeded searches carry `pagesRead`
+and `pagesCached` figures too, so the usage card reads the same before and after a
+real run.
 
 ### Configuration
 
@@ -270,6 +356,11 @@ are read in `core/config.py` and nowhere else, and never leave the server:
 answer instantly, so without it a search finishes in about a second and the
 progress screen is never seen. It is ignored in live mode — Brave brings its own
 latency — and `0` gives an instant fixture run.
+
+The unit prices behind `usage.estimatedCostEur` are configuration as well
+(`COST_PER_SEARCH_CALL_EUR`, `COST_PER_PAGE_EUR`, `COST_PER_LLM_CALL_EUR`). Pages are
+billed by what was *read*: charging again for a cached page would make the cache
+invisible in the only place it matters.
 
 The suite runs against `DATABASE_URL`'s database name with `_test` appended,
 created on demand — it never touches the workspace database.

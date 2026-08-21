@@ -9,7 +9,7 @@ def test_health_reports_ok(client):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"  # spec §21
-    assert body["phase"] == 4
+    assert body["phase"] == 5
 
 
 def test_health_answers_from_the_database_not_from_a_constant(client):
@@ -45,6 +45,27 @@ def test_health_names_the_stage_that_went_live(settings):
     assert body["stages"] == {"search": "brave", "extraction": "snippet", "signals": "fixture"}
     assert body["providers"]["braveSearch"] is True
     assert "test-token" not in response.text  # spec §55
+
+
+def test_health_reports_page_reading_once_a_scrapegraph_key_exists(settings):
+    """Phase 5: the extraction stage stops being a stand-in (spec §21, §33)."""
+    reading = settings.model_copy(
+        update={
+            "brave_search_api_key": "brave-token",
+            "search_provider": "brave",
+            "scrapegraph_api_key": "scrape-token",
+        }
+    )
+
+    with TestClient(create_app(reading)) as client:
+        response = client.get("/health")
+
+    body = response.json()
+    # Still partial: signals are detected by the keyword stand-in until Phase 6.
+    assert body["pipeline"] == "partial"
+    assert body["stages"] == {"search": "brave", "extraction": "scrapegraph", "signals": "fixture"}
+    assert body["providers"]["scrapegraph"] is True
+    assert "scrape-token" not in response.text  # spec §55
 
 
 def test_health_reports_providers_as_booleans_only(client):

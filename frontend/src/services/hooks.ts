@@ -27,6 +27,7 @@ import type {
 
 export const queryKeys = {
   health: ["health"] as const,
+  sources: ["sources"] as const,
   dashboard: ["dashboard"] as const,
   searches: ["searches"] as const,
   search: (id: string) => ["search", id] as const,
@@ -47,6 +48,19 @@ export function useBackendHealth() {
     queryFn: () => services.workspace.health(),
     refetchInterval: 20_000,
     staleTime: 10_000,
+    retry: false,
+  });
+}
+
+/**
+ * Which sources the backend has managed to read. Not polled: it changes when a
+ * search runs, not by the second.
+ */
+export function useSourceReport() {
+  return useQuery({
+    queryKey: queryKeys.sources,
+    queryFn: () => services.workspace.sources(),
+    staleTime: 60_000,
     retry: false,
   });
 }

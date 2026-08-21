@@ -21,8 +21,8 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ app
     app_name: str = "ai-recruiter-api"
-    version: str = "0.4.0"
-    phase: int = 4
+    version: str = "0.5.0"
+    phase: int = 5
     debug: bool = True
 
     # Browsers must be able to talk to us with credentials, so origins are
@@ -74,15 +74,33 @@ class Settings(BaseSettings):
     #: hide; "moderate" and "strict" are the other values Brave accepts.
     brave_safesearch: str = "off"
 
+    # -------------------------------------------- ScrapeGraphAI (spec §33, §53)
+    #: The v2 Extract service. Configuration rather than a constant because the
+    #: legacy `api.scrapegraphai.com/v1/smartscraper` host is deprecated but still
+    #: answers for older accounts — either one works without a code change.
+    scrapegraph_endpoint: str = "https://v2-api.scrapegraphai.com/api/extract"
+    #: Reading a page is not a search: it fetches, renders and extracts, so seconds.
+    scrapegraph_timeout_seconds: float = 45.0
+    #: Per key, like every provider limit here. Lower it to match a smaller plan.
+    scrapegraph_rate_limit_per_second: float = 5.0
+    #: When a page cannot be read, build the profile from the search result instead
+    #: of losing the lead. False makes unreadable pages simply disappear.
+    scrapegraph_fallback_to_snippets: bool = True
+
     # ----------------------------------------------------- limits (spec §52)
     search_concurrency: int = 10
     extraction_concurrency: int = 10
     llm_concurrency: int = 10
     max_retries: int = 3
+    #: How long a page's extraction may be reused (spec §53). A week: profiles change
+    #: slowly, and re-reading one is a paid request. 0 disables the cache.
     scrape_cache_ttl_hours: int = 168
 
     # ------------------------------------------------ cost model (spec §54)
     cost_per_search_call_eur: float = 0.005
+    #: One ScrapeGraphAI credit per page read. Cached pages are free, and the usage
+    #: report counts the two separately, so the figure is measured rather than
+    #: assumed. Adjust to the plan's actual credit price.
     cost_per_page_eur: float = 0.010
     cost_per_llm_call_eur: float = 0.004
 
