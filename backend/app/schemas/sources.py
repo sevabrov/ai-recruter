@@ -40,4 +40,10 @@ class SourcesOut(CamelModel):
     cache_ttl_hours: int
     #: What happens to a page that will not open, in words the UI can show.
     fallback: str
+    #: What one search may spend and aim for. Null means "no limit" in both cases —
+    #: the UI needs the difference between "unlimited" and "zero".
+    max_pages_per_search: int | None = None
+    target_leads: int | None = None
+    #: What one page is assumed to cost in plan units, since the API does not say.
+    credits_per_page: int = 0
     items: list[SourceReliabilityOut]

@@ -72,9 +72,12 @@ class GeneratedQuerySchema(CamelModel):
 class SearchUsageSchema(CamelModel):
     search_api_calls: int
     pages_analyzed: int
-    #: Pages actually fetched and billed, and pages served from the scrape cache.
+    #: Pages actually fetched and billed, pages served from the scrape cache, and
+    #: pages the search's budget refused to pay for (they became snippet leads).
     pages_read: int
     pages_cached: int
+    pages_skipped: int
+    #: In the plan's own units, counting every request the service served.
     scrape_credits: int
     llm_calls: int
     estimated_cost_eur: float

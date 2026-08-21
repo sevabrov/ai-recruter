@@ -31,6 +31,9 @@ async def sources(container: ContainerDep) -> SourcesOut:
         live=reading,
         cache_ttl_hours=settings.scrape_cache_ttl_hours,
         fallback=_fallback(settings, reading),
+        max_pages_per_search=settings.max_pages_per_search or None,
+        target_leads=settings.target_leads or None,
+        credits_per_page=settings.scrapegraph_credits_per_page,
         items=[
             SourceReliabilityOut(
                 platform=record.platform,

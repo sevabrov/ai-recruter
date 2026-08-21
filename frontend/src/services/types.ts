@@ -100,6 +100,9 @@ export interface SearchUsage {
   pagesRead: number;
   /** …and of which came from the scrape cache, at no cost. */
   pagesCached: number;
+  /** …and of which the search's page budget refused: snippet leads, no credits. */
+  pagesSkipped: number;
+  /** In the plan's own units, counting every request the reader's service served. */
   scrapeCredits: number;
   llmCalls: number;
   estimatedCostEur: number;
@@ -361,6 +364,12 @@ export interface SourcesReport {
   cacheTtlHours: number;
   /** What happens to a page that will not open. */
   fallback: string;
+  /** Paid page reads one search may make. Null means no ceiling. */
+  maxPagesPerSearch?: number | null;
+  /** Leads a search stops at. Null means "as many as there are". */
+  targetLeads?: number | null;
+  /** Assumed cost of one page in the plan's units — the API reports none. */
+  creditsPerPage?: number;
   items: SourceReliability[];
 }
 

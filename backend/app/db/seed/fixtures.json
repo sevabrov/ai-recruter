@@ -228,7 +228,8 @@
         "pagesAnalyzed": 187,
         "pagesRead": 173,
         "pagesCached": 14,
-        "scrapeCredits": 173,
+        "pagesSkipped": 0,
+        "scrapeCredits": 1730,
         "llmCalls": 126,
         "estimatedCostEur": 2.41
       },
@@ -375,7 +376,8 @@
         "pagesAnalyzed": 132,
         "pagesRead": 118,
         "pagesCached": 14,
-        "scrapeCredits": 118,
+        "pagesSkipped": 0,
+        "scrapeCredits": 1180,
         "llmCalls": 88,
         "estimatedCostEur": 1.63
       },
@@ -519,7 +521,8 @@
         "pagesAnalyzed": 41,
         "pagesRead": 33,
         "pagesCached": 8,
-        "scrapeCredits": 33,
+        "pagesSkipped": 0,
+        "scrapeCredits": 330,
         "llmCalls": 24,
         "estimatedCostEur": 0.62
       },
@@ -664,7 +667,8 @@
         "pagesAnalyzed": 96,
         "pagesRead": 96,
         "pagesCached": 0,
-        "scrapeCredits": 96,
+        "pagesSkipped": 0,
+        "scrapeCredits": 960,
         "llmCalls": 58,
         "estimatedCostEur": 1.12
       },

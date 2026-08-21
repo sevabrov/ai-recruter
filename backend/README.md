@@ -35,7 +35,7 @@ docker compose down                     # stop; the data volume survives
 Interactive API docs: <http://localhost:8000/docs>.
 
 ```bash
-docker compose run --rm backend pytest -q            # 200 tests (needs postgres)
+docker compose run --rm backend pytest -q            # 220 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .
 docker compose run --rm --no-deps backend ruff format .
 ```
@@ -228,10 +228,13 @@ depends on the day. So the stage is a chain (`services/scraping/fallback.py`):
 | yielded nothing usable | same fallback | `empty` |
 | the reader failed | same fallback; a refused key or an empty balance stops the reader for the rest of the search | `failed` |
 
+| the budget refused it | the search result is used instead | nothing — see below |
+
 Failures are classified from the API's own error envelope — `auth_invalid_key` (403)
 and `insufficient_credits` (402) are not retried, `rate_limited` (429) moves the
-limiter by `Retry-After`, `internal_error` (5xx) and timeouts are retried with backoff
-(§51).
+limiter by `Retry-After`, `internal_error` (5xx) is retried with backoff (§51). A
+**timeout is not retried**: the service served the request and billed it, so trying
+again pays for the same page twice (`SCRAPEGRAPH_READ_ATTEMPTS`, one by default).
 
 Set `SCRAPEGRAPH_FALLBACK_TO_SNIPPETS=false` to drop unreadable pages instead. Either
 way the outcome is counted, and `GET /sources` reports it per platform — which is
@@ -245,6 +248,45 @@ rather than assumed:
 ```
 
 Settings → *Reading the sources* shows the same table.
+
+### What one search may spend
+
+A live search finds a hundred candidate pages without trying. Reading all of them is
+the difference between a search costing cents and a search costing a plan, so both
+ends are configuration:
+
+| Setting | Means | Default |
+|---|---|---|
+| `MAX_PAGES_PER_SEARCH` | paid page reads per search; the rest become snippet leads | `25` |
+| `TARGET_LEADS` | stop reading and judging once this many leads qualify | `0` (no target) |
+| `SCRAPEGRAPH_READ_ATTEMPTS` | attempts per page — a served request is billed either way | `1` |
+| `SCRAPEGRAPH_CREDITS_PER_PAGE` | what one page costs in plan units; the API reports none | `10` |
+
+Three properties make the budget usable rather than arbitrary:
+
+* **Candidates are read best-first.** `services/search/prospects.py` ranks them by
+  what their search result alone already supports — the same scoring the product
+  uses — plus a small per-platform prior for how readable a source tends to be.
+  Nothing is dropped: ranking decides the *order*, and a snippet may never
+  disqualify a page. Before this the budget went to whichever coroutine started
+  first, which made the limit meaningless.
+* **A refused page is not a lost lead.** It falls back to its search result, so the
+  limit costs depth, not coverage. `pagesSkipped` says how many, so a thinner result
+  is explained by the ceiling instead of looking like a bad search.
+* **Cache hits are free and unbudgeted.** The budget sits behind the cache: a page
+  read last week costs nothing to reuse, so a second identical search spends no
+  budget at all. Requests the service refused (429, empty balance) give their slot
+  back — one bad minute must not shrink the search.
+
+`TARGET_LEADS` is what makes "find me twenty leads" cheap: candidates are read in
+waves, each wave is judged as it lands, and the search stops as soon as it has
+enough. One wave is the granularity, so at most `EXTRACTION_CONCURRENCY` pages are
+read past the point where the target was met.
+
+Cost is billed on what the *provider served*, not on what we could use: a page that
+answered too late still spent its credits. Judging is only priced once a detector
+that really calls an LLM is plugged in — the keyword stand-in is free, and pricing it
+put a quarter of a euro on a search that spent nothing.
 
 ### The snippet extractor is still there
 
@@ -274,12 +316,13 @@ criteria → query generation → provider → URL normalization → dedup
 | Query generation (§29) | deterministic templates | — (an AI generator is optional later) |
 | Search provider (§27–28) | **`BraveSearchProvider`** when a key is set, `FixtureSearchProvider` otherwise | — |
 | URL normalization + discovery (§31–32) | real | — |
+| Page budget (§52) | real: `MAX_PAGES_PER_SEARCH`, `TARGET_LEADS`, candidates read best-first | — |
 | Extraction (§33–34) | **`ScrapeGraphProfileExtractor`** when a key is set (cached, with the snippet extractor as fallback), `FixtureProfileExtractor` in the demo | — |
 | Scrape cache (§53) | real, PostgreSQL, per canonical URL | — |
 | Signal detection (§36) | `FixtureSignalDetector` — keyword sightings from the page's own text | Phase 6 — `LlmSignalDetector` |
 | Scoring (§37–38) | real, deterministic | — |
 | Deduplication (§45) | real, strong keys only — now including the links a page publishes | later: entity resolution |
-| Cost tracking (§54) | real: search calls, pages read, pages cached, credits, unit costs from config | — |
+| Cost tracking (§54) | real: search calls, pages read / cached / skipped, credits in plan units, unit costs from config | — |
 | Storage (§23) | **PostgreSQL 17 + Alembic** | — |
 | Jobs (§39–41) | asyncio tasks in the API process, recorded in the database | Phase 7 — Celery + Redis |
 | Auth (§55) | one demo user row, every query scoped by `user_id` | Phase 8 |
@@ -324,7 +367,7 @@ app/
     adapters.py      which implementation is wired to what
   workers/           job service + the run_search task
 alembic/versions/    the schema, versioned
-tests/               200 tests: contract, scoring, pipeline units, lifecycle, filters,
+tests/               220 tests: contract, scoring, pipeline units, lifecycle, filters,
                      persistence, the Brave provider, the ScrapeGraphAI reader, the
                      scrape cache, snippet extraction, and two live end-to-end runs
 ```

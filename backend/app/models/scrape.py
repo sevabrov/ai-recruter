@@ -39,6 +39,10 @@ class ScrapeOutcome(StrEnum):
     BLOCKED = "blocked"
     #: The reader itself failed — a timeout, a rate limit, an outage.
     FAILED = "failed"
+    #: Never attempted: the search had spent its page budget. Not a fact about the
+    #: page, so it is neither cached nor counted against the source — a platform
+    #: must not look unreadable because we ran out of money.
+    SKIPPED = "skipped"
 
 
 #: Outcomes that are an answer *about the page* and can therefore be reused. A

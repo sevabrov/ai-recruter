@@ -86,6 +86,14 @@ Not every URL can be read — Instagram often shows a login wall to a server. Th
 pages fall back to the search result rather than losing the lead, and every outcome is
 counted per platform in Settings → *Reading the sources*.
 
+**What a search may spend is capped.** A live search finds a hundred candidate pages,
+so `MAX_PAGES_PER_SEARCH` (25 by default) limits the *paid* reads and `TARGET_LEADS`
+stops the run once you have the leads you asked for. Candidates are read best-first —
+ranked by what their search result already shows — and the pages past the budget still
+become leads from their search result, so a limit costs depth, not coverage. Both
+numbers, and what one page costs in plan credits, are shown in Settings → *Reading the
+sources*.
+
 Other commands:
 
 ```bash
@@ -96,7 +104,7 @@ npx eslint .                                             # lint
 
 # backend (nothing installed on the host)
 docker compose logs -f backend                           # structured JSON logs
-docker compose run --rm backend pytest -q                # 200 tests (needs postgres)
+docker compose run --rm backend pytest -q                # 220 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .   # lint
 docker compose run --rm backend alembic current          # schema revision
 docker compose build backend                             # after a dependency change
@@ -227,6 +235,15 @@ spec, which is the fastest way to walk the whole flow.
 * **Without `SCRAPEGRAPH_API_KEY`, a live search reads result snippets, not pages.**
   Those profiles are built from what the search API returned — title, description,
   page age, language — so they are thinner than the seeded ones and score lower.
+* **A search reads 25 pages by default, not every candidate it finds.** That is the
+  page budget (`MAX_PAGES_PER_SEARCH`), and it exists because a live search finds a
+  hundred-plus candidates and reading them all spends a plan. The rest become leads
+  from their search result, `pagesSkipped` says how many, and candidates are read
+  best-first so the budget goes where it is likeliest to pay off. Raise it, or set
+  `TARGET_LEADS` to stop at a number of leads instead.
+* **The credit figure is configured, not measured.** The v2 API reports tokens but no
+  credits, so `SCRAPEGRAPH_CREDITS_PER_PAGE` (10) is an assumption: run one search,
+  compare your dashboard, set it to what actually moved.
 * **Some platforms cannot be read at all.** Instagram and Facebook show servers a
   login or consent screen more often than not; those leads fall back to the search
   snippet and say so. `GET /sources` and Settings → *Reading the sources* report the

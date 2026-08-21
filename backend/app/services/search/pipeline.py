@@ -19,6 +19,7 @@ Two properties matter more than the stub data:
 
 import asyncio
 import hashlib
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from app.core.config import Settings
@@ -32,8 +33,10 @@ from app.models.search import GeneratedQuery, Search, SearchProgress, SearchUsag
 from app.models.source import DiscoveredUrl, ProviderResult
 from app.services.extraction.signal_detector import SignalDetector
 from app.services.scoring.scoring_service import ScoringService
-from app.services.scraping.base import ProfileExtractor, cost_of
+from app.services.scraping.base import ProfileExtractor, budget_of, cost_of
+from app.services.scraping.snippet_extractor import SnippetProfileExtractor
 from app.services.search.deduplicator import deduplicate
+from app.services.search.prospects import rank
 from app.services.search.providers.base import SearchMarket, SearchProvider
 from app.services.search.query_generator import QueryGenerator
 from app.services.search.url_tools import candidates, discover
@@ -65,6 +68,28 @@ class SearchCancelled(Exception):
     """Raised internally when a cancel request is noticed at a checkpoint."""
 
 
+@dataclass
+class Harvest:
+    """
+    What reading the candidates produced, carried between the two stages that now
+    share the work.
+
+    Reading and judging used to be strictly sequential: read all the pages, then
+    judge all the profiles. A lead target makes that impossible — the only thing
+    that can tell a search to stop paying is a judged lead — so judging moved into
+    the reading loop, and this is the state the two stages pass between them.
+    """
+
+    profiles: list[ExtractedProfile] = field(default_factory=list)
+    leads: list[Lead] = field(default_factory=list)
+    #: Canonical URLs already judged, so nothing is judged (or billed) twice.
+    judged_urls: set[str] = field(default_factory=set)
+    rejected: int = 0
+    #: True when the lead target was reached and the remaining candidates were left
+    #: unread. Reported, never hidden: a thin result must be explained by the limit.
+    stopped_early: bool = False
+
+
 class SearchPipeline:
     def __init__(
         self,
@@ -84,6 +109,9 @@ class SearchPipeline:
         self.extractor = extractor
         self.detector = detector
         self.scoring = scoring
+        # Ranking reads no pages: it judges candidates by the search result the
+        # provider already returned, which is exactly what this extractor does.
+        self._snippets = SnippetProfileExtractor()
         self._progress = SearchProgress()
         self._usage = SearchUsage()
 
@@ -103,8 +131,8 @@ class SearchPipeline:
             queries = await self._generate_queries(search)
             results = await self._run_queries(search, queries)
             urls = await self._discover(search, results)
-            profiles = await self._extract(search, urls)
-            leads = await self._score(search, profiles)
+            harvest = await self._extract(search, urls)
+            leads = await self._score(search, harvest)
             leads = await self._deduplicate(search, leads)
             await self._complete(search, leads)
         except SearchCancelled:
@@ -211,110 +239,206 @@ class SearchPipeline:
         return profile_urls
 
     # --------------------------------------------------------------- stage 4
-    async def _extract(self, search: Search, urls: list[DiscoveredUrl]) -> list[ExtractedProfile]:
+    async def _extract(self, search: Search, urls: list[DiscoveredUrl]) -> Harvest:
         """
-        Candidate URLs are read concurrently under EXTRACTION_CONCURRENCY (spec §35)
-        — never one at a time, never unlimited.
+        Read the candidates — best first, in waves, and only as far as the search's
+        limits allow.
 
-        What "read" means is the extractor's business (`services/adapters.py`), and
-        since Phase 5 it can cost money: the chain reports how many pages it fetched
-        and how many the cache saved, and those are copied into the search's usage
-        rather than inferred from the number of URLs (§53–54).
+        Three things changed here once reading became a paid operation:
+
+        * **order is a decision.** Candidates are ranked by what their search result
+          alone already supports (`services/search/prospects.py`), so the page
+          budget is spent on the most promising pages instead of on whichever
+          coroutine started first.
+        * **a wave is a checkpoint.** With `TARGET_LEADS` set, each wave is judged as
+          soon as it lands, and the search stops as soon as the user has the leads
+          they asked for — the pages behind that point are never paid for.
+        * **the budget lives lower down.** How many pages may be *read* is enforced
+          by the reader itself (`services/scraping/budget.py`); the pages it refuses
+          still become leads from their snippet. That is why every candidate still
+          goes through the chain: a cache hit costs nothing and is worth having
+          (spec §53).
+
+        Concurrency inside a wave stays bounded by EXTRACTION_CONCURRENCY (§35).
         """
         await self._enter(search.id, SearchStage.EXTRACTING)
+        ranked = await rank(urls, search.criteria, snippets=self._snippets, scoring=self.scoring)
+        target = self.settings.target_leads
+        harvest = Harvest()
         semaphore = asyncio.Semaphore(self.settings.extraction_concurrency)
-        profiles: list[ExtractedProfile] = []
         processed = 0
 
-        async def extract_one(url: DiscoveredUrl) -> None:
-            nonlocal processed
+        async def extract_one(url: DiscoveredUrl) -> ExtractedProfile | None:
             async with semaphore:
                 await self._tick()
                 try:
-                    profile = await retry_async(
+                    return await retry_async(
                         lambda: self.extractor.extract(url),
                         attempts=self.settings.max_retries,
                         label=f"extract:{self.extractor.name}",
                     )
                 except Exception:
                     log.warning("extraction_failed", extra={"url": url.canonical_url})
-                    profile = None
+                    return None
 
-            processed += 1
-            self._usage.pages_analyzed += 1
+        while processed < len(ranked):
+            wave = ranked[processed : processed + self._wave_size()]
+            found = await asyncio.gather(*(extract_one(prospect.url) for prospect in wave))
+            fresh = [profile for profile in found if profile and profile.is_person]
+            harvest.profiles.extend(fresh)
+
+            processed += len(wave)
+            self._usage.pages_analyzed += len(wave)
             self._bill_extraction()
-            if profile and profile.is_person:
-                profiles.append(profile)
             self._progress.profiles_processed = processed
-            await self._save(search.id, SearchStage.EXTRACTING, processed / max(1, len(urls)))
 
-        await asyncio.gather(*(extract_one(url) for url in urls))
+            if target > 0:
+                # Judged now rather than in the scoring stage, because "we have
+                # enough leads" is the only thing that can stop the spending.
+                await self._judge(search, fresh, harvest)
+            await self._save(search.id, SearchStage.EXTRACTING, processed / max(1, len(ranked)))
+
+            if target > 0 and len(harvest.leads) >= target:
+                harvest.stopped_early = True
+                log.info(
+                    "lead_target_reached",
+                    extra={"target": target, "leads": len(harvest.leads), "pages": processed},
+                )
+                break
+
         self._bill_extraction()
         spent = cost_of(self.extractor)
         log.info(
             "extraction_completed",
             extra={
-                "profiles": len(profiles),
+                "profiles": len(harvest.profiles),
                 "pages": processed,
+                "candidates": len(ranked),
+                "stopped_early": harvest.stopped_early,
                 "pages_read": self._usage.pages_read,
                 "pages_cached": self._usage.pages_cached,
+                "pages_skipped": self._usage.pages_skipped,
+                # What the provider billed, which is not the same as what we could
+                # use: a page that answered too late still spent its credits.
+                "paid_attempts": spent.paid_attempts,
+                "credits": spent.credits,
                 # Reported by the reader itself. Phase 6 puts tokens on the usage
                 # screen, when the LLM stage starts spending them too (spec §54).
                 "tokens_in": spent.tokens_in,
                 "tokens_out": spent.tokens_out,
-                "read_by": {profile.extractor for profile in profiles},
+                "read_by": {profile.extractor for profile in harvest.profiles},
             },
         )
-        return profiles
+        return harvest
+
+    def _wave_size(self) -> int:
+        """
+        How many candidates to dispatch together.
+
+        EXTRACTION_CONCURRENCY, except when the budget has fewer paid reads left
+        than that: with one page left to pay for and ten coroutines in flight, the
+        last credit would go to whichever of them reached the reader first, and
+        ranking the candidates would have bought nothing. Once the budget is spent
+        nothing costs money any more, so the rest runs at full width.
+        """
+        width = max(1, self.settings.extraction_concurrency)
+        budget = budget_of(self.extractor)
+        if budget is None or budget.unlimited or budget.exhausted:
+            return width
+        return max(1, min(width, budget.remaining or width))
 
     def _bill_extraction(self) -> None:
         """Copy what the extractor chain has spent so far into this run's usage."""
         spent = cost_of(self.extractor)
         self._usage.pages_read = spent.pages_read
         self._usage.pages_cached = spent.pages_cached
+        self._usage.pages_skipped = spent.pages_skipped
         self._usage.scrape_credits = spent.credits
 
     # --------------------------------------------------------------- stage 5
-    async def _score(self, search: Search, profiles: list[ExtractedProfile]) -> list[Lead]:
+    async def _score(self, search: Search, harvest: Harvest) -> list[Lead]:
+        """
+        Judge whatever the harvest has not judged yet.
+
+        With a lead target set, the waves above did this as they landed and this
+        stage has nothing left to do — that is the point of the target: judging is
+        what tells the search it can stop. Without one, every profile is judged
+        here, exactly as before.
+        """
+        await self._enter(search.id, SearchStage.SCORING)
+        pending = [
+            profile
+            for profile in harvest.profiles
+            if profile.canonical_url not in harvest.judged_urls
+        ]
+        await self._judge(search, pending, harvest, stage=SearchStage.SCORING)
+        await self._save(search.id, SearchStage.SCORING, 1.0)
+        log.info(
+            "scoring_completed",
+            extra={
+                "qualified": len(harvest.leads),
+                "judged": len(harvest.judged_urls),
+                "rejected_missing_must_have": harvest.rejected,
+                "judged_during_extraction": len(harvest.judged_urls) - len(pending),
+            },
+        )
+        return harvest.leads
+
+    async def _judge(
+        self,
+        search: Search,
+        profiles: list[ExtractedProfile],
+        harvest: Harvest,
+        *,
+        stage: SearchStage | None = None,
+    ) -> None:
         """
         Signals are detected per profile, then scored by code (spec §37): the
         must-have criteria act as a hard gate, so `qualified` means "matches what
         the user said they require", not "was looked at".
+
+        Bounded by LLM_CONCURRENCY (§52), and every profile is judged at most once —
+        `harvest.judged_urls` is what keeps a wave-judged profile from being paid
+        for a second time when the LLM detector arrives in Phase 6.
+
+        `stage=None` means "count, do not move the bar": inside a wave the meter is
+        already advancing with the pages read, and a second writer would make it go
+        backwards. The wave loop saves once the wave is judged.
         """
-        await self._enter(search.id, SearchStage.SCORING)
+        if not profiles:
+            return
+
         semaphore = asyncio.Semaphore(self.settings.llm_concurrency)
         weights = search.criteria.signal_weights
         required = set(search.criteria.must_have)
-        leads: list[Lead] = []
-        rejected = 0
+        done = 0
 
-        async def score_one(index: int, profile: ExtractedProfile) -> None:
-            nonlocal rejected
+        async def judge_one(profile: ExtractedProfile) -> None:
+            nonlocal done
             async with semaphore:
                 await self._tick()
                 signals = await self.detector.detect(profile, search.criteria)
             self._usage.llm_calls += 1
+            harvest.judged_urls.add(profile.canonical_url)
+            done += 1
 
             detected = {signal.type for signal in signals if signal.detected}
             if not required.issubset(detected):
-                rejected += 1
+                harvest.rejected += 1
                 return
 
             score, breakdown = self.scoring.score(signals, weights)
-            leads.append(_build_lead(search, profile, signals, score, breakdown, index))
-
-            self._progress.qualified = len(leads)
-            self._progress.high_quality = sum(
-                1 for lead in leads if lead.score >= HIGH_QUALITY_THRESHOLD
+            harvest.leads.append(
+                _build_lead(search, profile, signals, score, breakdown, len(harvest.leads))
             )
-            await self._save(search.id, SearchStage.SCORING, (index + 1) / max(1, len(profiles)))
+            self._progress.qualified = len(harvest.leads)
+            self._progress.high_quality = sum(
+                1 for lead in harvest.leads if lead.score >= HIGH_QUALITY_THRESHOLD
+            )
+            if stage is not None:
+                await self._save(search.id, stage, done / len(profiles))
 
-        await asyncio.gather(*(score_one(index, profile) for index, profile in enumerate(profiles)))
-        log.info(
-            "scoring_completed",
-            extra={"qualified": len(leads), "rejected_missing_must_have": rejected},
-        )
-        return leads
+        await asyncio.gather(*(judge_one(profile) for profile in profiles))
 
     # --------------------------------------------------------------- stage 6
     async def _deduplicate(self, search: Search, leads: list[Lead]) -> list[Lead]:
@@ -393,15 +517,23 @@ class SearchPipeline:
         """
         Usage is money (spec §54); unit costs are configuration.
 
-        Pages are billed by what was *read*, not by what was looked at: a page the
-        cache answered was paid for by an earlier search, and charging for it again
-        would make the cache invisible in the only place it matters.
+        Two rules keep the figure honest rather than tidy:
+
+        * pages are billed by what the *provider served*, not by what we could use.
+          A page the cache answered was paid for by an earlier search and a page the
+          budget refused was never fetched — both are free — but a page that
+          answered too late for us spent its credits all the same.
+        * a stage that calls nothing costs nothing. The keyword detector is free, so
+          judging is only priced once a detector that really calls an LLM is plugged
+          in; billing it earlier would put money on the screen nobody spent.
         """
         settings = self.settings
+        spent = cost_of(self.extractor)
+        judging = settings.cost_per_llm_call_eur if getattr(self.detector, "paid", False) else 0.0
         cost = (
             self._usage.search_api_calls * settings.cost_per_search_call_eur
-            + self._usage.pages_read * settings.cost_per_page_eur
-            + self._usage.llm_calls * settings.cost_per_llm_call_eur
+            + spent.paid_attempts * settings.cost_per_page_eur
+            + self._usage.llm_calls * judging
         )
         return self._usage.model_copy(update={"estimated_cost_eur": round(cost, 2)})
 

@@ -21,6 +21,10 @@ from app.models.search import SearchCriteria
 
 class SignalDetector(Protocol):
     name: str
+    #: Whether judging one profile costs money. The cost model reads this instead of
+    #: assuming that every detector is an LLM: pricing the keyword stand-in put a
+    #: quarter of a euro on a search that spent nothing.
+    paid: bool
 
     async def detect(
         self, profile: ExtractedProfile, criteria: SearchCriteria
@@ -35,6 +39,7 @@ class FixtureSignalDetector(SignalDetector):
     """
 
     name = "fixture"
+    paid = False
 
     async def detect(self, profile: ExtractedProfile, criteria: SearchCriteria) -> list[LeadSignal]:
         target = (criteria.location.country or "").strip().lower()
@@ -76,6 +81,7 @@ class LlmSignalDetector(SignalDetector):
     """
 
     name = "llm"
+    paid = True
 
     def __init__(self, api_key: str, model: str = "gpt-4o-mini") -> None:
         self.api_key = api_key

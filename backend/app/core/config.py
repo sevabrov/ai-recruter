@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ app
     app_name: str = "ai-recruiter-api"
-    version: str = "0.5.0"
+    version: str = "0.5.1"
     phase: int = 5
     debug: bool = True
 
@@ -80,12 +80,20 @@ class Settings(BaseSettings):
     #: answers for older accounts — either one works without a code change.
     scrapegraph_endpoint: str = "https://v2-api.scrapegraphai.com/api/extract"
     #: Reading a page is not a search: it fetches, renders and extracts, so seconds.
-    scrapegraph_timeout_seconds: float = 45.0
+    scrapegraph_timeout_seconds: float = 120.0
     #: Per key, like every provider limit here. Lower it to match a smaller plan.
-    scrapegraph_rate_limit_per_second: float = 5.0
+    scrapegraph_rate_limit_per_second: float = 1.0
     #: When a page cannot be read, build the profile from the search result instead
     #: of losing the lead. False makes unreadable pages simply disappear.
     scrapegraph_fallback_to_snippets: bool = True
+    #: How many times *one page* may be read. One, deliberately: the service bills a
+    #: request it served, and our timeout does not un-bill it — a retry pays for the
+    #: same page again. The page falls back to its search snippet instead.
+    scrapegraph_read_attempts: int = 1
+    #: What one page costs in the plan's own units. The v2 response does not report
+    #: credits, so this is the only way the credit counter can be truthful — measure
+    #: a run against the dashboard and set it to what actually moved.
+    scrapegraph_credits_per_page: int = 10
 
     # ----------------------------------------------------- limits (spec §52)
     search_concurrency: int = 10
@@ -96,12 +104,29 @@ class Settings(BaseSettings):
     #: slowly, and re-reading one is a paid request. 0 disables the cache.
     scrape_cache_ttl_hours: int = 168
 
+    # --------------------------------------------------- what one search may spend
+    #: The ceiling on *paid* page reads in a single search. A live search finds
+    #: 100+ candidate pages, and reading all of them is the difference between
+    #: cents and a plan's monthly credits. Candidates past the budget still become
+    #: leads — from their search snippet, for free — so the limit costs depth, not
+    #: coverage. Cache hits are not paid reads and never count against it.
+    #: 0 means unlimited, which is what the fixture demo and the tests want.
+    max_pages_per_search: int = 25
+    #: "Find me this many leads." Reached, the search stops reading and stops
+    #: judging: candidates are processed best-first, so stopping early drops the
+    #: weakest ones rather than an arbitrary tail. 0 means "as many as there are".
+    target_leads: int = 0
+
     # ------------------------------------------------ cost model (spec §54)
     cost_per_search_call_eur: float = 0.005
-    #: One ScrapeGraphAI credit per page read. Cached pages are free, and the usage
-    #: report counts the two separately, so the figure is measured rather than
-    #: assumed. Adjust to the plan's actual credit price.
+    #: What one *paid request* to the page reader costs. Billed per request the
+    #: service served — including one that answered too late for us to use, because
+    #: the credit went either way. Cached pages and pages the budget refused are
+    #: free and are counted separately, so the figure stays a measurement.
     cost_per_page_eur: float = 0.010
+    #: Charged per judged profile, and only while a detector that really calls an
+    #: LLM is plugged in: the keyword stand-in costs nothing, and billing it would
+    #: put money on the usage screen that nobody spent.
     cost_per_llm_call_eur: float = 0.004
 
     # --------------------------------------------------------------- pipeline

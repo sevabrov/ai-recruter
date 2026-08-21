@@ -387,6 +387,68 @@ async def test_an_unreadable_page_is_never_a_person_invented_from_nothing(settin
     assert all(lead.sources for lead in leads)
 
 
+# ------------------------------------------------------------- what it may spend
+
+
+async def test_the_page_budget_is_a_ceiling_the_search_cannot_cross(settings):
+    """
+    MAX_PAGES_PER_SEARCH is the answer to a live run that read eleven Instagram
+    profiles and spent a balance: the search reads what it is allowed to and builds
+    the rest of the leads from the search results it already had.
+    """
+    capped = settings.model_copy(update={"max_pages_per_search": 2})
+    _, brave = brave_transport()
+    reads, pages = page_transport()
+
+    search, leads, _ = await run_reading(capped, brave, pages, search_id="srch_capped")
+
+    assert search is not None and search.status is SearchStatus.COMPLETED
+    assert len(reads) == 2, "the third page must never reach the service"
+    assert search.usage.pages_read == 2
+    assert search.usage.pages_skipped > 0
+    # The limit costs depth, not coverage: the pages nobody paid for are still leads.
+    assert leads, "a budget must not empty the result"
+    assert any(lead.sources for lead in leads)
+
+
+async def test_the_budget_goes_to_the_same_page_every_time(settings):
+    """
+    With one page to spend, *which* page is a decision — and it is made by ranking,
+    not by whichever coroutine started first. Two identical runs must therefore read
+    the same URL; the cache is off so the second run really asks again.
+    """
+    one_page = settings.model_copy(update={"max_pages_per_search": 1, "scrape_cache_ttl_hours": 0})
+    _, brave = brave_transport()
+    first_reads, first_pages = page_transport()
+    second_reads, second_pages = page_transport()
+
+    await run_reading(one_page, brave, first_pages, search_id="srch_one_a")
+    await run_reading(one_page, brave, second_pages, search_id="srch_one_b")
+
+    assert len(first_reads) == len(second_reads) == 1
+    assert first_reads == second_reads
+
+
+async def test_a_lead_target_stops_the_search_once_it_has_enough(settings):
+    """
+    "Find me one lead" must not read a hundred pages first. Candidates are processed
+    best-first, so stopping early drops the weakest ones — and one wave is the
+    granularity, which is why concurrency is 1 here.
+    """
+    targeted = settings.model_copy(
+        update={"target_leads": 1, "extraction_concurrency": 1, "scrape_cache_ttl_hours": 0}
+    )
+    _, brave = brave_transport()
+    reads, pages = page_transport()
+
+    search, leads, _ = await run_reading(targeted, brave, pages, search_id="srch_targeted")
+
+    assert search is not None and search.status is SearchStatus.COMPLETED
+    assert len(leads) >= 1
+    assert len(reads) < len(PAGES), "the search kept paying after it had what it needed"
+    assert search.progress.profiles_processed < search.progress.profiles_discovered
+
+
 # ----------------------------------------------------------------- what it costs
 
 
@@ -399,15 +461,18 @@ async def test_pages_are_billed_by_what_was_read(settings):
     assert search is not None
     usage = search.usage
     assert usage.pages_read == len(reads) == len(PAGES)
-    assert usage.scrape_credits == usage.pages_read
-    assert usage.pages_cached == 0
+    # Credits are the plan's units, not a page count: the API reports none, so a page
+    # costs what the configuration says it costs.
+    assert usage.scrape_credits == usage.pages_read * settings.scrapegraph_credits_per_page
+    assert (usage.pages_cached, usage.pages_skipped) == (0, 0)
     assert usage.pages_analyzed == search.progress.profiles_processed
-    # Search calls plus pages read, at the configured unit prices (spec §54).
+    # Search calls plus pages read, at the configured unit prices (spec §54). Judging
+    # is free while the keyword detector is what does it — nobody called an LLM.
     expected = (
         usage.search_api_calls * settings.cost_per_search_call_eur
         + usage.pages_read * settings.cost_per_page_eur
-        + usage.llm_calls * settings.cost_per_llm_call_eur
     )
+    assert usage.llm_calls > 0
     assert usage.estimated_cost_eur == pytest.approx(round(expected, 2))
 
 

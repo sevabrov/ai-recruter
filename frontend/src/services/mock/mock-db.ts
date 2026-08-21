@@ -185,7 +185,8 @@ export function projectSearch(search: Search): Search {
       // The mock has no scrape cache, so every page it "analyzed" it also read.
       pagesRead: progress.profilesProcessed,
       pagesCached: 0,
-      scrapeCredits: progress.profilesProcessed,
+      pagesSkipped: 0,
+      scrapeCredits: progress.profilesProcessed * 10,
       llmCalls: Math.round(progress.profilesProcessed * 1.4),
       estimatedCostEur: Number((progress.profilesProcessed * 0.0142).toFixed(2)),
     },
@@ -270,6 +271,7 @@ export function createSearch(input: CreateSearchInput): Search {
       pagesAnalyzed: 0,
       pagesRead: 0,
       pagesCached: 0,
+      pagesSkipped: 0,
       scrapeCredits: 0,
       llmCalls: 0,
       estimatedCostEur: 0,

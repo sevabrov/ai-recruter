@@ -113,6 +113,7 @@ def test_search_payload_shape(client):
         "pagesAnalyzed",
         "pagesRead",
         "pagesCached",
+        "pagesSkipped",
         "scrapeCredits",
         "llmCalls",
         "estimatedCostEur",

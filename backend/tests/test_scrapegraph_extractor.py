@@ -450,7 +450,10 @@ async def test_one_page_is_one_request_and_its_tokens_are_recorded():
     await page_reader.read(INSTAGRAM)
 
     assert len(seen) == 1
-    assert (page_reader.cost.credits, page_reader.cost.pages_read) == (1, 1)
+    assert (page_reader.cost.paid_attempts, page_reader.cost.pages_read) == (1, 1)
+    # Credits are in the plan's units, which the API does not report: one page costs
+    # SCRAPEGRAPH_CREDITS_PER_PAGE, ten by default.
+    assert page_reader.cost.credits == 10
     assert (page_reader.cost.tokens_in, page_reader.cost.tokens_out) == (361, 92)
 
 
@@ -461,7 +464,7 @@ async def test_a_page_that_yielded_nothing_was_still_billed():
     read = await page_reader.read(INSTAGRAM)
 
     assert read.outcome is ScrapeOutcome.BLOCKED
-    assert page_reader.cost.credits == 1
+    assert (page_reader.cost.paid_attempts, page_reader.cost.credits) == (1, 10)
 
 
 async def test_a_rejected_request_is_not_billed():
@@ -470,7 +473,7 @@ async def test_a_rejected_request_is_not_billed():
     with pytest.raises(ProviderUnavailableError):
         await page_reader.read(INSTAGRAM)
 
-    assert page_reader.cost.credits == 0
+    assert (page_reader.cost.paid_attempts, page_reader.cost.credits) == (0, 0)
 
 
 async def test_credits_are_counted_where_the_search_can_see_them():
@@ -481,4 +484,5 @@ async def test_credits_are_counted_where_the_search_can_see_them():
     await page_reader.read(INSTAGRAM.model_copy(update={"canonical_url": "https://x.example/a"}))
 
     # The shared counter the pipeline copies into the search's usage.
-    assert (cost.pages_read, cost.credits, cost.pages_cached) == (2, 2, 0)
+    assert (cost.pages_read, cost.paid_attempts, cost.pages_cached) == (2, 2, 0)
+    assert cost.credits == 20

@@ -26,8 +26,13 @@ What this class is responsible for, and nothing above it is:
 * **a bad page is not a failure** — a login wall, a consent screen or a shop is an
   *outcome*, classified and returned, because Milestone 5 asks us to record which
   sources can be read at all. Only the service failing raises;
-* **credits are money** (§54) — one page is one billed request, and the tokens the
-  service reports are recorded alongside it through `ExtractionCost`;
+* **credits are money** (§54) — every request the service *served* is billed, our
+  timeouts included, and the count goes into `ExtractionCost` next to the tokens
+  the service reports. The v2 response carries no credit figure, so what a page
+  costs in plan units is configuration (`SCRAPEGRAPH_CREDITS_PER_PAGE`);
+* **a search may not spend without a ceiling** (§52) — `PageBudget` is consulted
+  before the request, and a refused page is answered `SKIPPED` rather than
+  fetched, so the chain above falls back to the snippet;
 * **the plan's rate limit is per key** (§52), so the limiter is shared by every
   search in the process.
 """
@@ -44,6 +49,7 @@ from app.models.profile import ExtractedProfile
 from app.models.scrape import ScrapeOutcome
 from app.models.source import DiscoveredUrl
 from app.services.scraping.base import ExtractionCost, PageRead, PageReader
+from app.services.scraping.budget import PageBudget
 from app.services.scraping.page_schema import (
     EXTRACTION_PROMPT,
     PageExtraction,
@@ -94,9 +100,11 @@ class ScrapeGraphProfileExtractor(PageReader):
         api_key: str,
         *,
         endpoint: str = SCRAPEGRAPH_ENDPOINT,
-        timeout_seconds: float = 45.0,
-        rate_limit_per_second: float = 5.0,
+        timeout_seconds: float = 120.0,
+        rate_limit_per_second: float = 1.0,
+        credits_per_page: int = 10,
         cost: ExtractionCost | None = None,
+        budget: PageBudget | None = None,
         client: httpx.AsyncClient | None = None,
         limiter: RateLimiter | None = None,
     ) -> None:
@@ -104,7 +112,11 @@ class ScrapeGraphProfileExtractor(PageReader):
             raise ValueError("ScrapeGraphProfileExtractor needs an API key")
         self._key = api_key
         self._endpoint = endpoint
+        self._credits_per_page = max(1, credits_per_page)
         self.cost = cost or ExtractionCost()
+        # No budget object means no ceiling, which is what a script or a unit test
+        # wants. The pipeline always passes one.
+        self.budget = budget or PageBudget()
         self._limiter = limiter or RateLimiter(rate_limit_per_second)
         # A caller-supplied client is what the tests inject; when we build our own
         # we also own closing it.
@@ -115,7 +127,25 @@ class ScrapeGraphProfileExtractor(PageReader):
         return (await self.read(url)).profile
 
     async def read(self, url: DiscoveredUrl) -> PageRead:
-        payload = await self._request(url.canonical_url)
+        if not self.budget.take():
+            # Deliberately not an error and deliberately not a verdict about the
+            # page: the caller falls back to the snippet, and the cache does not
+            # store this (`services/scraping/cache.py`).
+            self.cost.pages_skipped += 1
+            return PageRead(
+                outcome=ScrapeOutcome.SKIPPED,
+                detail=f"This search had already read its {self.budget.limit} paid pages",
+            )
+
+        charged = self.cost.paid_attempts
+        try:
+            payload = await self._request(url.canonical_url)
+        except Exception:
+            # A request the service refused (a 429, an empty balance) cost nothing,
+            # so it must not cost a page from the budget either.
+            if self.cost.paid_attempts == charged:
+                self.budget.refund()
+            raise
         return self._interpret(payload, url)
 
     async def aclose(self) -> None:
@@ -141,6 +171,11 @@ class ScrapeGraphProfileExtractor(PageReader):
                 },
             )
         except httpx.TimeoutException as error:
+            # The request reached the service and the page was being rendered, so
+            # the credit is gone whether or not the answer arrived in time. Charging
+            # it here is what stops the usage screen from reporting a cheap search
+            # while the provider's dashboard reports a spent balance.
+            self._charge()
             raise ProviderUnavailableError(
                 "ScrapeGraphAI did not answer in time", provider=self.name
             ) from error
@@ -160,10 +195,15 @@ class ScrapeGraphProfileExtractor(PageReader):
             ) from error
 
         # The request was served, so it is billed whatever the page turned out to be.
-        self.cost.credits += 1
+        self._charge()
         self.cost.pages_read += 1
         self._count_tokens(payload if isinstance(payload, dict) else {})
         return payload if isinstance(payload, dict) else {}
+
+    def _charge(self) -> None:
+        """One served request: an attempt on the bill and the plan's credits with it."""
+        self.cost.paid_attempts += 1
+        self.cost.credits += self._credits_per_page
 
     def _count_tokens(self, payload: dict[str, Any]) -> None:
         """The service reports what the extraction actually consumed (spec §54)."""

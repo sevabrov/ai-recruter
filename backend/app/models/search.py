@@ -72,16 +72,22 @@ class SearchUsage(BaseModel):
     Per-search cost tracking from day one (spec §54).
 
     `pages_analyzed` is how many candidate pages the stage handled; `pages_read` is
-    how many of them were actually fetched and billed, and `pages_cached` how many
-    came from the scrape cache (§53). Keeping the three apart is what makes the cost
-    a measurement: a second identical search analyses the same pages and pays for
-    none of them.
+    how many of them were actually fetched and billed, `pages_cached` how many came
+    from the scrape cache (§53), and `pages_skipped` how many the search's page
+    budget refused to pay for — those still became leads, from their search snippet.
+    Keeping the four apart is what makes the cost a measurement: a second identical
+    search analyses the same pages and pays for none of them.
+
+    `scrape_credits` is in the plan's own units and counts every request the service
+    served, a timeout included — it maps onto the provider's dashboard rather than
+    onto how many pages we ended up using.
     """
 
     search_api_calls: int = 0
     pages_analyzed: int = 0
     pages_read: int = 0
     pages_cached: int = 0
+    pages_skipped: int = 0
     scrape_credits: int = 0
     llm_calls: int = 0
     estimated_cost_eur: float = 0.0

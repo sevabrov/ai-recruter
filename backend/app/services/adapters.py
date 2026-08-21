@@ -34,6 +34,7 @@ from app.services.extraction.signal_detector import (
     SignalDetector,
 )
 from app.services.scraping.base import ExtractionCost, ProfileExtractor
+from app.services.scraping.budget import PageBudget
 from app.services.scraping.cache import CachedPageReader
 from app.services.scraping.fallback import FallbackProfileExtractor
 from app.services.scraping.fixture_extractor import FixtureProfileExtractor
@@ -145,7 +146,11 @@ def build_profile_extractor(
         endpoint=settings.scrapegraph_endpoint,
         timeout_seconds=settings.scrapegraph_timeout_seconds,
         rate_limit_per_second=settings.scrapegraph_rate_limit_per_second,
+        credits_per_page=settings.scrapegraph_credits_per_page,
         cost=cost,
+        # Per search, like the counters: a ceiling shared between searches would
+        # mean the second one of the day silently gets nothing.
+        budget=PageBudget(settings.max_pages_per_search),
         client=resources.client if resources else None,
         limiter=resources.limiter if resources else None,
     )
@@ -155,6 +160,8 @@ def build_profile_extractor(
             "reader": reader.name,
             "cache_ttl_hours": settings.scrape_cache_ttl_hours,
             "fallback": settings.scrapegraph_fallback_to_snippets,
+            "max_pages_per_search": settings.max_pages_per_search or "unlimited",
+            "read_attempts": settings.scrapegraph_read_attempts,
         },
     )
 
@@ -168,7 +175,10 @@ def build_profile_extractor(
     return FallbackProfileExtractor(
         cached,
         SnippetProfileExtractor(),
-        attempts=settings.max_retries,
+        # Not MAX_RETRIES: that limit is for calls that cost nothing to repeat. The
+        # service bills a request it served, and our timeout does not un-bill it, so
+        # a page is attempted once and then falls back to its snippet.
+        attempts=settings.scrapegraph_read_attempts,
         cost=cost,
     )
 

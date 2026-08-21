@@ -124,6 +124,17 @@ export default function SearchProgressPage() {
               {/* Read is what was paid for; cached is what an earlier search paid for. */}
               <Row label="Pages read" value={formatNumber(search.usage.pagesRead)} />
               <Row label="From cache" value={formatNumber(search.usage.pagesCached)} />
+              {/* Only shown when the budget actually refused something, so the row is
+                  an explanation of a thinner result rather than a permanent zero. */}
+              {search.usage.pagesSkipped > 0 && (
+                <Row
+                  label="Skipped (page budget)"
+                  value={formatNumber(search.usage.pagesSkipped)}
+                />
+              )}
+              {search.usage.scrapeCredits > 0 && (
+                <Row label="Reader credits" value={formatNumber(search.usage.scrapeCredits)} />
+              )}
               <Row label="LLM calls" value={formatNumber(search.usage.llmCalls)} />
               <div className="hairline my-1" />
               <Row

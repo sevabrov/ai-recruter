@@ -64,7 +64,10 @@ const LIMITS = [
   { key: "EXTRACTION_CONCURRENCY", value: "10" },
   { key: "LLM_CONCURRENCY", value: "10" },
   { key: "BRAVE_RATE_LIMIT_PER_SECOND", value: "1" },
-  { key: "SCRAPEGRAPH_RATE_LIMIT_PER_SECOND", value: "5" },
+  { key: "SCRAPEGRAPH_RATE_LIMIT_PER_SECOND", value: "1" },
+  // A page the service served is billed whatever we do with the answer, so a paid
+  // read is attempted once and then falls back to the search snippet.
+  { key: "SCRAPEGRAPH_READ_ATTEMPTS", value: "1" },
 ];
 
 /**
@@ -379,6 +382,37 @@ export default function SettingsPage() {
                 "Loading the reading record…"
               )}
             </p>
+
+            {sources.data?.live ? (
+              <div>
+                <Eyebrow className="mb-2">What one search may spend</Eyebrow>
+                <ul className="flex flex-wrap gap-2">
+                  {[
+                    {
+                      key: "MAX_PAGES_PER_SEARCH",
+                      value: sources.data.maxPagesPerSearch ?? "unlimited",
+                    },
+                    { key: "TARGET_LEADS", value: sources.data.targetLeads ?? "no target" },
+                    {
+                      key: "SCRAPEGRAPH_CREDITS_PER_PAGE",
+                      value: sources.data.creditsPerPage ?? "?",
+                    },
+                  ].map((limit) => (
+                    <li
+                      key={limit.key}
+                      className="num rounded-ctl border border-line bg-surface-2 px-2.5 py-1 font-mono text-xs text-fg-muted"
+                    >
+                      {limit.key}={limit.value}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-fg-muted">
+                  Pages past the budget still become leads — from their search result, at
+                  snippet confidence. The credit price is what the plan charges: the API does
+                  not report it.
+                </p>
+              </div>
+            ) : null}
 
             {sources.data && sources.data.items.length > 0 ? (
               <ul className="divide-y divide-line rounded-card border border-line">

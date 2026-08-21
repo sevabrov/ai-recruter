@@ -51,6 +51,9 @@ class CachedPageReader(PageReader):
         self.repo = repository
         self.ttl_hours = ttl_hours
         self.cost = cost or getattr(inner, "cost", None) or ExtractionCost()
+        # Passed through, not owned: the pipeline asks the chain how much it may
+        # still spend, and the answer belongs to the reader at the bottom of it.
+        self.budget = getattr(inner, "budget", None)
 
     async def extract(self, url: DiscoveredUrl) -> ExtractedProfile | None:
         return (await self.read(url)).profile
@@ -77,6 +80,12 @@ class CachedPageReader(PageReader):
             # platform or a provider is failing (Milestone 5).
             await self._store(url, PageRead(ScrapeOutcome.FAILED, detail=str(error)), stored)
             raise
+
+        if read.outcome is ScrapeOutcome.SKIPPED:
+            # The page was never opened — the search had spent its budget. Storing
+            # that would count an attempt that never happened and make the platform
+            # look unreadable in `GET /sources`.
+            return read
 
         await self._store(url, read, stored)
         return read

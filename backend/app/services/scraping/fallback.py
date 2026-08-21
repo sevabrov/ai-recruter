@@ -51,6 +51,8 @@ class FallbackProfileExtractor(ProfileExtractor):
         self.name = reader.name
         self.attempts = attempts
         self.cost = cost or getattr(reader, "cost", None) or ExtractionCost()
+        #: The reader's paid-page ceiling, passed through so the pipeline can see it.
+        self.budget = getattr(reader, "budget", None)
         #: Set once the provider has told us the key itself is the problem.
         self._reader_disabled: str | None = None
 
