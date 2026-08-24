@@ -86,13 +86,22 @@ Not every URL can be read — Instagram often shows a login wall to a server. Th
 pages fall back to the search result rather than losing the lead, and every outcome is
 counted per platform in Settings → *Reading the sources*.
 
-**What a search may spend is capped.** A live search finds a hundred candidate pages,
-so `MAX_PAGES_PER_SEARCH` (25 by default) limits the *paid* reads and `TARGET_LEADS`
-stops the run once you have the leads you asked for. Candidates are read best-first —
-ranked by what their search result already shows — and the pages past the budget still
-become leads from their search result, so a limit costs depth, not coverage. Both
-numbers, and what one page costs in plan credits, are shown in Settings → *Reading the
-sources*.
+**You say how many leads you want, and the wizard prices it.** The last step of a new
+search asks for a number, and the backend answers with the queries it will run and
+what they may cost: *N search calls, up to M paid pages, at most €X*. That figure is a
+ceiling rather than a forecast — the same function produces it and the run's page
+budget (`targetLeads × PAGES_PER_LEAD`, capped by `MAX_PAGES_PER_SEARCH`) — so a search
+cannot cost more than it was quoted for. Candidates are read best-first, and the pages
+past the budget still become leads from their search result, so a limit costs depth,
+not coverage.
+
+**People only, and only where you asked.** Choosing a country and languages makes them
+requirements, not points: a candidate who is not a person, or is not in that country,
+or does not publish in one of those languages, never becomes a lead. The same choice
+also shapes the questions — a search for Ukraine in Ukrainian is asked in Ukrainian
+words, against the Ukrainian index. Both requirements can be switched off per search
+on the *Geography* step, and the progress screen breaks down who was turned away and
+by which one, so a short list is explained rather than mysterious.
 
 Other commands:
 
@@ -104,7 +113,7 @@ npx eslint .                                             # lint
 
 # backend (nothing installed on the host)
 docker compose logs -f backend                           # structured JSON logs
-docker compose run --rm backend pytest -q                # 220 tests (needs postgres)
+docker compose run --rm backend pytest -q                # 253 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .   # lint
 docker compose run --rm backend alembic current          # schema revision
 docker compose build backend                             # after a dependency change
@@ -243,7 +252,24 @@ spec, which is the fastest way to walk the whole flow.
   `TARGET_LEADS` to stop at a number of leads instead.
 * **The credit figure is configured, not measured.** The v2 API reports tokens but no
   credits, so `SCRAPEGRAPH_CREDITS_PER_PAGE` (10) is an assumption: run one search,
-  compare your dashboard, set it to what actually moved.
+  compare your dashboard, set it to what actually moved. `PAGES_PER_LEAD` (3), which
+  turns "find me ten leads" into a page budget and a price, is the same kind of
+  number: a finished search reports both halves of it.
+* **A hard country filter drops people whose bio never says where they live.** That is
+  the honest cost of the requirement, and why it is a switch on the *Geography* step
+  rather than a permanent rule. The same is true of the language filter: it reads the
+  index's tag plus the profile's own script and words, and a two-line bio can support
+  neither. If a country returns very few people, turn one of the two off before
+  concluding the country is empty.
+* **Deciding who is a person is still a heuristic.** Vocabulary, place names, a
+  corporate voice and the platform's URL shape — not a model reading the page. It
+  refuses the company accounts and directory pages that reached the client's list, and
+  it will occasionally refuse a person whose name is also a brand. Phase 6's LLM
+  detector is what replaces the guessing.
+* **The phrasebook covers nine languages, shallowly.** Query translation is a
+  hand-checked table of a handful of concepts and place names
+  (`services/search/phrasebook.py`), so a language or country it does not know is
+  simply searched in the client's own wording rather than badly.
 * **Some platforms cannot be read at all.** Instagram and Facebook show servers a
   login or consent screen more often than not; those leads fall back to the search
   snippet and say so. `GET /sources` and Settings → *Reading the sources* report the

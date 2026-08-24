@@ -33,6 +33,7 @@ async def sources(container: ContainerDep) -> SourcesOut:
         fallback=_fallback(settings, reading),
         max_pages_per_search=settings.max_pages_per_search or None,
         target_leads=settings.target_leads or None,
+        pages_per_lead=settings.pages_per_lead,
         credits_per_page=settings.scrapegraph_credits_per_page,
         items=[
             SourceReliabilityOut(

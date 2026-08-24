@@ -19,6 +19,7 @@ Two properties matter more than the stub data:
 
 import asyncio
 import hashlib
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -36,6 +37,8 @@ from app.services.scoring.scoring_service import ScoringService
 from app.services.scraping.base import ProfileExtractor, budget_of, cost_of
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
 from app.services.search.deduplicator import deduplicate
+from app.services.search.eligibility import Refusal, admit
+from app.services.search.estimate import page_budget_for
 from app.services.search.prospects import rank
 from app.services.search.providers.base import SearchMarket, SearchProvider
 from app.services.search.query_generator import QueryGenerator
@@ -84,7 +87,9 @@ class Harvest:
     leads: list[Lead] = field(default_factory=list)
     #: Canonical URLs already judged, so nothing is judged (or billed) twice.
     judged_urls: set[str] = field(default_factory=set)
-    rejected: int = 0
+    #: How many candidates each requirement turned away. A search that admits two
+    #: of forty owes the client this breakdown (spec §43).
+    refusals: Counter[Refusal] = field(default_factory=Counter)
     #: True when the lead target was reached and the remaining candidates were left
     #: unread. Reported, never hidden: a thin result must be explained by the limit.
     stopped_early: bool = False
@@ -114,6 +119,8 @@ class SearchPipeline:
         self._snippets = SnippetProfileExtractor()
         self._progress = SearchProgress()
         self._usage = SearchUsage()
+        #: How many leads this run was asked for; set per search by `_aim`.
+        self._target = 0
 
     async def run(self, search_id: str) -> None:
         search = await self.repo.get_search(search_id)
@@ -126,6 +133,7 @@ class SearchPipeline:
 
         self._progress = SearchProgress()
         self._usage = SearchUsage()
+        self._aim(search)
 
         try:
             queries = await self._generate_queries(search)
@@ -149,13 +157,38 @@ class SearchPipeline:
                 completed_at=datetime.now(UTC),
             )
 
+    def _aim(self, search: Search) -> None:
+        """
+        Point this run's limits at what *this* search was asked for.
+
+        The extractor chain is built per job with the server's default ceiling;
+        the number of leads the client asked for is only known here. Both live in
+        one place (`services/search/estimate.py`) so that the price quoted in the
+        wizard and the budget the run is actually given cannot drift apart.
+        """
+        self._target = search.criteria.target_leads or self.settings.target_leads
+        budget = budget_of(self.extractor)
+        if budget is not None:
+            budget.limit = page_budget_for(search.criteria, self.settings)
+            log.info(
+                "search_budget_set",
+                extra={"pages": budget.limit or "unlimited", "target_leads": self._target},
+            )
+
     # ------------------------------------------------------------- stage 1–2
     async def _generate_queries(self, search: Search) -> list[GeneratedQuery]:
         await self._enter(search.id, SearchStage.GENERATING_QUERIES)
-        generated = self.query_generator.generate(search.criteria)
+        generated = self.query_generator.generate(
+            search.criteria, limit=self.settings.max_queries_per_search
+        )
         queries = [
-            GeneratedQuery(id=f"q_{index + 1}", query=query, provider=self.provider.name)
-            for index, query in enumerate(generated)
+            GeneratedQuery(
+                id=f"q_{index + 1}",
+                query=plan.query,
+                provider=self.provider.name,
+                language=plan.language,
+            )
+            for index, plan in enumerate(generated)
         ]
         self._progress.queries = len(queries)
         await self._tick()
@@ -167,8 +200,11 @@ class SearchPipeline:
         self, search: Search, queries: list[GeneratedQuery]
     ) -> list[ProviderResult]:
         """
-        Queries fan out concurrently (spec §30) under SEARCH_CONCURRENCY (§52), and
-        each one is aimed at the country the user asked for.
+        Queries fan out concurrently (spec §30) under SEARCH_CONCURRENCY (§52),
+        each aimed at the country the user asked for and at the index of the
+        language it is written in: a Ukrainian query put to the global English
+        index returns English pages *about* Ukraine, which is what the first live
+        run came back with.
 
         One query failing is not the search failing: real providers rate-limit and
         time out, and eleven good queries are worth more than an error page. Only a
@@ -182,10 +218,11 @@ class SearchPipeline:
 
         async def run_one(entry: GeneratedQuery) -> None:
             nonlocal done
+            aimed = market.model_copy(update={"language": entry.language or market.language})
             async with semaphore:
                 await self._tick()
                 results = await retry_async(
-                    lambda: self.provider.search(entry.query, market=market),
+                    lambda: self.provider.search(entry.query, market=aimed),
                     attempts=self.settings.max_retries,
                     label=f"search:{self.provider.name}",
                 )
@@ -263,7 +300,7 @@ class SearchPipeline:
         """
         await self._enter(search.id, SearchStage.EXTRACTING)
         ranked = await rank(urls, search.criteria, snippets=self._snippets, scoring=self.scoring)
-        target = self.settings.target_leads
+        target = self._target
         harvest = Harvest()
         semaphore = asyncio.Semaphore(self.settings.extraction_concurrency)
         processed = 0
@@ -285,6 +322,9 @@ class SearchPipeline:
             wave = ranked[processed : processed + self._wave_size()]
             found = await asyncio.gather(*(extract_one(prospect.url) for prospect in wave))
             fresh = [profile for profile in found if profile and profile.is_person]
+            # A page nobody could find a person on is the first refusal, and it
+            # happens here rather than at judging: there is nothing to judge.
+            harvest.refusals[Refusal.NOT_A_PERSON] += len(wave) - len(fresh)
             harvest.profiles.extend(fresh)
 
             processed += len(wave)
@@ -296,6 +336,7 @@ class SearchPipeline:
                 # Judged now rather than in the scoring stage, because "we have
                 # enough leads" is the only thing that can stop the spending.
                 await self._judge(search, fresh, harvest)
+            self._tally(harvest)
             await self._save(search.id, SearchStage.EXTRACTING, processed / max(1, len(ranked)))
 
             if target > 0 and len(harvest.leads) >= target:
@@ -378,7 +419,7 @@ class SearchPipeline:
             extra={
                 "qualified": len(harvest.leads),
                 "judged": len(harvest.judged_urls),
-                "rejected_missing_must_have": harvest.rejected,
+                "refused": {str(reason): count for reason, count in harvest.refusals.items()},
                 "judged_during_extraction": len(harvest.judged_urls) - len(pending),
             },
         )
@@ -393,9 +434,17 @@ class SearchPipeline:
         stage: SearchStage | None = None,
     ) -> None:
         """
-        Signals are detected per profile, then scored by code (spec §37): the
-        must-have criteria act as a hard gate, so `qualified` means "matches what
-        the user said they require", not "was looked at".
+        Signals are detected per profile, then scored by code (spec §37). Four
+        things can refuse a candidate, and `qualified` means it passed all of them:
+
+        * it is not a person (`services/extraction/personhood.py`);
+        * it is not in the country the client asked for;
+        * it does not publish in a language the client asked for;
+        * it is missing one of the `must_have` signals.
+
+        The first three are `services/search/eligibility.py` and are checked before
+        the detector runs, which also means a filtered-out candidate is never paid
+        for once Phase 6 makes judging an LLM call.
 
         Bounded by LLM_CONCURRENCY (§52), and every profile is judged at most once —
         `harvest.judged_urls` is what keeps a wave-judged profile from being paid
@@ -415,16 +464,30 @@ class SearchPipeline:
 
         async def judge_one(profile: ExtractedProfile) -> None:
             nonlocal done
+            harvest.judged_urls.add(profile.canonical_url)
+            done += 1
+
+            eligible = admit(profile, search.criteria)
+            if not eligible.admitted:
+                harvest.refusals[eligible.refusal] += 1
+                log.info(
+                    "candidate_refused",
+                    extra={
+                        "url": profile.canonical_url,
+                        "reason": str(eligible.refusal),
+                        "detail": eligible.detail,
+                    },
+                )
+                return
+
             async with semaphore:
                 await self._tick()
                 signals = await self.detector.detect(profile, search.criteria)
             self._usage.llm_calls += 1
-            harvest.judged_urls.add(profile.canonical_url)
-            done += 1
 
             detected = {signal.type for signal in signals if signal.detected}
             if not required.issubset(detected):
-                harvest.rejected += 1
+                harvest.refusals[Refusal.MISSING_SIGNALS] += 1
                 return
 
             score, breakdown = self.scoring.score(signals, weights)
@@ -439,6 +502,14 @@ class SearchPipeline:
                 await self._save(search.id, stage, done / len(profiles))
 
         await asyncio.gather(*(judge_one(profile) for profile in profiles))
+        self._tally(harvest)
+
+    def _tally(self, harvest: Harvest) -> None:
+        """Put the refusals on the progress record, where the client can read them."""
+        self._progress.rejected_not_a_person = harvest.refusals[Refusal.NOT_A_PERSON]
+        self._progress.rejected_country = harvest.refusals[Refusal.WRONG_COUNTRY]
+        self._progress.rejected_language = harvest.refusals[Refusal.WRONG_LANGUAGE]
+        self._progress.rejected_signals = harvest.refusals[Refusal.MISSING_SIGNALS]
 
     # --------------------------------------------------------------- stage 6
     async def _deduplicate(self, search: Search, leads: list[Lead]) -> list[Lead]:

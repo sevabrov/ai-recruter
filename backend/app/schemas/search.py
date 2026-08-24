@@ -28,10 +28,17 @@ class SearchCriteriaSchema(CamelModel):
     negative_keywords: list[str] = Field(default_factory=list)
     location: GeoLocationSchema = Field(default_factory=GeoLocationSchema)
     languages: list[str] = Field(default_factory=list)
+    #: Country and language as requirements rather than as points. Default on:
+    #: a search for one country that returns another country is not that search.
+    require_location: bool = True
+    require_language: bool = True
     must_have: list[SignalType] = Field(default_factory=list)
     nice_to_have: list[SignalType] = Field(default_factory=list)
     signal_weights: dict[SignalType, int] = Field(default_factory=dict)
     sources: list[SourceKind] = Field(default_factory=list)
+    #: How many leads to look for. It buys the page budget, so it is also what the
+    #: wizard prices. 0 means "whatever the server allows".
+    target_leads: int = Field(default=0, ge=0, le=1000)
 
     @field_validator("signal_weights")
     @classmethod
@@ -58,6 +65,12 @@ class SearchProgressSchema(CamelModel):
     profiles_processed: int
     qualified: int
     high_quality: int
+    #: Why the rest did not qualify. Defaulted, because searches recorded before
+    #: the criteria became gates have no such counters and are still valid history.
+    rejected_not_a_person: int = 0
+    rejected_country: int = 0
+    rejected_language: int = 0
+    rejected_signals: int = 0
     percent: int
     stage: SearchStage
 
@@ -67,6 +80,8 @@ class GeneratedQuerySchema(CamelModel):
     query: str
     provider: str
     result_count: int
+    #: Which language's index this query was put to, if not the default market.
+    language: str | None = None
 
 
 class SearchUsageSchema(CamelModel):
@@ -124,3 +139,39 @@ class CreateSearchResponse(CamelModel):
 
     search_id: str
     status: SearchStatus
+
+
+class EstimateIn(CamelModel):
+    """`POST /searches/estimate` — the wizard asking what this would cost."""
+
+    criteria: SearchCriteriaSchema
+
+
+class QueryPreviewOut(CamelModel):
+    query: str
+    language: str | None = None
+
+
+class EstimateOut(CamelModel):
+    """
+    What the search may spend, before it is started (spec §54).
+
+    A ceiling, not a forecast: the same function produces this figure and the
+    budget the run is given, so the search cannot exceed what was quoted here.
+    """
+
+    queries: list[QueryPreviewOut]
+    #: One query is one billed call.
+    search_calls: int
+    #: The most pages this search may pay to read. 0 means no page is ever paid
+    #: for — either no reader is configured, or the limit was removed.
+    max_pages: int
+    #: …in the reader plan's own units.
+    credits: int
+    target_leads: int
+    #: How many paid pages one lead is assumed to take, which is what turns the
+    #: lead target into a budget. Measured, not fixed: see the run's own usage.
+    pages_per_lead: int
+    max_cost_eur: float
+    #: Whether pages are read at all right now, so the UI can say why it is free.
+    reads_pages: bool

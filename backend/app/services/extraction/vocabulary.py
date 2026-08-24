@@ -18,9 +18,9 @@ for the LLM detector, not against this file.
 import re
 
 from app.models.common import SignalType
-from app.services.search.markets import COUNTRY_NAMES
+from app.services.search.markets import PLACE_NAMES
 
-#: Signals that can be sighted in text at all. `location` comes from `find_country`,
+#: Signals that can be sighted in text at all. `location` comes from `find_place`,
 #: `activity` and `personalBrand` need structure (dates, follower counts) as well.
 SIGNAL_TERMS: dict[SignalType, tuple[str, ...]] = {
     SignalType.MLM: (
@@ -150,9 +150,22 @@ _PATTERNS: dict[SignalType, list[tuple[str, re.Pattern[str]]]] = {
     for signal, terms in SIGNAL_TERMS.items()
 }
 
-_COUNTRIES: list[tuple[str, re.Pattern[str]]] = [
-    (name, re.compile(rf"(?<!\w){re.escape(spelling)}(?!\w)", re.IGNORECASE))
-    for spelling, name in COUNTRY_NAMES.items()
+
+def _place_pattern(spelling: str) -> re.Pattern[str]:
+    """
+    `"ukraine"` matches the word; `"україн*"` matches the word and whatever case
+    ending follows it. Slavic bios inflect the country — "з України", "у Києві" —
+    and a filter that only knew the nominative would read them as location unknown.
+    """
+    stem = spelling.removesuffix("*")
+    tail = r"\w{0,4}" if spelling.endswith("*") else ""
+    return re.compile(rf"(?<!\w){re.escape(stem)}{tail}(?!\w)", re.IGNORECASE)
+
+
+#: Countries *and* the cities that place a profile in one — a bio writes "Київ"
+#: or "Zagreb" and leaves the country to be understood.
+_PLACES: list[tuple[str, re.Pattern[str]]] = [
+    (name, _place_pattern(spelling)) for spelling, name in PLACE_NAMES.items()
 ]
 
 
@@ -168,15 +181,20 @@ def find_terms(text: str) -> dict[SignalType, list[str]]:
     return found
 
 
-def find_country(text: str) -> tuple[str, str] | None:
+def find_place(text: str) -> tuple[str, str] | None:
     """
-    The first country named in the text, as `(stored name, the words found)` —
-    "España" in a bio is stored as Spain but quoted back as written.
+    Where the text says the person is, as `(country, the words found)` — "España"
+    in a bio is stored as Spain but quoted back as written, and "Київ" is stored
+    as Ukraine.
+
+    A profile usually writes the city and leaves the country to be understood, so
+    a filter that only read country names would report "unknown" on most of the
+    people it is meant to keep.
     """
     if not text:
         return None
     best: tuple[int, str, str] | None = None
-    for name, pattern in _COUNTRIES:
+    for name, pattern in _PLACES:
         match = pattern.search(text)
         if match and (best is None or match.start() < best[0]):
             best = (match.start(), name, match.group(0))

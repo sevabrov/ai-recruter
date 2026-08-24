@@ -57,9 +57,21 @@ export interface SearchCriteria {
   languages: string[];
   mustHave: SignalType[];
   niceToHave: SignalType[];
+  /**
+   * Country and language as requirements rather than as points: a candidate who
+   * fails one never becomes a lead. Both default to on, and both are per search —
+   * the price of a hard filter is the person whose bio never says where they live.
+   */
+  requireLocation?: boolean;
+  requireLanguage?: boolean;
   /** Score points per signal. Must total 100 — the backend owns the arithmetic. */
   signalWeights: Record<ScoredSignalType, number>;
   sources: SourceKind[];
+  /**
+   * How many leads to look for. It buys the page budget, so it is also what the
+   * wizard prices. 0 means "whatever the server allows".
+   */
+  targetLeads?: number;
 }
 
 export interface SearchProgress {
@@ -70,6 +82,14 @@ export interface SearchProgress {
   profilesProcessed: number;
   qualified: number;
   highQuality: number;
+  /**
+   * Why the rest did not qualify. Optional because searches recorded before the
+   * criteria became gates have no such counters and are still valid history.
+   */
+  rejectedNotAPerson?: number;
+  rejectedCountry?: number;
+  rejectedLanguage?: number;
+  rejectedSignals?: number;
   /** 0–100, backend-owned once Phase 7 lands. */
   percent: number;
   stage: SearchStage;
@@ -90,6 +110,8 @@ export interface GeneratedQuery {
   query: string;
   provider: string;
   resultCount: number;
+  /** Which language's index this query was put to. Absent means the default market. */
+  language?: string | null;
 }
 
 export interface SearchUsage {
@@ -139,6 +161,28 @@ export interface CreateSearchInput {
 export interface CreateSearchResponse {
   searchId: string;
   status: SearchStatus;
+}
+
+/**
+ * What a search would cost, asked before it is started.
+ *
+ * A ceiling, not a forecast: the backend derives this figure and the run's page
+ * budget from the same function, so a search cannot cost more than was quoted.
+ */
+export interface SearchEstimate {
+  queries: { query: string; language?: string | null }[];
+  /** One query is one billed call. */
+  searchCalls: number;
+  /** The most pages this search may pay to read. 0 = no page is ever paid for. */
+  maxPages: number;
+  /** …in the reader plan's own units. */
+  credits: number;
+  targetLeads: number;
+  /** How many paid pages one lead is assumed to take. Measured, not fixed. */
+  pagesPerLead: number;
+  maxCostEur: number;
+  /** Whether pages are read at all right now, so the UI can say why it is free. */
+  readsPages: boolean;
 }
 
 /* -------------------------------------------------------------------- lead */
@@ -370,6 +414,9 @@ export interface SourcesReport {
   targetLeads?: number | null;
   /** Assumed cost of one page in the plan's units — the API reports none. */
   creditsPerPage?: number;
+  /** How many paid pages one lead is assumed to cost, which is what turns the
+   *  lead target the wizard asks for into a page budget and a price. */
+  pagesPerLead?: number;
   items: SourceReliability[];
 }
 
@@ -378,6 +425,8 @@ export interface SourcesReport {
 export interface SearchService {
   list(): Promise<SearchSummary[]>;
   get(id: string): Promise<Search>;
+  /** Price a search and preview its queries. Creates nothing, spends nothing. */
+  estimate(criteria: SearchCriteria): Promise<SearchEstimate>;
   create(input: CreateSearchInput): Promise<CreateSearchResponse>;
   cancel(id: string): Promise<Search>;
   leads(id: string, filters?: LeadFilters): Promise<Paginated<Lead>>;

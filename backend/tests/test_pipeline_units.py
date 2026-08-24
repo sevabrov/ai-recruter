@@ -160,7 +160,8 @@ def test_query_generator_produces_several_targeted_queries():
         sources=[SourceKind.INSTAGRAM_PUBLIC, SourceKind.LINKEDIN_PUBLIC, SourceKind.BLOGS],
     )
 
-    queries = TemplateQueryGenerator().generate(criteria)
+    plans = TemplateQueryGenerator().generate(criteria)
+    queries = [plan.query for plan in plans]
 
     assert len(queries) > 3
     assert len(set(queries)) == len(queries)
@@ -168,6 +169,8 @@ def test_query_generator_produces_several_targeted_queries():
     assert any("site:linkedin.com/in" in query for query in queries)
     assert all('-"customer"' in query for query in queries)  # negatives on every query
     assert all("Spain" in query for query in queries)
+    # No language was asked for, so every query goes to the default market.
+    assert all(plan.language is None for plan in plans)
 
 
 # -------------------------------------------------------------------- retries

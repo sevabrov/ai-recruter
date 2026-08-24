@@ -1,3 +1,4 @@
+import { generateQueryPreview } from "@/lib/query-preview";
 import type {
   CreateSearchInput,
   CreateSearchResponse,
@@ -5,6 +6,8 @@ import type {
   LeadFilters,
   Paginated,
   Search,
+  SearchCriteria,
+  SearchEstimate,
   SearchService,
   SearchSummary,
 } from "@/services/types";
@@ -19,6 +22,14 @@ import {
 } from "./mock-db";
 import { filterLeads, paginate } from "./mock-lead-service";
 
+/** The backend's defaults, mirrored so the demo quotes the same shape of number. */
+const MAX_QUERIES = 24;
+const MAX_PAGES = 25;
+const PAGES_PER_LEAD = 3;
+const CREDITS_PER_PAGE = 10;
+const COST_PER_CALL = 0.005;
+const COST_PER_PAGE = 0.01;
+
 export class MockSearchService implements SearchService {
   async list(): Promise<SearchSummary[]> {
     await latency();
@@ -30,6 +41,30 @@ export class MockSearchService implements SearchService {
     const search = findSearch(id);
     if (!search) throw new Error(`Search ${id} not found`);
     return search;
+  }
+
+  /**
+   * The offline twin of `POST /searches/estimate`. The live backend translates
+   * the queries and owns the unit prices; here they are the demo's own constants,
+   * which is enough for the wizard to behave identically without a server.
+   */
+  async estimate(criteria: SearchCriteria): Promise<SearchEstimate> {
+    await latency(140);
+    const queries = generateQueryPreview(criteria, MAX_QUERIES).map((query) => ({ query }));
+    const target = criteria.targetLeads ?? 0;
+    const maxPages = target > 0 ? Math.min(MAX_PAGES, target * PAGES_PER_LEAD) : MAX_PAGES;
+
+    return {
+      queries,
+      searchCalls: queries.length,
+      maxPages,
+      credits: maxPages * CREDITS_PER_PAGE,
+      targetLeads: target,
+      pagesPerLead: PAGES_PER_LEAD,
+      maxCostEur:
+        Math.round((queries.length * COST_PER_CALL + maxPages * COST_PER_PAGE) * 100) / 100,
+      readsPages: true,
+    };
   }
 
   /** Returns immediately with a queued search — mirrors POST /searches (§39). */

@@ -51,6 +51,9 @@ class Container:
     engine: AsyncEngine
     repository: Repository
     provider: SearchProvider
+    #: Shared with `POST /searches/estimate`, so the queries the wizard previews
+    #: are the queries the worker fires — not a second implementation of them.
+    query_generator: TemplateQueryGenerator
     #: None until a ScrapeGraphAI key is configured.
     reader: ReaderResources | None
     jobs: JobService
@@ -112,6 +115,7 @@ def build_container(settings: Settings | None = None) -> Container:
         engine=engine,
         repository=repository,
         provider=provider,
+        query_generator=query_generator,
         reader=reader,
         jobs=jobs,
         searches=searches,

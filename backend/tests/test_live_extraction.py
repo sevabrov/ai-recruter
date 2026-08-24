@@ -449,6 +449,56 @@ async def test_a_lead_target_stops_the_search_once_it_has_enough(settings):
     assert search.progress.profiles_processed < search.progress.profiles_discovered
 
 
+async def test_the_target_the_client_typed_into_the_wizard_buys_the_budget(settings):
+    """
+    The lead target moved into the search itself: the wizard asks for a number,
+    prices it, and the run is given exactly the budget that was quoted —
+    `targetLeads × PAGES_PER_LEAD`, capped by the server's own ceiling.
+    """
+    priced = settings.model_copy(
+        update={
+            "pages_per_lead": 2,
+            "max_pages_per_search": 25,
+            "target_leads": 0,
+            "extraction_concurrency": 1,
+            "scrape_cache_ttl_hours": 0,
+        }
+    )
+    _, brave = brave_transport()
+    reads, pages = page_transport()
+
+    search, _, _ = await run_reading(
+        priced, brave, pages, search_id="srch_wizard_target", target_leads=1
+    )
+
+    assert search is not None and search.status is SearchStatus.COMPLETED
+    assert len(reads) <= 2, "one lead was asked for, so two pages were paid for at most"
+
+
+async def test_a_search_that_refuses_everybody_says_which_requirement_did_it(settings):
+    """
+    The whole fixture is in Spain. Asked for Ukraine, the search must return
+    nobody — and the progress record has to name the reason, or four leads
+    becoming none reads as a broken tool rather than as a strict one (spec §43).
+    """
+    _, brave = brave_transport()
+    _, pages = page_transport()
+
+    search, leads, _ = await run_reading(
+        settings,
+        brave,
+        pages,
+        search_id="srch_wrong_country",
+        location={"country": "Ukraine"},
+        languages=["Ukrainian"],
+    )
+
+    assert search is not None and search.status is SearchStatus.COMPLETED
+    assert leads == []
+    assert search.progress.rejected_country > 0
+    assert search.progress.qualified == 0
+
+
 # ----------------------------------------------------------------- what it costs
 
 

@@ -34,6 +34,12 @@ class SearchCriteria(BaseModel):
     negative_keywords: list[str] = Field(default_factory=list)
     location: GeoLocation = Field(default_factory=GeoLocation)
     languages: list[str] = Field(default_factory=list)
+    #: Geography and language as requirements rather than as points (spec §32).
+    #: A search for Ukraine that returns a distributor in Croatia is not a search
+    #: for Ukraine, so both default to on — and both are per search, because the
+    #: price of a hard filter is the person whose bio never says where they live.
+    require_location: bool = True
+    require_language: bool = True
     must_have: list[SignalType] = Field(default_factory=list)
     nice_to_have: list[SignalType] = Field(default_factory=list)
     #: Points per signal. The backend owns the arithmetic (spec §37).
@@ -41,6 +47,11 @@ class SearchCriteria(BaseModel):
         default_factory=lambda: dict(DEFAULT_SIGNAL_WEIGHTS)
     )
     sources: list[SourceKind] = Field(default_factory=list)
+    #: How many leads this search is being asked for. It is the client's own
+    #: spending control: the page budget is derived from it, the wizard prices it
+    #: before anything runs, and the search stops once it is met. 0 means "use
+    #: whatever the server allows".
+    target_leads: int = Field(default=0, ge=0, le=1000)
 
     def target_label(self) -> str:
         """The short human label the UI shows next to a search name."""
@@ -49,6 +60,13 @@ class SearchCriteria(BaseModel):
 
 
 class SearchProgress(BaseModel):
+    """
+    What the worker has done so far, and — since the criteria became gates — what
+    it turned away. A search that looked at forty candidates and produced two
+    leads has to be able to say which requirement the other thirty-eight failed,
+    or the number reads as a broken tool rather than as a strict one.
+    """
+
     queries: int = 0
     queries_completed: int = 0
     urls_discovered: int = 0
@@ -56,6 +74,10 @@ class SearchProgress(BaseModel):
     profiles_processed: int = 0
     qualified: int = 0
     high_quality: int = 0
+    rejected_not_a_person: int = 0
+    rejected_country: int = 0
+    rejected_language: int = 0
+    rejected_signals: int = 0
     percent: int = 0
     stage: SearchStage = SearchStage.QUEUED
 
@@ -65,6 +87,10 @@ class GeneratedQuery(BaseModel):
     query: str
     provider: str
     result_count: int = 0
+    #: The language this query is written in, as the provider's code. A search for
+    #: Ukrainian speakers asks in Ukrainian, and the index it is asked against is
+    #: chosen per query for the same reason (spec §29).
+    language: str | None = None
 
 
 class SearchUsage(BaseModel):

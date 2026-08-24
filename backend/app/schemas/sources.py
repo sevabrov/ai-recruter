@@ -44,6 +44,9 @@ class SourcesOut(CamelModel):
     #: the UI needs the difference between "unlimited" and "zero".
     max_pages_per_search: int | None = None
     target_leads: int | None = None
+    #: How many paid pages one lead is assumed to cost. It is what turns the lead
+    #: target the wizard asks for into a page budget and a price.
+    pages_per_lead: int = 0
     #: What one page is assumed to cost in plan units, since the API does not say.
     credits_per_page: int = 0
     items: list[SourceReliabilityOut]

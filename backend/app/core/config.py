@@ -21,7 +21,7 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ app
     app_name: str = "ai-recruiter-api"
-    version: str = "0.5.1"
+    version: str = "0.5.2"
     phase: int = 5
     debug: bool = True
 
@@ -115,7 +115,19 @@ class Settings(BaseSettings):
     #: "Find me this many leads." Reached, the search stops reading and stops
     #: judging: candidates are processed best-first, so stopping early drops the
     #: weakest ones rather than an arbitrary tail. 0 means "as many as there are".
+    #: The wizard sets this per search; this value is the default it starts from.
     target_leads: int = 0
+    #: How many pages one lead costs, used to turn "find me 10 leads" into a page
+    #: budget and a price the wizard can show before anything is spent. Not a
+    #: guess to be left alone: the run reports both numbers, so set this to what a
+    #: finished search actually measured (pagesRead ÷ leads).
+    pages_per_lead: int = 3
+    #: The ceiling on generated queries, and therefore on billed search calls. One
+    #: query is one call (€0.005 on Brave's Base plan), and a search asked for in
+    #: three languages writes three sets of them — so the money side of asking in
+    #: more languages needs a limit of its own. The wizard shows the real number
+    #: before the search starts; this is only the maximum it may reach.
+    max_queries_per_search: int = 24
 
     # ------------------------------------------------ cost model (spec §54)
     cost_per_search_call_eur: float = 0.005

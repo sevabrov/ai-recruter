@@ -98,34 +98,153 @@ LANGUAGE_NAMES: dict[str, str] = {
 #: How a country is spelled when it is written onto a profile. One spelling per
 #: country: two spellings would split the country facet in the UI. The keys are
 #: what we look for in a page's text, the values what gets stored.
+#:
+#: A key ending in `*` is a stem, because Slavic languages inflect the place they
+#: are talking about: a bio saying "з України" or "живу в Києві" names the country
+#: just as plainly as "Ukraine" does, and a country filter that only knew the
+#: nominative would drop exactly the people it was asked to find.
 COUNTRY_NAMES: dict[str, str] = {
     "austria": "Austria",
+    "österreich": "Austria",
+    "oesterreich": "Austria",
     "belgium": "Belgium",
+    "croatia": "Croatia",
+    "hrvatska": "Croatia",
     "czechia": "Czechia",
     "czech republic": "Czechia",
+    "česko": "Czechia",
+    "česká republika": "Czechia",
     "denmark": "Denmark",
     "finland": "Finland",
     "france": "France",
     "germany": "Germany",
     "deutschland": "Germany",
+    "німеччин*": "Germany",
+    "герман*": "Germany",
     "italy": "Italy",
     "italia": "Italy",
     "netherlands": "Netherlands",
+    "nederland": "Netherlands",
     "norway": "Norway",
     "poland": "Poland",
     "polska": "Poland",
+    "польщ*": "Poland",
+    "польш*": "Poland",
     "portugal": "Portugal",
+    "romania": "Romania",
+    "românia": "Romania",
     "russia": "Russia",
+    "россия": "Russia",
+    "росси*": "Russia",
     "spain": "Spain",
     "españa": "Spain",
     "espana": "Spain",
+    "испани*": "Spain",
+    "іспані*": "Spain",
     "sweden": "Sweden",
     "switzerland": "Switzerland",
+    "schweiz": "Switzerland",
     "ukraine": "Ukraine",
+    "ukraina": "Ukraine",
+    "україн*": "Ukraine",
+    "украин*": "Ukraine",
     "united kingdom": "United Kingdom",
     "great britain": "United Kingdom",
     "united states": "United States",
 }
+
+#: Where a city is. A profile almost never writes the country down — it writes
+#: "Zagreb", "Київ", "Barcelona" — so without this the country filter would read
+#: "unknown" on the very profiles it is meant to keep. Capitals and the largest
+#: cities only: this is evidence, not a gazetteer.
+CITY_NAMES: dict[str, str] = {
+    # Ukraine
+    "київ*": "Ukraine",
+    "киев*": "Ukraine",
+    "kyiv": "Ukraine",
+    "kiev": "Ukraine",
+    "львів*": "Ukraine",
+    "львов*": "Ukraine",
+    "lviv": "Ukraine",
+    "харків*": "Ukraine",
+    "харьков*": "Ukraine",
+    "kharkiv": "Ukraine",
+    "одес*": "Ukraine",
+    "odesa": "Ukraine",
+    "odessa": "Ukraine",
+    "дніпр*": "Ukraine",
+    "днепр*": "Ukraine",
+    "dnipro": "Ukraine",
+    # Spain
+    "madrid": "Spain",
+    "barcelona": "Spain",
+    "valencia": "Spain",
+    "sevilla": "Spain",
+    "málaga": "Spain",
+    "malaga": "Spain",
+    "bilbao": "Spain",
+    # Germany / Austria / Switzerland
+    "berlin": "Germany",
+    "münchen": "Germany",
+    "munich": "Germany",
+    "hamburg": "Germany",
+    "köln": "Germany",
+    "frankfurt": "Germany",
+    "düsseldorf": "Germany",
+    "wien": "Austria",
+    "vienna": "Austria",
+    "graz": "Austria",
+    "salzburg": "Austria",
+    "zürich": "Switzerland",
+    "zurich": "Switzerland",
+    "genève": "Switzerland",
+    "geneva": "Switzerland",
+    "basel": "Switzerland",
+    # Italy
+    "roma": "Italy",
+    "milano": "Italy",
+    "milan": "Italy",
+    "napoli": "Italy",
+    "torino": "Italy",
+    "firenze": "Italy",
+    # Poland / Czechia
+    "warszaw*": "Poland",
+    "warsaw": "Poland",
+    "kraków": "Poland",
+    "krakow": "Poland",
+    "wrocław": "Poland",
+    "wroclaw": "Poland",
+    "poznań": "Poland",
+    "gdańsk": "Poland",
+    "praha": "Czechia",
+    "prague": "Czechia",
+    "brno": "Czechia",
+    # Portugal / France / Netherlands / UK
+    "lisboa": "Portugal",
+    "lisbon": "Portugal",
+    "porto": "Portugal",
+    "paris": "France",
+    "lyon": "France",
+    "marseille": "France",
+    "amsterdam": "Netherlands",
+    "rotterdam": "Netherlands",
+    "utrecht": "Netherlands",
+    "london": "United Kingdom",
+    "manchester": "United Kingdom",
+    "birmingham": "United Kingdom",
+    # Countries whose companies keep turning up in beauty/MLM searches
+    "zagreb": "Croatia",
+    "bucurești": "Romania",
+    "bucuresti": "Romania",
+    "bucharest": "Romania",
+    "москв*": "Russia",
+    "moscow": "Russia",
+}
+
+#: Everything that names a place, for the two questions that need it: "which
+#: country is this profile in?" and "is this name a person or an organisation?"
+#: (`Orbico Beauty Croatia` is not a person).
+PLACE_NAMES: dict[str, str] = {**COUNTRY_NAMES, **CITY_NAMES}
 
 
 def country_code(country: str | None) -> str | None:

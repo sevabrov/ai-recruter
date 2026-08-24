@@ -393,6 +393,7 @@ export default function SettingsPage() {
                       value: sources.data.maxPagesPerSearch ?? "unlimited",
                     },
                     { key: "TARGET_LEADS", value: sources.data.targetLeads ?? "no target" },
+                    { key: "PAGES_PER_LEAD", value: sources.data.pagesPerLead ?? "?" },
                     {
                       key: "SCRAPEGRAPH_CREDITS_PER_PAGE",
                       value: sources.data.creditsPerPage ?? "?",
@@ -407,9 +408,11 @@ export default function SettingsPage() {
                   ))}
                 </ul>
                 <p className="mt-2 text-xs text-fg-muted">
-                  Pages past the budget still become leads — from their search result, at
-                  snippet confidence. The credit price is what the plan charges: the API does
-                  not report it.
+                  The wizard sets the target per search and turns it into the budget:{" "}
+                  <span className="num font-mono">leads × PAGES_PER_LEAD</span>, capped by
+                  the ceiling above. Pages past the budget still become leads — from their
+                  search result, at snippet confidence. The credit price is what the plan
+                  charges: the API does not report it, so set it from the dashboard.
                 </p>
               </div>
             ) : null}

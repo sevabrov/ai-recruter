@@ -20,6 +20,8 @@ import type {
   Paginated,
   Platform,
   Search,
+  SearchCriteria,
+  SearchEstimate,
   SearchService,
   SearchSummary,
   SourcesReport,
@@ -54,6 +56,13 @@ export class ApiSearchService implements SearchService {
 
   get(id: string) {
     return request<Search>(`/searches/${id}`);
+  }
+
+  estimate(criteria: SearchCriteria) {
+    return request<SearchEstimate>("/searches/estimate", {
+      method: "POST",
+      body: { criteria },
+    });
   }
 
   create(input: CreateSearchInput) {

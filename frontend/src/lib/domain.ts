@@ -207,9 +207,23 @@ export function emptyCriteria(): SearchCriteria {
     negativeKeywords: [],
     location: {},
     languages: [],
+    // The country and the languages are requirements by default: a search for one
+    // country that returns another country is not that search (spec §32).
+    requireLocation: true,
+    requireLanguage: true,
     mustHave: [],
     niceToHave: [],
     signalWeights: { ...DEFAULT_SIGNAL_WEIGHTS },
     sources: ["public_web", "instagram_public", "linkedin_public"],
+    targetLeads: DEFAULT_TARGET_LEADS,
   };
 }
+
+/**
+ * How many leads a new search asks for out of the box.
+ *
+ * It is the client's spending control: the backend turns it into the page budget
+ * and prices it before anything runs. Ten is a working session's worth of people
+ * to contact, not a number the product needs to be right about.
+ */
+export const DEFAULT_TARGET_LEADS = 10;

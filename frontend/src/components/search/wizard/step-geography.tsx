@@ -1,8 +1,9 @@
 "use client";
 
 import { ChipInput } from "@/components/ui/chip-input";
-import { SelectField } from "@/components/ui/controls";
+import { SelectField, SwitchField } from "@/components/ui/controls";
 import { Field, Input } from "@/components/ui/field";
+import { Eyebrow } from "@/components/ui/misc";
 import { useWizardStore } from "@/store/wizard-store";
 
 const COUNTRIES = [
@@ -81,10 +82,35 @@ export function StepGeography() {
         />
       </Field>
 
+      <section className="rounded-card border border-line bg-surface-2 px-4 py-3">
+        <Eyebrow className="mb-1">Requirements, not preferences</Eyebrow>
+        <SwitchField
+          checked={criteria.requireLocation ?? true}
+          onCheckedChange={(requireLocation) => patchCriteria({ requireLocation })}
+          label={
+            criteria.location.country
+              ? `Only people in ${criteria.location.country}`
+              : "Only people in the chosen country"
+          }
+          hint="A candidate whose profile does not place them there never becomes a lead. Turn this off and geographic match goes back to being worth points instead."
+        />
+        <SwitchField
+          checked={criteria.requireLanguage ?? true}
+          onCheckedChange={(requireLanguage) => patchCriteria({ requireLanguage })}
+          label={
+            criteria.languages.length
+              ? `Only people publishing in ${criteria.languages.join(" / ")}`
+              : "Only people publishing in the chosen languages"
+          }
+          hint="Judged on what the profile is written in. Off is worth trying when a country returns very few people: not every bio gives its language away."
+        />
+      </section>
+
       <p className="rounded-card border border-line bg-surface-2 px-4 py-3 text-xs leading-relaxed text-fg-muted">
-        Every field on this step is optional. Leaving the country empty widens the
-        search to the whole public web, which returns more candidates and a lower
-        average score — geographic match is worth {criteria.signalWeights.location} points.
+        The country and languages also shape the questions asked: a search for
+        Ukraine in Ukrainian is run against the Ukrainian index, in Ukrainian
+        words. Leaving both empty widens the search to the whole public web, and
+        the switches above then have nothing to apply.
       </p>
     </div>
   );

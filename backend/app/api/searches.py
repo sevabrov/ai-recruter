@@ -21,9 +21,14 @@ from app.schemas.lead import LeadOut
 from app.schemas.search import (
     CreateSearchIn,
     CreateSearchResponse,
+    EstimateIn,
+    EstimateOut,
+    QueryPreviewOut,
     SearchOut,
     SearchSummaryOut,
 )
+from app.services.adapters import use_page_reading
+from app.services.search.estimate import estimate
 
 router = APIRouter(prefix="/searches", tags=["searches"])
 
@@ -42,6 +47,41 @@ async def create_search(
     criteria = SearchCriteria(**payload.to_criteria_kwargs())
     search = await container.searches.create(user_id, payload.name, criteria)
     return CreateSearchResponse(search_id=search.id, status=search.status)
+
+
+@router.post("/estimate", response_model=EstimateOut)
+async def estimate_search(payload: EstimateIn, container: ContainerDep) -> EstimateOut:
+    """
+    What this search would cost, and the exact queries it would run.
+
+    Nothing is created and nothing is spent: this is the wizard's last screen
+    asking the backend the two questions the client said they need answered
+    before pressing start — how many leads am I asking for, and what does that
+    cost. The queries come from the generator the worker uses, so the preview
+    cannot drift from the run the way a re-implementation in the browser did.
+    """
+    settings = container.settings
+    criteria = SearchCriteria.model_validate(payload.criteria.model_dump())
+    reads_pages = use_page_reading(settings)
+    quote = estimate(
+        criteria,
+        settings,
+        generator=container.query_generator,
+        reads_pages=reads_pages,
+        paid_detector=bool(settings.openai_api_key),
+    )
+    return EstimateOut(
+        queries=[
+            QueryPreviewOut(query=plan.query, language=plan.language) for plan in quote.queries
+        ],
+        search_calls=quote.search_calls,
+        max_pages=quote.max_pages,
+        credits=quote.credits,
+        target_leads=quote.target_leads,
+        pages_per_lead=quote.pages_per_lead,
+        max_cost_eur=quote.max_cost_eur,
+        reads_pages=reads_pages,
+    )
 
 
 @router.get("", response_model=list[SearchSummaryOut], response_model_exclude_none=True)

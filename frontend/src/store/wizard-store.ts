@@ -7,7 +7,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { DEFAULT_SIGNAL_WEIGHTS, emptyCriteria } from "@/lib/domain";
+import { DEFAULT_SIGNAL_WEIGHTS, DEFAULT_TARGET_LEADS, emptyCriteria } from "@/lib/domain";
 import type { ScoredSignalType, SearchCriteria, SignalType, SourceKind } from "@/services/types";
 
 export const WIZARD_STEPS = [
@@ -47,9 +47,13 @@ const EXAMPLE = {
     keywords: ["MIHI", "beauty", "network marketing", "team leader", "distributor"],
     negativeKeywords: ["customer", "shop", "beauty salon"],
     location: { country: "Spain", region: "", city: "" },
-    languages: ["Spanish", "English", "Russian", "Ukrainian"],
-    mustHave: ["mlm", "beauty", "activity"] as SignalType[],
-    niceToHave: ["leadership", "recruiting", "personalBrand"] as SignalType[],
+    languages: ["Spanish", "Russian", "Ukrainian"],
+    requireLocation: true,
+    requireLanguage: true,
+    // One must-have, not three: every one of them is an AND, and `activity` in
+    // particular gates hard while carrying no points at all.
+    mustHave: ["mlm"] as SignalType[],
+    niceToHave: ["beauty", "leadership", "recruiting", "personalBrand"] as SignalType[],
     signalWeights: { ...DEFAULT_SIGNAL_WEIGHTS },
     sources: [
       "public_web",
@@ -57,6 +61,7 @@ const EXAMPLE = {
       "linkedin_public",
       "facebook_public",
     ] as SourceKind[],
+    targetLeads: DEFAULT_TARGET_LEADS,
   },
 };
 

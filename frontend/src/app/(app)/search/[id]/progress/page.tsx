@@ -14,6 +14,7 @@ import { isSearchRunning, SEARCH_STATUS_LABELS, searchStatusTone } from "@/lib/d
 import { stageNote } from "@/mocks/search-progress";
 import { formatCurrencyEur, formatNumber } from "@/lib/utils";
 import { useCancelSearch, useSearch } from "@/services/hooks";
+import type { SearchProgress } from "@/services/types";
 
 export default function SearchProgressPage() {
   const { id } = useParams<{ id: string }>();
@@ -116,6 +117,48 @@ export default function SearchProgressPage() {
             </div>
           </Card>
 
+          {/* Only once something has been turned away. A search that admits two of
+              forty has to be able to say which requirement did it, or a strict
+              result is indistinguishable from a broken one. */}
+          {refused(progress) > 0 && (
+            <Card>
+              <CardHeader
+                title="Not taken forward"
+                hint={`${formatNumber(refused(progress))} candidates did not meet a requirement`}
+              />
+              <CardBody className="flex flex-col gap-2 text-sm">
+                {(progress.rejectedNotAPerson ?? 0) > 0 && (
+                  <Row
+                    label="Not a person"
+                    value={formatNumber(progress.rejectedNotAPerson ?? 0)}
+                  />
+                )}
+                {(progress.rejectedCountry ?? 0) > 0 && (
+                  <Row
+                    label={
+                      search.criteria.location.country
+                        ? `Not in ${search.criteria.location.country}`
+                        : "Wrong country"
+                    }
+                    value={formatNumber(progress.rejectedCountry ?? 0)}
+                  />
+                )}
+                {(progress.rejectedLanguage ?? 0) > 0 && (
+                  <Row
+                    label="Publishes in another language"
+                    value={formatNumber(progress.rejectedLanguage ?? 0)}
+                  />
+                )}
+                {(progress.rejectedSignals ?? 0) > 0 && (
+                  <Row
+                    label="Missing a must-have signal"
+                    value={formatNumber(progress.rejectedSignals ?? 0)}
+                  />
+                )}
+              </CardBody>
+            </Card>
+          )}
+
           <Card>
             <CardHeader title="Usage this search" hint="Tracked from the first request" />
             <CardBody className="flex flex-col gap-2 text-sm">
@@ -158,7 +201,12 @@ export default function SearchProgressPage() {
                   className="flex items-start justify-between gap-3 px-5 py-2 text-xs"
                 >
                   <span className="font-mono break-all text-fg-muted">{query.query}</span>
-                  <span className="num shrink-0 text-fg-faint">{query.resultCount}</span>
+                  <span className="num shrink-0 text-fg-faint">
+                    {/* Which index it was put to: a Ukrainian query goes to the
+                        Ukrainian one, which is half of why it finds anybody. */}
+                    {query.language ? `${query.language} · ` : ""}
+                    {query.resultCount}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -166,6 +214,16 @@ export default function SearchProgressPage() {
         </div>
       </div>
     </>
+  );
+}
+
+/** How many candidates a requirement turned away, across all four of them. */
+function refused(progress: SearchProgress): number {
+  return (
+    (progress.rejectedNotAPerson ?? 0) +
+    (progress.rejectedCountry ?? 0) +
+    (progress.rejectedLanguage ?? 0) +
+    (progress.rejectedSignals ?? 0)
   );
 }
 

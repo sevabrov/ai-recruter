@@ -1,0 +1,235 @@
+"""
+Person or organisation? (spec §32, §34)
+
+The product looks for people. A measured run returned four leads and three of
+them were not human: a beauty distributor in Zagreb, a directory page titled
+"Top 10 MLM Companies in the Ukraine", and a Facebook page for a magazine. Every
+one of them passed the name check in `scraping/names.py`, because that check asks
+whether a string is *shaped* like a name — and "Orbico Beauty Croatia", "Online
+MLM Community" and "Network Marketing News" all are: two to four capitalised
+words with no company suffix in sight.
+
+Shape is not enough, so this module asks the three questions that separate the
+two, and lets any one of them refuse:
+
+* **the words.** An organisation usually says what it is — community, news,
+  magazine, academy, studio, group — or carries a legal form (GmbH, ТОВ, s.r.o.).
+* **the place.** People are not named after countries and cities. "Orbico Beauty
+  Croatia" is a company however capitalised it is, and this rule is what catches
+  the brand-plus-market naming that a keyword list never finishes covering.
+* **the voice.** A company writes "we", "our clients", "founded in 1984", "the
+  leading distributor in Europe". A person writes "I", "my team", "мій", "soy".
+  This is the rule that survives a brand nobody has heard of.
+
+Platform structure is evidence too, and it goes in both directions: `/in/<slug>`
+on LinkedIn is a person by construction, while a Facebook page announces itself
+with a like count and a category ("10 likes · Magazine").
+
+The bar is deliberately asymmetric, and the same way round as everywhere else in
+this codebase: a missed person costs one lead, an invented one costs the client's
+credibility with somebody they then try to recruit.
+"""
+
+import re
+from dataclasses import dataclass
+
+from app.models.common import Platform
+from app.models.profile import ExtractedProfile
+from app.services.extraction.vocabulary import find_place
+from app.services.scraping.names import commercial
+
+#: What an organisation calls itself. Distinct from `names.NOT_A_PERSON`, which
+#: is about a *handle or title* being commercial; these are the nouns an entity
+#: uses for itself in the middle of an otherwise name-shaped title.
+ORGANISATION_WORDS = {
+    "academy",
+    "agency",
+    "association",
+    "brand",
+    "center",
+    "centre",
+    "channel",
+    "club",
+    "community",
+    "company",
+    "corporation",
+    "distribution",
+    "distributors",
+    "federation",
+    "forum",
+    "foundation",
+    "group",
+    "holding",
+    "hub",
+    "institute",
+    "international",
+    "магазин",
+    "magazine",
+    "media",
+    "network",
+    "news",
+    "official",
+    "organization",
+    "organisation",
+    "portal",
+    "press",
+    "salon",
+    "school",
+    "solutions",
+    "studio",
+    "supply",
+    "team",
+    "wholesale",
+    "worldwide",
+    # The same nouns in the languages the wizard offers.
+    "akademia",
+    "akademie",
+    "academia",
+    "agencia",
+    "agencja",
+    "centrum",
+    "centro",
+    "comunidad",
+    "compania",
+    "empresa",
+    "firma",
+    "grupa",
+    "grupo",
+    "gruppo",
+    "novosti",
+    "новости",
+    "новини",
+    "спільнота",
+    "сообщество",
+    "компания",
+    "компанія",
+    "студия",
+    "студія",
+    "салон",
+    "школа",
+}
+
+#: Legal forms. A name carrying one is not a person in any jurisdiction.
+#:
+#: Two-letter forms (SA, SL, AB, OY) are left out on purpose: they collide with
+#: real surnames, and the cost of rejecting a person is higher here than the cost
+#: of letting a company through to the checks below.
+LEGAL_FORMS = {
+    "gmbh",
+    "doo",
+    "inc",
+    "kft",
+    "llc",
+    "ltd",
+    "plc",
+    "sarl",
+    "srl",
+    "sro",
+    "ооо",
+    "оао",
+    "зао",
+    "тов",
+    "фоп",
+}
+
+#: How an organisation writes about itself. Matched against the summary, which is
+#: the page's or the search result's own description of what it is.
+CORPORATE_VOICE = (
+    r"\bwe are\b",
+    r"\bwe offer\b",
+    r"\bwe provide\b",
+    r"\bour (?:company|clients|customers|products|mission|team of)\b",
+    r"\bthe (?:leading|largest|official)\b",
+    r"\bfounded in \d{4}\b",
+    r"\bestablished in \d{4}\b",
+    r"\boperates in\b",
+    r"\bpresent in \d+ countries\b",
+    r"\bheadquarter",
+    r"\bsomos\b",
+    r"\bnuestra empresa\b",
+    r"\bnuestros clientes\b",
+    r"\bwir sind ein\b",
+    r"\bunser unternehmen\b",
+    r"\bnasza firma\b",
+    r"\bмы — ?компания\b",
+    r"\bнаша компания\b",
+    r"\bнаші клієнти\b",
+    r"\bнаша компанія\b",
+    r"\bкомпани[яи] основана\b",
+)
+
+#: How a Facebook Page gives itself away in a search result: pages carry a like
+#: count and a category, profiles carry neither.
+FACEBOOK_PAGE = (
+    r"\d[\d,. ]*\s*(?:likes|people like this|подписчик|вподоба)",
+    r"·\s*(?:magazine|media|product/service|community|company|brand|shopping)",
+    r"\.\s*(?:magazine|community|product/service)\b",
+)
+
+_ORGANISATION = {word.lower() for word in ORGANISATION_WORDS}
+_LEGAL = {form.replace(".", "") for form in LEGAL_FORMS}
+_CORPORATE = [re.compile(pattern, re.IGNORECASE) for pattern in CORPORATE_VOICE]
+_FACEBOOK_PAGE = [re.compile(pattern, re.IGNORECASE) for pattern in FACEBOOK_PAGE]
+_WORDS = re.compile(r"[^\w]+", re.UNICODE)
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """Why a candidate is or is not a person, in words the client can read."""
+
+    is_person: bool
+    detail: str = ""
+
+
+PERSON = Verdict(True)
+
+
+def assess(profile: ExtractedProfile) -> Verdict:
+    """Is the thing this profile describes a human being?"""
+    name = (profile.name or "").strip()
+    if not name:
+        return Verdict(False, "No person is named on this page.")
+
+    if profile.platform is Platform.LINKEDIN and "/in/" in profile.canonical_url:
+        # LinkedIn keeps people and companies on different paths, and only the
+        # person path reaches this far (`url_tools.classify`). That is stronger
+        # evidence than anything a title can offer, so it settles the question.
+        return PERSON
+
+    for token in _tokens(name):
+        if token in _ORGANISATION:
+            return Verdict(False, f"“{name}” names an organisation, not a person ({token}).")
+        if token in _LEGAL:
+            return Verdict(False, f"“{name}” carries a company form ({token.upper()}).")
+
+    place = find_place(name)
+    if place:
+        return Verdict(
+            False, f"“{name}” is named after a place ({place[1]}) — a brand, not a person."
+        )
+
+    if commercial(name):
+        return Verdict(False, f"“{name}” reads as a business name.")
+
+    summary = profile.summary or ""
+    if profile.platform is Platform.FACEBOOK and _matches(_FACEBOOK_PAGE, summary):
+        return Verdict(False, f"“{name}” is a Facebook page, not somebody's profile.")
+
+    corporate = _matches(_CORPORATE, summary)
+    if corporate:
+        return Verdict(False, f"“{name}” writes about itself as an organisation: “{corporate}”.")
+
+    return PERSON
+
+
+def _tokens(text: str) -> set[str]:
+    return {token for token in _WORDS.split(text.lower()) if token}
+
+
+def _matches(patterns: list[re.Pattern[str]], text: str) -> str:
+    """The phrase that matched, so the verdict can quote its own evidence."""
+    for pattern in patterns:
+        match = pattern.search(text or "")
+        if match:
+            return match.group(0).strip()
+    return ""

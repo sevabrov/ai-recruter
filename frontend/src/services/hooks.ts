@@ -21,6 +21,7 @@ import type {
   OutreachRequest,
   Paginated,
   Search,
+  SearchCriteria,
   SearchSummary,
   UpdateLeadInput,
 } from "@/services/types";
@@ -31,6 +32,7 @@ export const queryKeys = {
   dashboard: ["dashboard"] as const,
   searches: ["searches"] as const,
   search: (id: string) => ["search", id] as const,
+  estimate: (criteria: SearchCriteria) => ["searches", "estimate", criteria] as const,
   searchLeads: (id: string, filters?: LeadFilters) => ["search", id, "leads", filters ?? {}] as const,
   leads: (filters?: LeadFilters) => ["leads", filters ?? {}] as const,
   lead: (id: string) => ["lead", id] as const,
@@ -132,6 +134,23 @@ export function useLeadFacets() {
     queryKey: queryKeys.facets,
     queryFn: () => services.leads.facets(),
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * What this search would cost, asked while the wizard is being filled in.
+ *
+ * Debounced by the criteria themselves: the key is the criteria, so typing a new
+ * keyword asks once and every later render of the same criteria is a cache hit.
+ * Nothing is created and nothing is spent by asking.
+ */
+export function useSearchEstimate(criteria: SearchCriteria, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.estimate(criteria),
+    queryFn: () => services.searches.estimate(criteria),
+    enabled,
+    staleTime: 60_000,
+    retry: false,
   });
 }
 

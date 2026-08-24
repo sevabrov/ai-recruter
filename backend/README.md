@@ -35,7 +35,7 @@ docker compose down                     # stop; the data volume survives
 Interactive API docs: <http://localhost:8000/docs>.
 
 ```bash
-docker compose run --rm backend pytest -q            # 220 tests (needs postgres)
+docker compose run --rm backend pytest -q            # 253 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .
 docker compose run --rm --no-deps backend ruff format .
 ```
@@ -109,6 +109,7 @@ at the rows.
 |---|---|---|
 | GET | `/health` | spec §21 — `{"status": "ok"}` plus what is wired up; queries the database |
 | POST | `/searches` | returns `202` immediately with `{searchId, status}` (§39) |
+| POST | `/searches/estimate` | prices a search and previews its queries; creates nothing |
 | GET | `/searches` | history, newest first |
 | GET | `/searches/:id` | status, progress, usage, queries — the polling target (§43) |
 | GET | `/searches/:id/leads` | results, same filters as `/leads` |
@@ -151,8 +152,17 @@ Set `BRAVE_SEARCH_API_KEY` and restart the backend. What changes:
 * **Queries carry a market.** `country=ES` for a Spain search — a much stronger
   signal than the country's name in the query text. Brave has no market for
   Czechia or Ukraine, and those searches go worldwide rather than send a parameter
-  that would fail (`services/search/markets.py`). `search_lang` is only sent when
-  the user asked for exactly one language: three languages means "any of them".
+  that would fail (`services/search/markets.py`).
+* **And a language, per query.** A search for Ukraine, written in English, finds
+  English pages *about* Ukraine: company directories, "Top 10 MLM companies"
+  listicles, the Romanian representative of a global brand. So each language the
+  client asked for gets its own set of queries, written in that language and put
+  to that language's index — `Україна`, `мережевий маркетинг`, `search_lang=uk`.
+  The phrasebook is small and hand-checked (`services/search/phrasebook.py`); a
+  language it cannot name the place in is not asked in at all, because that would
+  only be the English query with a foreign label on it. The client's own wording
+  is always asked as written, and the round-robin in `_interleave` is what stops
+  `MAX_QUERIES_PER_SEARCH` from spending the whole allowance on one language.
 * **One query is one billed call.** `count` is capped at Brave's maximum of 20 and
   no paging is attempted, so `usage.searchApiCalls` on the search record is exactly
   what was spent (§54).
@@ -249,6 +259,45 @@ rather than assumed:
 
 Settings → *Reading the sources* shows the same table.
 
+### Only people, and only where you asked (spec §32, §35)
+
+A measured run for Ukraine returned four leads: a beauty distributor in Zagreb, a
+listicle titled *"Top 10 MLM Companies in the Ukraine"*, a Facebook page for a
+magazine with ten likes, and one real distributor — in Romania. All four scored,
+because the country was worth ten points rather than being a requirement, and all
+four passed the name check, because "Orbico Beauty Croatia" *is* shaped like a
+name: capitalised words, no company suffix.
+
+Three criteria therefore stopped being weights and became gates
+(`services/search/eligibility.py`, applied before the detector runs, so a refused
+candidate is never paid for):
+
+| Gate | Refuses when | Switch |
+|---|---|---|
+| person | `personhood.assess` says the page is an organisation | always on |
+| country | the profile does not place the person in the chosen country | `requireLocation` |
+| language | the profile does not publish in one of the chosen languages | `requireLanguage` |
+
+`services/extraction/personhood.py` asks three questions past the name's shape,
+and any one of them refuses: **the words** (community, news, magazine, academy, a
+legal form), **the place** — people are not named after countries and cities, which
+is what catches brand-plus-market naming a wordlist never finishes covering — and
+**the voice**: a company writes "we are", "our clients", "founded in 1984", a
+person writes "I". Platform structure cuts both ways: `/in/<slug>` on LinkedIn is a
+person by construction and settles the question before any wordlist gets an
+opinion, while a Facebook page announces itself with a like count and a category.
+
+Both filters are per search because their honest cost is the person whose bio
+never says where they live. The refusals are counted on the search's progress
+record — `rejectedNotAPerson`, `rejectedCountry`, `rejectedLanguage`,
+`rejectedSignals` — so four leads out of forty is explained rather than mysterious.
+
+Two supporting changes make the country gate survivable: `find_place` reads cities
+and inflected Slavic forms ("Київ", "з України"), because a bio names its city far
+more often than its country; and `services/extraction/language.py` gives the
+crawler's language tag a second opinion from the text's own script and function
+words, since one tag on a whole page decided too much.
+
 ### What one search may spend
 
 A live search finds a hundred candidate pages without trying. Reading all of them is
@@ -259,8 +308,22 @@ ends are configuration:
 |---|---|---|
 | `MAX_PAGES_PER_SEARCH` | paid page reads per search; the rest become snippet leads | `25` |
 | `TARGET_LEADS` | stop reading and judging once this many leads qualify | `0` (no target) |
+| `PAGES_PER_LEAD` | how many paid pages one lead costs — turns a target into a budget | `3` |
+| `MAX_QUERIES_PER_SEARCH` | generated queries, and so billed search calls | `24` |
 | `SCRAPEGRAPH_READ_ATTEMPTS` | attempts per page — a served request is billed either way | `1` |
 | `SCRAPEGRAPH_CREDITS_PER_PAGE` | what one page costs in plan units; the API reports none | `10` |
+
+The lead target moved into the search itself: the wizard asks *"how many leads do
+you want?"*, `POST /searches/estimate` prices it, and the run is given exactly the
+budget that was quoted — `targetLeads × PAGES_PER_LEAD`, capped by
+`MAX_PAGES_PER_SEARCH`. The quote is a **ceiling, not a forecast**, and it is
+enforceable precisely because `services/search/estimate.py` produces both numbers:
+
+    cost ≤ queries × price(search call) + pages × price(page)
+
+`PAGES_PER_LEAD` is the one figure in that arithmetic that is an assumption. A
+finished search reports `pagesRead` and its lead count, so it is meant to be set
+from measurement rather than left alone.
 
 Three properties make the budget usable rather than arbitrary:
 
@@ -367,9 +430,11 @@ app/
     adapters.py      which implementation is wired to what
   workers/           job service + the run_search task
 alembic/versions/    the schema, versioned
-tests/               220 tests: contract, scoring, pipeline units, lifecycle, filters,
+tests/               253 tests: contract, scoring, pipeline units, lifecycle, filters,
                      persistence, the Brave provider, the ScrapeGraphAI reader, the
-                     scrape cache, snippet extraction, and two live end-to-end runs
+                     scrape cache, snippet extraction, the person/country/language
+                     gates, localized queries, the cost estimate, and two live
+                     end-to-end runs
 ```
 
 ### Seed data

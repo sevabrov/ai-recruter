@@ -38,10 +38,11 @@ from app.models.common import GeoLocation, Platform, SignalType
 from app.models.lead import LeadContacts, LeadPlatform, LeadSignal
 from app.models.profile import ExtractedProfile
 from app.models.source import DiscoveredUrl, LeadSource, UrlKind
+from app.services.extraction.language import spoken
 from app.services.extraction.vocabulary import (
     ACTIVE_WITHIN_DAYS,
     BRAND_FOLLOWERS,
-    find_country,
+    find_place,
     find_terms,
     quote,
 )
@@ -92,7 +93,9 @@ class SnippetProfileExtractor(ProfileExtractor):
         name, handle, headline, company = identity
         text = " ".join(part for part in (url.title, url.snippet) if part)
         followers = _count(FOLLOWERS, url.snippet)
-        located = find_country(text)
+        # The city counts: a bio says "Київ" far more often than it says "Ukraine",
+        # and a country filter reading only country names would call that unknown.
+        located = find_place(text)
         email = EMAIL.search(url.snippet)
         owns_site = url.platform in (Platform.WEBSITE, Platform.BLOG)
 
@@ -104,8 +107,11 @@ class SnippetProfileExtractor(ProfileExtractor):
             headline=headline,
             company=company,
             location=GeoLocation(country=located[0]) if located else GeoLocation(),
-            # The index's own language tag is a fact about the page, not a guess.
-            languages=[language for language in [language_name(url.language)] if language],
+            # The index's own language tag is a fact about the page, not a guess —
+            # but it is a crawler's verdict on a whole page, and a Ukrainian bio
+            # under an English page tag is common enough that the text gets a
+            # second opinion. Both are kept (`extraction/language.py`).
+            languages=spoken([language_name(url.language)], text),
             summary=(url.snippet or url.title)[:400],
             platforms=[
                 LeadPlatform(

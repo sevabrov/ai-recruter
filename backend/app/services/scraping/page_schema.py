@@ -34,7 +34,8 @@ from app.models.common import GeoLocation, Platform, SignalType
 from app.models.lead import LeadContacts, LeadPlatform, LeadSignal
 from app.models.profile import ExtractedProfile
 from app.models.source import DiscoveredUrl, LeadSource
-from app.services.extraction.vocabulary import ACTIVE_WITHIN_DAYS, BRAND_FOLLOWERS, find_country
+from app.services.extraction.language import spoken
+from app.services.extraction.vocabulary import ACTIVE_WITHIN_DAYS, BRAND_FOLLOWERS, find_place
 from app.services.scraping.names import commercial, plausible_name
 from app.services.search.markets import language_name
 
@@ -211,17 +212,19 @@ def _location(page: PageExtraction, url: DiscoveredUrl) -> GeoLocation:
     The page's own words first; the search result's text only as a fallback, and
     only for the country — a city guessed from a snippet is a guess.
     """
+    city = _trim(page.location.city, 120)
     country = _trim(page.location.country, 120)
     if country:
         # "España" on the page is stored as Spain, so the filters can group it.
-        recognised = find_country(country)
-        return GeoLocation(
-            country=recognised[0] if recognised else country, city=_trim(page.location.city, 120)
-        )
-    fallback = find_country(" ".join(part for part in (url.title, url.snippet) if part))
-    return GeoLocation(
-        country=fallback[0] if fallback else None, city=_trim(page.location.city, 120)
-    )
+        recognised = find_place(country)
+        return GeoLocation(country=recognised[0] if recognised else country, city=city)
+    # The city is the country's best witness: pages say "Київ" and "Zagreb" far
+    # more often than they name the country, and since the country became a hard
+    # filter, reading only country names would discard the profiles it is for.
+    if city and (from_city := find_place(city)):
+        return GeoLocation(country=from_city[0], city=city)
+    fallback = find_place(" ".join(part for part in (url.title, url.snippet) if part))
+    return GeoLocation(country=fallback[0] if fallback else None, city=city)
 
 
 def _languages(page: PageExtraction, url: DiscoveredUrl) -> list[str]:
@@ -230,10 +233,11 @@ def _languages(page: PageExtraction, url: DiscoveredUrl) -> list[str]:
         for language in page.languages
         if isinstance(language, str) and language.strip()
     ]
-    indexed = language_name(url.language)
-    if indexed and indexed not in named:
-        named.append(indexed)
-    return list(dict.fromkeys(named))[:5]
+    # The page's own claim first, then the crawler's tag, then what the words
+    # themselves show — a bio in Ukrainian under an `en` page tag is one person
+    # publishing in two languages, not a contradiction to resolve.
+    text = " ".join(part for part in (page.headline, page.summary) if part)
+    return spoken([*named, language_name(url.language)], text)[:5]
 
 
 def _handle(handle: str | None) -> str | None:

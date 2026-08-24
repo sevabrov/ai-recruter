@@ -60,6 +60,11 @@ PROGRESS_KEYS = {
     "profilesProcessed",
     "qualified",
     "highQuality",
+    # Why the rest did not qualify: person, country, language, signals (spec §43).
+    "rejectedNotAPerson",
+    "rejectedCountry",
+    "rejectedLanguage",
+    "rejectedSignals",
     "percent",
     "stage",
 }
