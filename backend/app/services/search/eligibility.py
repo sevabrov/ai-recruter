@@ -15,10 +15,19 @@ So three of the criteria stopped being weights and became gates:
 * **language** — it has to publish in one of the languages that were asked for.
 
 Each gate applies only when the client actually filled that field in, and each
-one can be switched off per search (`requireLocation`, `requireLanguage`) —
-because the honest cost of a hard filter is the candidate whose bio simply never
-mentions where they live, and only the person running the search can decide
-whether they would rather see those or not.
+one can be switched off per search (`requireLocation`, `requireLanguage`).
+
+**A gate refuses a contradiction, not a silence.** The first version treated
+"this person is in Romania" and "we could not tell" as the same answer, and a
+search that asked for ten leads returned none: of 24 candidates refused, 19 went
+on geography and exactly one of them was actually somewhere else. The rest were
+Instagram profiles whose page would not open and whose two-line description named
+no city — which is not evidence of the wrong country, it is no evidence.
+
+So an unproven criterion passes, and pays for it in points: the signal stays
+`detected: false`, so the lead scores lower and sorts below the confirmed ones.
+`requireConfirmedLocation` / `requireConfirmedLanguage` restore the strict reading
+for a client who would rather have five certain people than fifty likely ones.
 
 Every refusal carries the sentence that explains it. A search that returns four
 leads instead of forty has to be able to say why, or the client is left guessing
@@ -36,6 +45,11 @@ from app.services.extraction import personhood
 class Refusal(StrEnum):
     """Why a candidate did not become a lead. Counted, so the run can explain itself."""
 
+    #: The reader failed on the address, so there was nothing to judge. Kept apart
+    #: from `NOT_A_PERSON`, which the two shared until now: "we opened the page and
+    #: there was no person on it" and "we never got the page" are different
+    #: problems, and only one of them is about the candidate.
+    UNREADABLE = "unreadable"
     NOT_A_PERSON = "not_a_person"
     WRONG_COUNTRY = "wrong_country"
     WRONG_LANGUAGE = "wrong_language"
@@ -61,34 +75,38 @@ def admit(profile: ExtractedProfile, criteria: SearchCriteria) -> Eligibility:
     country = (criteria.location.country or "").strip()
     if country and criteria.require_location:
         found = (profile.location.country or "").strip()
-        if not found:
-            return Eligibility(
-                False,
-                Refusal.WRONG_COUNTRY,
-                f"Nothing on this profile places the person in {country}.",
-            )
-        if found.casefold() != country.casefold():
+        if found and found.casefold() != country.casefold():
+            # The profile says somewhere else. That is a contradiction, and it is
+            # refused whatever the settings say — it is the whole point of asking.
             return Eligibility(
                 False,
                 Refusal.WRONG_COUNTRY,
                 f"This profile is in {found}, not {country}.",
             )
+        if not found and criteria.require_confirmed_location:
+            return Eligibility(
+                False,
+                Refusal.WRONG_COUNTRY,
+                f"Nothing on this profile confirms {country}, and this search asked "
+                "for confirmed locations only.",
+            )
 
     wanted = [language.strip() for language in criteria.languages if language.strip()]
     if wanted and criteria.require_language:
         spoken = {language.casefold() for language in profile.languages}
-        if not spoken:
-            return Eligibility(
-                False,
-                Refusal.WRONG_LANGUAGE,
-                "This profile gives no sign of which language the person publishes in.",
-            )
-        if not spoken & {language.casefold() for language in wanted}:
+        if spoken and not spoken & {language.casefold() for language in wanted}:
             return Eligibility(
                 False,
                 Refusal.WRONG_LANGUAGE,
                 f"This profile publishes in {', '.join(sorted(profile.languages))}, "
                 f"not in {' / '.join(wanted)}.",
+            )
+        if not spoken and criteria.require_confirmed_language:
+            return Eligibility(
+                False,
+                Refusal.WRONG_LANGUAGE,
+                "Nothing on this profile shows which language the person publishes "
+                "in, and this search asked for confirmed languages only.",
             )
 
     return ADMITTED

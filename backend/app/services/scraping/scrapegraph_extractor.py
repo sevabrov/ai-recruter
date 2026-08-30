@@ -3,7 +3,8 @@ ScrapeGraphAI page reader (spec §33–34) — the real one, against the **v2 AP
 
     POST https://v2-api.scrapegraphai.com/api/extract
         SGAI-APIKEY: <SCRAPEGRAPH_API_KEY>
-        {"url": …, "prompt": …, "schema": {…}}
+        {"url": …, "prompt": …, "schema": {…},
+         "fetchConfig": {"mode": "auto", "stealth": true, "country": "UA", "wait": 2000}}
 
     → {"id": …, "json": {…}, "raw": null,
        "usage": {"promptTokens": …, "completionTokens": …},
@@ -26,10 +27,21 @@ What this class is responsible for, and nothing above it is:
 * **a bad page is not a failure** — a login wall, a consent screen or a shop is an
   *outcome*, classified and returned, because Milestone 5 asks us to record which
   sources can be read at all. Only the service failing raises;
+* **how the page is fetched is half of whether it opens** — `fetchConfig` carries
+  the residential proxy (`stealth`), the country to route through and a wait.
+  Sending none of it is what a measured run cost: 20 of 23 Instagram pages and 15
+  of 15 Facebook pages answered 502/504, because the default is a datacentre
+  address, which is the one request a social network is surest to refuse. Only
+  the platforms that need it pay for it (`STEALTH_PLATFORMS`). Sending a
+  *rejected* one costs more: a `fetchConfig` the service will not honour is
+  answered 400 before the page is fetched, so this class drops it and asks again
+  plainly rather than letting one bad key end page reading for the run;
 * **credits are money** (§54) — every request the service *served* is billed, our
   timeouts included, and the count goes into `ExtractionCost` next to the tokens
   the service reports. The v2 response carries no credit figure, so what a page
-  costs in plan units is configuration (`SCRAPEGRAPH_CREDITS_PER_PAGE`);
+  costs in plan units is configuration: five for the extraction, five more when
+  the request goes through the proxy (`SCRAPEGRAPH_CREDITS_PER_PAGE`,
+  `SCRAPEGRAPH_STEALTH_CREDITS`);
 * **a search may not spend without a ceiling** (§52) — `PageBudget` is consulted
   before the request, and a refused page is answered `SKIPPED` rather than
   fetched, so the chain above falls back to the snippet;
@@ -45,6 +57,7 @@ from pydantic import ValidationError
 from app.core.errors import ProviderAuthError, ProviderError, ProviderUnavailableError
 from app.core.limits import RateLimiter
 from app.core.logging import get_logger
+from app.models.common import Platform
 from app.models.profile import ExtractedProfile
 from app.models.scrape import ScrapeOutcome
 from app.models.source import DiscoveredUrl
@@ -67,6 +80,11 @@ SCRAPEGRAPH_ENDPOINT = "https://v2-api.scrapegraphai.com/api/extract"
 AUTH_ERRORS = ("auth_missing_key", "auth_invalid_key")
 #: …and for an empty balance (402). Retrying either cannot help.
 CREDIT_ERRORS = ("insufficient_credits",)
+#: "No fetch provider matches this content type and fetch config" — the service
+#: refusing *how* we asked for the page, before it fetched anything. It is our bug,
+#: not the page's, and the page is still readable the plain way, so this one error
+#: is answered by dropping the fetch config rather than by giving up (`_request`).
+FETCH_CONFIG_ERRORS = ("fetch_provider_config",)
 
 #: Words in a fetch diagnostic or an error that mean "the page would not let us in"
 #: rather than "we broke". Stored verbatim either way, so a wrong guess is visible.
@@ -91,6 +109,24 @@ ACCESS_DENIED = (
 #: However long the provider asks us to wait, waiting minutes would stall a search.
 MAX_RETRY_AFTER_S = 10.0
 
+#: Platforms that refuse a datacentre address and need the residential proxy. A
+#: personal website is happy to be read by anybody, so paying the stealth
+#: surcharge on one is waste — and most pages that *do* open are those.
+STEALTH_PLATFORMS = {
+    Platform.INSTAGRAM,
+    Platform.FACEBOOK,
+    Platform.LINKEDIN,
+    Platform.THREADS,
+}
+
+
+def _needs_stealth(platform: Platform) -> bool:
+    return platform in STEALTH_PLATFORMS
+
+
+class _FetchConfigRefused(Exception):
+    """Internal: the service will not fetch a page the way we asked. Never escapes."""
+
 
 class ScrapeGraphProfileExtractor(PageReader):
     name = "scrapegraph"
@@ -102,7 +138,10 @@ class ScrapeGraphProfileExtractor(PageReader):
         endpoint: str = SCRAPEGRAPH_ENDPOINT,
         timeout_seconds: float = 120.0,
         rate_limit_per_second: float = 1.0,
-        credits_per_page: int = 10,
+        credits_per_page: int = 5,
+        stealth_credits: int = 5,
+        stealth: bool = True,
+        page_wait_ms: int = 2000,
         cost: ExtractionCost | None = None,
         budget: PageBudget | None = None,
         client: httpx.AsyncClient | None = None,
@@ -113,6 +152,19 @@ class ScrapeGraphProfileExtractor(PageReader):
         self._key = api_key
         self._endpoint = endpoint
         self._credits_per_page = max(1, credits_per_page)
+        self._stealth_credits = max(0, stealth_credits)
+        self._stealth = stealth
+        self._page_wait_ms = max(0, min(30_000, page_wait_ms))
+        self._timeout_ms = int(max(1.0, min(60.0, timeout_seconds)) * 1000)
+        #: Two-letter code for the provider's geo-targeted proxy, set per search by
+        #: the pipeline (`fetch_from`). A profile in Kyiv fetched through a Ukrainian
+        #: exit node is served the page a Ukrainian visitor sees — which is also the
+        #: version that names the city the country filter is looking for.
+        self.country: str | None = None
+        #: Set once the service has refused our `fetchConfig`, so the rest of the
+        #: process asks plainly instead of paying a round trip per page to be told
+        #: the same thing again.
+        self._fetch_config_refused = False
         self.cost = cost or ExtractionCost()
         # No budget object means no ceiling, which is what a script or a unit test
         # wants. The pipeline always passes one.
@@ -139,7 +191,8 @@ class ScrapeGraphProfileExtractor(PageReader):
 
         charged = self.cost.paid_attempts
         try:
-            payload = await self._request(url.canonical_url)
+            stealth = self._stealth and _needs_stealth(url.platform)
+            payload = await self._request(url.canonical_url, stealth)
         except Exception:
             # A request the service refused (a 429, an empty balance) cost nothing,
             # so it must not cost a page from the budget either.
@@ -153,36 +206,29 @@ class ScrapeGraphProfileExtractor(PageReader):
             await self._client.aclose()
 
     # ----------------------------------------------------------------- transport
-    async def _request(self, page_url: str) -> dict[str, Any]:
-        await self._limiter.acquire()
+    async def _request(self, page_url: str, stealth: bool) -> dict[str, Any]:
+        """
+        One page, asked for the way `fetchConfig` describes — and, if the service
+        refuses that description, asked for again plainly.
+
+        The second attempt exists because the first cost a search everything: an
+        unsupported key in `fetchConfig` is answered 400 before the page is
+        fetched, the error is correctly not retryable, and the layer above
+        therefore switched page reading off for the whole run. Six requests in,
+        every remaining candidate was being judged on two lines of search-result
+        text. Dropping the config we cannot use keeps the page — the plain request
+        for the same profile returned its bio — and costs one round trip, once per
+        process, because the refusal is remembered.
+        """
+        stealth = stealth and not self._fetch_config_refused
         try:
-            response = await self._client.post(
-                self._endpoint,
-                json={
-                    "url": page_url,
-                    "prompt": EXTRACTION_PROMPT,
-                    # Structured extraction, not a conversation (spec §34).
-                    "schema": output_schema(),
-                },
-                headers={
-                    "Accept": "application/json",
-                    # Spec §55: the key is a header, so it stays out of URLs and logs.
-                    "SGAI-APIKEY": self._key,
-                },
-            )
-        except httpx.TimeoutException as error:
-            # The request reached the service and the page was being rendered, so
-            # the credit is gone whether or not the answer arrived in time. Charging
-            # it here is what stops the usage screen from reporting a cheap search
-            # while the provider's dashboard reports a spent balance.
-            self._charge()
-            raise ProviderUnavailableError(
-                "ScrapeGraphAI did not answer in time", provider=self.name
-            ) from error
-        except httpx.HTTPError as error:
-            raise ProviderUnavailableError(
-                "ScrapeGraphAI could not be reached", provider=self.name
-            ) from error
+            response = await self._post(page_url, stealth)
+        except _FetchConfigRefused:
+            # Not a page that will not open: a request we do not know how to make.
+            log.warning("scrapegraph_fetch_config_dropped", extra={"url": page_url})
+            self._fetch_config_refused = True
+            stealth = False
+            response = await self._post(page_url, stealth=False)
 
         if response.status_code >= httpx.codes.BAD_REQUEST:
             self._fail(response)
@@ -195,15 +241,108 @@ class ScrapeGraphProfileExtractor(PageReader):
             ) from error
 
         # The request was served, so it is billed whatever the page turned out to be.
-        self._charge()
+        self._charge(stealth)
         self.cost.pages_read += 1
         self._count_tokens(payload if isinstance(payload, dict) else {})
         return payload if isinstance(payload, dict) else {}
 
-    def _charge(self) -> None:
-        """One served request: an attempt on the bill and the plan's credits with it."""
+    async def _post(self, page_url: str, stealth: bool) -> httpx.Response:
+        """One HTTP round trip. Raises `_FetchConfigRefused` for the one error above."""
+        await self._limiter.acquire()
+        body: dict[str, Any] = {
+            "url": page_url,
+            "prompt": EXTRACTION_PROMPT,
+            # Structured extraction, not a conversation (spec §34).
+            "schema": output_schema(),
+        }
+        fetch_config = self._fetch_config(stealth)
+        if fetch_config:
+            body["fetchConfig"] = fetch_config
+
+        try:
+            response = await self._client.post(
+                self._endpoint,
+                json=body,
+                headers={
+                    "Accept": "application/json",
+                    # Spec §55: the key is a header, so it stays out of URLs and logs.
+                    "SGAI-APIKEY": self._key,
+                },
+            )
+        except httpx.TimeoutException as error:
+            # The request reached the service and the page was being rendered, so
+            # the credit is gone whether or not the answer arrived in time. Charging
+            # it here is what stops the usage screen from reporting a cheap search
+            # while the provider's dashboard reports a spent balance.
+            self._charge(stealth)
+            raise ProviderUnavailableError(
+                "ScrapeGraphAI did not answer in time", provider=self.name
+            ) from error
+        except httpx.HTTPError as error:
+            raise ProviderUnavailableError(
+                "ScrapeGraphAI could not be reached", provider=self.name
+            ) from error
+
+        if response.status_code == httpx.codes.BAD_REQUEST and fetch_config:
+            kind, _ = _error(response)
+            if kind in FETCH_CONFIG_ERRORS:
+                # Refused before the page was touched, so nothing was billed.
+                raise _FetchConfigRefused
+        return response
+
+    def _charge(self, stealth: bool) -> None:
+        """
+        One served request: an attempt on the bill and the plan's credits with it.
+
+        Stealth is priced separately because the provider prices it separately —
+        a residential proxy is five credits on top of the extraction's five — and
+        a counter that ignored that would drift from the dashboard again.
+        """
         self.cost.paid_attempts += 1
-        self.cost.credits += self._credits_per_page
+        self.cost.credits += self._credits_per_page + (self._stealth_credits if stealth else 0)
+
+    def _fetch_config(self, stealth: bool) -> dict[str, Any]:
+        """
+        How the page should be fetched before anything is extracted from it.
+
+        Sending nothing here is what a measured run cost: 20 of 23 Instagram pages
+        and 15 of 15 Facebook pages came back 502/504, because the provider's
+        default is a datacentre address with no rendering wait — which is the one
+        request Instagram is surest to refuse.
+
+        * `stealth` is a residential proxy plus anti-bot headers. It is what makes
+          a social profile answer at all, and it doubles the price of the page.
+        * `country` routes through that country, so the page arrives in the form a
+          local visitor sees — including the city the country filter is looking for.
+        * `wait` lets a profile's JavaScript put the bio on the page before the
+          extraction reads it.
+
+        `mode` stays on `auto`. Asking for `"js"` reads like the right thing for a
+        social profile and is documented as a legal value, but on exactly the
+        platforms this config exists for the service answers 400
+        `fetch_provider_config` — measured one key at a time against live
+        Instagram, Facebook and LinkedIn URLs: `mode: "js"` alone is refused,
+        while `stealth`, `country` and `wait` are all accepted, together and
+        apart. `auto` is the provider deciding how to fetch, which is the decision
+        it is better placed to make than we are.
+        """
+        if self._fetch_config_refused:
+            # The service has already told us it will not fetch a page the way we
+            # describe it. Asking plainly is what reads the page (`_request`).
+            return {}
+        if not stealth:
+            # A personal website opens for anybody; the surcharge would buy nothing.
+            return {"mode": "auto", "timeout": self._timeout_ms}
+
+        config: dict[str, Any] = {
+            "mode": "auto",
+            "timeout": self._timeout_ms,
+            "stealth": True,
+            "wait": self._page_wait_ms,
+        }
+        if self.country:
+            config["country"] = self.country
+        return config
 
     def _count_tokens(self, payload: dict[str, Any]) -> None:
         """The service reports what the extraction actually consumed (spec §54)."""

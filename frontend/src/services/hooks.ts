@@ -20,6 +20,8 @@ import type {
   LeadFilters,
   OutreachRequest,
   Paginated,
+  RejectedList,
+  RejectionReason,
   Search,
   SearchCriteria,
   SearchSummary,
@@ -34,6 +36,8 @@ export const queryKeys = {
   search: (id: string) => ["search", id] as const,
   estimate: (criteria: SearchCriteria) => ["searches", "estimate", criteria] as const,
   searchLeads: (id: string, filters?: LeadFilters) => ["search", id, "leads", filters ?? {}] as const,
+  searchRejected: (id: string, reason?: RejectionReason) =>
+    ["search", id, "rejected", reason ?? "all"] as const,
   leads: (filters?: LeadFilters) => ["leads", filters ?? {}] as const,
   lead: (id: string) => ["lead", id] as const,
   facets: ["leads", "facets"] as const,
@@ -111,6 +115,18 @@ export function useSearchLeads(id: string, filters: LeadFilters = {}, enabled = 
   return useQuery<Paginated<Lead>>({
     queryKey: queryKeys.searchLeads(id, filters),
     queryFn: () => services.searches.leads(id, filters),
+    enabled,
+  });
+}
+
+/**
+ * The candidates this search turned away. Fetched only when the client opens the
+ * list: it is a diagnostic, and it costs a query nobody asked for otherwise.
+ */
+export function useSearchRejected(id: string, reason?: RejectionReason, enabled = true) {
+  return useQuery<RejectedList>({
+    queryKey: queryKeys.searchRejected(id, reason),
+    queryFn: () => services.searches.rejected(id, reason),
     enabled,
   });
 }

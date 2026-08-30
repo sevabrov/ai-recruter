@@ -32,6 +32,7 @@ guesswork — see `services/scraping/fallback.py`.
 import hashlib
 import re
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 from app.core.logging import get_logger
 from app.models.common import GeoLocation, Platform, SignalType
@@ -51,14 +52,14 @@ from app.services.scraping.names import clean as _clean
 from app.services.scraping.names import commercial as _commercial
 from app.services.scraping.names import looks_like_a_person as _looks_like_a_person
 from app.services.scraping.names import plausible_name as _plausible_name
-from app.services.search.markets import language_name
+from app.services.search.markets import country_from_host, language_name
 
 log = get_logger(__name__)
 
 #: The ceiling for anything read out of a search snippet. Certainty needs a page.
 MAX_CONFIDENCE = 0.65
 
-HANDLE_IN_TITLE = re.compile(r"^(?P<name>[^(|•·]{2,60}?)\s*\(@(?P<handle>[\w.\-]{2,40})\)")
+HANDLE_ANYWHERE = re.compile(r"\(@(?P<handle>[\w.\-]{2,40})\)")
 HANDLE_IN_TEXT = re.compile(
     r"(?:from|de)\s+(?P<name>[^(|•·]{2,60}?)\s*\(@(?P<handle>[\w.\-]{2,40})\)"
 )
@@ -96,6 +97,10 @@ class SnippetProfileExtractor(ProfileExtractor):
         # The city counts: a bio says "Київ" far more often than it says "Ukraine",
         # and a country filter reading only country names would call that unknown.
         located = find_place(text)
+        # Failing that, where the address itself is registered: `ua.linkedin.com`,
+        # `oksana.com.ua`. Weaker than a bio, and the only evidence a two-line
+        # search result often carries.
+        registered = None if located else country_from_host(urlparse(url.url).netloc)
         email = EMAIL.search(url.snippet)
         owns_site = url.platform in (Platform.WEBSITE, Platform.BLOG)
 
@@ -106,7 +111,7 @@ class SnippetProfileExtractor(ProfileExtractor):
             name=name,
             headline=headline,
             company=company,
-            location=GeoLocation(country=located[0]) if located else GeoLocation(),
+            location=GeoLocation(country=located[0] if located else registered),
             # The index's own language tag is a fact about the page, not a guess —
             # but it is a crawler's verdict on a whole page, and a Ukrainian bio
             # under an English page tag is common enough that the text gets a
@@ -135,7 +140,9 @@ class SnippetProfileExtractor(ProfileExtractor):
                 email=email.group(0) if email else None,
                 website=url.url if owns_site else None,
             ),
-            observations=_observations(url, text, followers=followers, located=located),
+            observations=_observations(
+                url, text, followers=followers, located=located, registered=registered
+            ),
             extractor=self.name,
         )
 
@@ -157,14 +164,56 @@ def _handle_profile(url: DiscoveredUrl) -> tuple[str, str | None, str | None, st
     Instagram and Threads put the display name next to the handle, which is strong
     enough evidence to accept a name that a page title alone would not earn — many
     are written in lowercase, and some are a single word.
+
+    What the title actually looks like, though, is `Оксана | Косметолог
+    (@oksana.beauty) • Instagram photos and videos`: the display name is a name
+    *and* a self-description, separated by a pipe or a bullet. Requiring the whole
+    prefix to read like a name refused most real profiles while accepting
+    `Nu Skin Ukraine (@nuskin.ua)`, which is exactly backwards — 51 of 58
+    candidates in one measured run were dropped here.
+
+    So the handle is found wherever it is, the display name is read from the
+    segment in front of it, and the role after the separator becomes the headline
+    it always was. A profile with no display name at all keeps its handle as its
+    identity: it is what the platform publishes and what a message is addressed
+    to, which beats losing the person.
     """
-    match = HANDLE_IN_TITLE.match(url.title) or HANDLE_IN_TEXT.search(url.snippet)
-    if match is None:
+    in_title = HANDLE_ANYWHERE.search(url.title)
+    in_text = None if in_title else HANDLE_IN_TEXT.search(url.snippet)
+    if in_title is not None:
+        handle, prefix = in_title.group("handle"), url.title[: in_title.start()]
+    elif in_text is not None:
+        handle, prefix = in_text.group("handle"), in_text.group("name")
+    elif from_url := _account(url):
+        # An account with no display name is titled by its username and nothing
+        # else — "oksana.mlm • Instagram photos and videos" — so the handle comes
+        # from the URL, which is where it was all along.
+        handle, prefix = from_url, url.title
+    else:
         return None
-    name, handle = _clean(match.group("name")), match.group("handle")
-    if not _plausible_name(name) or _commercial(handle):
+
+    if _commercial(handle):
         return None
-    return name, handle, None, None
+
+    parts = _segments(prefix)
+    name = next((part for part in parts if _plausible_name(part)), "")
+    headline = next((part for part in parts if part != name), None)
+    if not name:
+        # No display name to read. `@handle` is not a guess at a person's name — it
+        # is the account, and on Instagram it is also the address a message goes to.
+        name = f"@{handle}"
+        if _commercial(name):
+            return None
+    return name, handle, headline, None
+
+
+def _account(url: DiscoveredUrl) -> str | None:
+    """The handle in the URL, when the path is just one — that is the profile."""
+    segments = [segment for segment in urlparse(url.canonical_url).path.split("/") if segment]
+    if len(segments) != 1:
+        return None
+    handle = segments[0].lstrip("@")
+    return handle if re.fullmatch(r"[\w.\-]{2,40}", handle) else None
 
 
 def _linkedin(url: DiscoveredUrl) -> tuple[str, str | None, str | None, str | None] | None:
@@ -226,6 +275,7 @@ def _observations(
     *,
     followers: int | None,
     located: tuple[str, str] | None,
+    registered: str | None = None,
 ) -> list[LeadSignal]:
     """
     One sighting per signal the product scores, `detected=False` included — "we
@@ -243,6 +293,11 @@ def _observations(
 
     if located:
         sightings[SignalType.LOCATION] = (0.5, quote(text, located[1]))
+    elif registered:
+        # Lower, because a domain says where an account was registered, not where
+        # its owner lives — but it is a fact and it can be quoted.
+        host = urlparse(url.url).netloc
+        sightings[SignalType.LOCATION] = (0.3, f"The address {host} belongs to {registered}.")
 
     brand = _personal_brand(url, followers, sightings.get(SignalType.PERSONAL_BRAND))
     if brand:

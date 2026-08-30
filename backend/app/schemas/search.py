@@ -7,11 +7,13 @@ from pydantic import Field, field_validator
 from app.models.common import (
     SCORED_SIGNALS,
     GeoLocation,
+    Platform,
     SearchStage,
     SearchStatus,
     SignalType,
     SourceKind,
 )
+from app.models.rejection import RejectionReason
 from app.schemas.common import CamelModel
 
 
@@ -32,13 +34,35 @@ class SearchCriteriaSchema(CamelModel):
     #: a search for one country that returns another country is not that search.
     require_location: bool = True
     require_language: bool = True
+    #: …and whether a profile that says nothing about it is refused too. Off by
+    #: default: "we could not tell" is not "somewhere else", and treating the two
+    #: as one answer emptied a search.
+    require_confirmed_location: bool = False
+    require_confirmed_language: bool = False
     must_have: list[SignalType] = Field(default_factory=list)
     nice_to_have: list[SignalType] = Field(default_factory=list)
     signal_weights: dict[SignalType, int] = Field(default_factory=dict)
     sources: list[SourceKind] = Field(default_factory=list)
+    #: Queries the client wrote themselves. Run first and never dropped by the
+    #: query cap; 380 characters is what the search provider accepts.
+    custom_queries: list[str] = Field(default_factory=list, max_length=20)
     #: How many leads to look for. It buys the page budget, so it is also what the
     #: wizard prices. 0 means "whatever the server allows".
     target_leads: int = Field(default=0, ge=0, le=1000)
+
+    @field_validator("custom_queries")
+    @classmethod
+    def queries_the_provider_accepts(cls, queries: list[str]) -> list[str]:
+        """
+        Blank lines are the wizard's, not the client's — the input keeps one around
+        while it is being typed in. Over-long queries are rejected rather than
+        truncated: a query cut in half is a different question.
+        """
+        cleaned = [" ".join(query.split()) for query in queries]
+        kept = [query for query in cleaned if query]
+        if any(len(query) > 380 for query in kept):
+            raise ValueError("a query may be at most 380 characters")
+        return kept
 
     @field_validator("signal_weights")
     @classmethod
@@ -67,6 +91,9 @@ class SearchProgressSchema(CamelModel):
     high_quality: int
     #: Why the rest did not qualify. Defaulted, because searches recorded before
     #: the criteria became gates have no such counters and are still valid history.
+    rejected_off_source: int = 0
+    #: The reader failed on the address, so nothing was read and nothing judged.
+    rejected_unreadable: int = 0
     rejected_not_a_person: int = 0
     rejected_country: int = 0
     rejected_language: int = 0
@@ -124,6 +151,43 @@ class SearchOut(SearchSummaryOut):
     error: str | None = None
 
 
+class RejectedCandidateOut(CamelModel):
+    """One candidate the run turned away (`GET /searches/:id/rejected`)."""
+
+    id: str
+    url: str
+    platform: Platform
+    reason: RejectionReason
+    detail: str
+    #: Whether the page itself was opened. False means the refusal rests on the
+    #: search result alone, which is where a missed lead would be.
+    read: bool
+    name: str
+    title: str
+    snippet: str
+    query: str
+    #: What the search result alone supported, 0–100. Absent when the candidate
+    #: was refused before anything was computed for it.
+    promise: int | None = None
+    created_at: datetime
+
+
+class RejectedOut(CamelModel):
+    """
+    The other half of a search result.
+
+    `by_reason` is counted over the whole run, never over `items`: a screen that
+    says "38 refused" while listing 20 must get the 38 from the database, or it is
+    quoting its own truncation back at the client.
+    """
+
+    items: list[RejectedCandidateOut]
+    total: int
+    by_reason: dict[RejectionReason, int] = Field(default_factory=dict)
+    #: Refusals decided without the page ever being opened.
+    unseen: int = 0
+
+
 class CreateSearchIn(CamelModel):
     name: str = Field(min_length=1, max_length=200)
     criteria: SearchCriteriaSchema
@@ -175,3 +239,5 @@ class EstimateOut(CamelModel):
     max_cost_eur: float
     #: Whether pages are read at all right now, so the UI can say why it is free.
     reads_pages: bool
+    #: What these criteria are likely to do to the result, before it is paid for.
+    warnings: list[str] = Field(default_factory=list)

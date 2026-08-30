@@ -46,9 +46,15 @@ def test_a_search_for_ukraine_is_also_asked_in_ukrainian():
 def test_each_query_carries_the_index_it_should_be_put_to():
     plans = TemplateQueryGenerator().generate(criteria(), limit=24)
 
+    assert {plan.language for plan in plans} == {"uk", "ru"}
+
+    # English gets its queries when English is one of the languages asked for, and
+    # they are the untagged ones: the client's own wording, asked as written.
+    plans = TemplateQueryGenerator().generate(
+        criteria(languages=["English", "Ukrainian", "Russian"]), limit=24
+    )
+
     assert {plan.language for plan in plans} == {None, "uk", "ru"}
-    # The client's own wording is asked as written, without a language attached:
-    # it is the one phrasing we know is what they meant.
     assert any(plan.language is None and "Ukraine" in plan.query for plan in plans)
 
 
@@ -57,7 +63,9 @@ def test_the_limit_is_shared_between_languages():
     A cap that took the first N would spend the whole allowance on English and
     send none of the Ukrainian queries — the same failure as not translating.
     """
-    plans = TemplateQueryGenerator().generate(criteria(), limit=6)
+    plans = TemplateQueryGenerator().generate(
+        criteria(languages=["English", "Ukrainian", "Russian"]), limit=6
+    )
 
     assert len(plans) == 6
     assert {plan.language for plan in plans} == {None, "uk", "ru"}
@@ -107,6 +115,7 @@ def test_translated_terms_are_asked_for_separately_not_as_one_phrase():
                 "лідер команди",
                 "beauty",
                 "MLM",
+                "#мережевиймаркетинг",
             }, quoted
 
 
@@ -121,6 +130,59 @@ def test_english_is_not_asked_twice():
     plans = TemplateQueryGenerator().generate(criteria(languages=["English"]), limit=24)
 
     assert {plan.language for plan in plans} == {None}
+
+
+def test_english_is_not_asked_at_all_when_it_was_not_asked_for():
+    """
+    The untagged pass writes the client's words unchanged — English words, put to
+    the English index. Running it for a Ukrainian search spent a quarter of the
+    calls on `site:instagram.com "network marketing" Ukraine`, which is the widest
+    phrase in the niche asked in the language of the niche's global brands: back
+    came Network Marketing Pro, Network Marketing Quotes and Eric Worre, 17 of
+    that run's 41 addresses and not one of them a person in Ukraine.
+    """
+    plans = TemplateQueryGenerator().generate(criteria(), limit=24)
+
+    assert plans, "a search that asks for Ukrainian and Russian still asks"
+    assert {plan.language for plan in plans} == {"uk", "ru"}
+    assert not any("network marketing" in plan.query for plan in plans)
+
+
+def test_a_language_with_no_phrasebook_still_leaves_the_client_a_query():
+    """
+    Dropping the untagged pass must not be able to drop *every* pass: a language
+    we cannot write is not a reason to run a search with no queries in it.
+    """
+    plans = TemplateQueryGenerator().generate(criteria(languages=["Icelandic"]), limit=24)
+
+    assert plans and {plan.language for plan in plans} == {None}
+
+
+def test_the_industry_reaches_the_queries_that_do_the_finding():
+    """
+    The client chose Beauty, and it changed nothing about who was found: the
+    industry reached only the open-web templates, which a social-only search
+    switches off. It scored people it had no hand in finding.
+    """
+    plans = TemplateQueryGenerator().generate(criteria(keywords=[], industry=["beauty"]), limit=24)
+
+    site_queries = [plan for plan in plans if plan.query.startswith("site:")]
+    assert site_queries
+    assert any("краса" in plan.query for plan in site_queries), "in the asked-for language"
+    assert any("красота" in plan.query for plan in site_queries)
+
+
+def test_a_role_word_is_asked_for_when_the_client_wrote_no_keyword():
+    """
+    With no keyword of their own the query falls back to the niche's generic name,
+    which is precisely what the niche's brand accounts are called — 22 of 26
+    candidates in one run were refused as organisations. A role word is what a
+    person writes in their own bio and a brand page does not.
+    """
+    plans = TemplateQueryGenerator().generate(criteria(keywords=[]), limit=24)
+
+    assert any("дистриб'ютор" in plan.query for plan in plans)
+    assert any("дистрибьютор" in plan.query for plan in plans)
 
 
 # ------------------------------------------------------------ what a page speaks

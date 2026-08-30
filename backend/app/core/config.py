@@ -92,8 +92,24 @@ class Settings(BaseSettings):
     scrapegraph_read_attempts: int = 1
     #: What one page costs in the plan's own units. The v2 response does not report
     #: credits, so this is the only way the credit counter can be truthful — measure
-    #: a run against the dashboard and set it to what actually moved.
-    scrapegraph_credits_per_page: int = 10
+    #: a run against the dashboard and set it to what actually moved. The documented
+    #: price of an Extract call is five.
+    scrapegraph_credits_per_page: int = 5
+    #: …and what the residential proxy adds on top, per the same documentation.
+    scrapegraph_stealth_credits: int = 5
+    #: Fetch social profiles through the provider's residential proxy, with the page
+    #: rendered before it is read (`fetchConfig.stealth`).
+    #:
+    #: On by default because the measurement was decisive: without it, 20 of 23
+    #: Instagram pages and 15 of 15 Facebook pages came back 502/504 — a datacentre
+    #: address asking for un-rendered HTML is the request a social network is surest
+    #: to refuse. It doubles the price of those pages, and only the platforms that
+    #: need it pay (`scrapegraph_extractor.STEALTH_PLATFORMS`): a personal website
+    #: is read the cheap way.
+    scrapegraph_stealth: bool = True
+    #: How long to let a page settle after it loads, in milliseconds. A profile is a
+    #: JavaScript application; its bio is not in the first response.
+    scrapegraph_page_wait_ms: int = 2000
 
     # ----------------------------------------------------- limits (spec §52)
     search_concurrency: int = 10

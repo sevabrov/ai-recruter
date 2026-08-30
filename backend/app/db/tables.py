@@ -179,6 +179,46 @@ class LeadRow(Base):
     )
 
 
+class SearchRejectionRow(Base):
+    """
+    A candidate the run turned away (spec §43).
+
+    A sibling of `leads` rather than a document on `searches`: the results screen
+    counts these by reason and lists one reason at a time, which is a GROUP BY and
+    a WHERE — the two things a JSONB array on the parent row does worst. Volume is
+    bounded by what one run can discover (queries × results per query), so this
+    stays in the hundreds per search.
+    """
+
+    __tablename__ = "search_rejections"
+    __table_args__ = (Index("ix_search_rejections_search_reason", "search_id", "reason"),)
+
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    search_id: Mapped[str] = mapped_column(
+        ForeignKey("searches.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    url: Mapped[str] = mapped_column(Text, nullable=False)
+    canonical_url: Mapped[str] = mapped_column(Text, nullable=False)
+    platform: Mapped[str] = mapped_column(String(32), nullable=False)
+
+    reason: Mapped[str] = mapped_column(String(32), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: Whether the page itself was opened, as opposed to only its search result.
+    read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    name: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    title: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    snippet: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    query: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    promise: Mapped[int | None] = mapped_column(Integer)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class LeadNoteRow(Base):
     """Appended by a user, one at a time — hence a table rather than a document."""
 

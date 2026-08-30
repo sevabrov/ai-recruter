@@ -6,6 +6,7 @@
 import type {
   LeadStatus,
   Platform,
+  RejectionReason,
   ScoredSignalType,
   SearchCriteria,
   SearchStage,
@@ -93,7 +94,9 @@ export const SOURCE_KINDS: {
   {
     id: "threads_public",
     label: "Threads public pages",
-    hint: "Public profiles",
+    // Not a guess: every Threads query in every measured run came back with
+    // nothing, while still costing a search call.
+    hint: "Public profiles — returns almost nothing",
     platform: "threads",
   },
   {
@@ -110,6 +113,22 @@ export const SOURCE_KINDS: {
   },
 ];
 
+/**
+ * The `site:` operator that keeps a query on one platform, per source.
+ *
+ * One map, used by the query preview and by the wizard's own-query builder, so
+ * what the client is offered and what the backend generates cannot drift apart.
+ */
+export const SITE_BY_SOURCE: Partial<Record<SourceKind, string>> = {
+  instagram_public: "site:instagram.com",
+  linkedin_public: "site:linkedin.com/in",
+  facebook_public: "site:facebook.com",
+  threads_public: "site:threads.net",
+};
+
+/** Sources that mean "anywhere on the indexed web", where a bare query belongs. */
+export const WEB_SOURCES: SourceKind[] = ["public_web", "company_websites", "blogs"];
+
 export const LEAD_STATUSES: { id: LeadStatus; label: string; tone: Tone }[] = [
   { id: "new", label: "New", tone: "neutral" },
   { id: "reviewed", label: "Reviewed", tone: "info" },
@@ -120,6 +139,112 @@ export const LEAD_STATUSES: { id: LeadStatus; label: string; tone: Tone }[] = [
 ];
 
 export type Tone = "neutral" | "accent" | "good" | "warn" | "bad" | "info";
+
+/**
+ * How the refused half of a result is presented.
+ *
+ * `group` is the part that answers the question the list exists for — *are we
+ * losing leads in there?* A candidate whose page was opened was judged on what
+ * they published; one refused at an address nobody opened was judged on a
+ * two-line search result, and that is where a lead can hide. The third group is
+ * the sources the client themselves excluded, which is a setting, not a loss.
+ */
+export type RejectionGroup = "unseen" | "excluded" | "judged";
+
+export const REJECTION_REASONS: {
+  id: RejectionReason;
+  label: string;
+  tone: Tone;
+  group: RejectionGroup;
+  hint: string;
+}[] = [
+  {
+    id: "unreadable",
+    label: "Page would not open",
+    tone: "warn",
+    group: "unseen",
+    hint: "The reader failed on the address. Nothing about these people was ever seen.",
+  },
+  {
+    id: "not_examined",
+    label: "Never opened",
+    tone: "warn",
+    group: "unseen",
+    hint: "The search already had the leads it was asked for and stopped. Ask for more to reach these.",
+  },
+  {
+    id: "not_a_profile",
+    label: "Not a profile page",
+    tone: "neutral",
+    group: "unseen",
+    hint: "A shop, an article, a login form or a numeric page id — refused for free, before anything was read.",
+  },
+  {
+    id: "off_source",
+    label: "Outside your sources",
+    tone: "info",
+    group: "excluded",
+    hint: "Real profiles on a platform you did not pick. Add that platform to the sources to reach them.",
+  },
+  {
+    id: "not_a_person",
+    label: "No person on the page",
+    tone: "neutral",
+    group: "judged",
+    hint: "A brand account, a community or a shop.",
+  },
+  {
+    id: "wrong_country",
+    label: "Another country",
+    tone: "neutral",
+    group: "judged",
+    hint: "The profile places itself somewhere other than the country you asked for.",
+  },
+  {
+    id: "wrong_language",
+    label: "Another language",
+    tone: "neutral",
+    group: "judged",
+    hint: "The profile publishes in a language this search did not ask for.",
+  },
+  {
+    id: "missing_signals",
+    label: "Missing a must-have",
+    tone: "neutral",
+    group: "judged",
+    hint: "Every must-have signal is an AND. Keeping one is usually enough.",
+  },
+];
+
+export function rejectionMeta(reason: RejectionReason) {
+  return (
+    REJECTION_REASONS.find((entry) => entry.id === reason) ?? {
+      id: reason,
+      label: reason,
+      tone: "neutral" as Tone,
+      group: "judged" as RejectionGroup,
+      hint: "",
+    }
+  );
+}
+
+export const REJECTION_GROUPS: { id: RejectionGroup; label: string; note: string }[] = [
+  {
+    id: "unseen",
+    label: "Never read",
+    note: "Nobody opened these pages. If a lead was lost, it is here.",
+  },
+  {
+    id: "excluded",
+    label: "Excluded by your sources",
+    note: "Real profiles, on platforms this search was not given.",
+  },
+  {
+    id: "judged",
+    label: "Read and refused",
+    note: "The page was opened and failed one of your requirements.",
+  },
+];
 
 export function leadStatusMeta(status: LeadStatus) {
   return LEAD_STATUSES.find((entry) => entry.id === status)!;
@@ -211,10 +336,15 @@ export function emptyCriteria(): SearchCriteria {
     // country that returns another country is not that search (spec §32).
     requireLocation: true,
     requireLanguage: true,
+    // "We could not tell" is not "somewhere else": an unproven criterion costs its
+    // points, not the whole lead.
+    requireConfirmedLocation: false,
+    requireConfirmedLanguage: false,
     mustHave: [],
     niceToHave: [],
     signalWeights: { ...DEFAULT_SIGNAL_WEIGHTS },
     sources: ["public_web", "instagram_public", "linkedin_public"],
+    customQueries: [],
     targetLeads: DEFAULT_TARGET_LEADS,
   };
 }

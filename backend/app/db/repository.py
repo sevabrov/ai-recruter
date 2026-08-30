@@ -20,6 +20,7 @@ from app.models.common import Platform
 from app.models.job import Job
 from app.models.lead import Lead, LeadNote
 from app.models.query import LeadQuery, LeadStats, Page
+from app.models.rejection import RejectedCandidate, RejectionReason
 from app.models.scrape import ScrapeRecord, SourceReliability
 from app.models.search import Search
 
@@ -49,6 +50,25 @@ class Repository(Protocol):
         cancelled in between. Returns None when the search is gone — or, with
         `skip_finished`, when it is already cancelled or failed — which tells the
         pipeline to stop.
+        """
+
+    # ----------------------------------------------------------- rejections
+    async def add_rejections(self, rejections: list[RejectedCandidate]) -> None:
+        """Store what a finished run turned away, alongside what it kept."""
+
+    async def list_rejections(
+        self,
+        search_id: str,
+        *,
+        reason: RejectionReason | None = None,
+        limit: int = 500,
+    ) -> tuple[list[RejectedCandidate], dict[RejectionReason, int]]:
+        """
+        One search's refused candidates, and how many of each reason there are.
+
+        The counts are over the whole run, never over the page returned: a screen
+        that says "38 refused" and lists 20 of them has to get the 38 from the
+        database, or it is quoting its own truncation back at the user.
         """
 
     # ---------------------------------------------------------------- leads

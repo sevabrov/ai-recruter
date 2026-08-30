@@ -107,3 +107,25 @@ def budget_of(extractor: object) -> PageBudget | None:
     """
     budget = getattr(extractor, "budget", None)
     return budget if isinstance(budget, PageBudget) else None
+
+
+def fetch_from(extractor: object, country: str | None) -> None:
+    """
+    Tell the chain which country to fetch through, when it can be told.
+
+    The reader is built per job and knows nothing about the search above it; the
+    country is a property of the criteria. Routing the request through the country
+    being searched is what makes a social platform serve the page a local visitor
+    sees — which is also the version that names the city the geographic filter is
+    looking for. Extractors that fetch nothing ignore this entirely.
+    """
+    if not country:
+        return
+    target = extractor
+    # The chain nests under two different names: the cache wraps its `inner`, the
+    # fallback wraps its `reader`.
+    while target is not None:
+        if hasattr(target, "country"):
+            target.country = country
+            return
+        target = getattr(target, "inner", None) or getattr(target, "reader", None)

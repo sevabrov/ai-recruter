@@ -61,6 +61,8 @@ const EXAMPLE = {
       "linkedin_public",
       "facebook_public",
     ] as SourceKind[],
+    // What a template cannot guess: how this particular market tags itself.
+    customQueries: ['site:instagram.com "#млмбизнес" "#косметика"'],
     targetLeads: DEFAULT_TARGET_LEADS,
   },
 };

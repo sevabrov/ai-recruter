@@ -35,7 +35,7 @@ docker compose down                     # stop; the data volume survives
 Interactive API docs: <http://localhost:8000/docs>.
 
 ```bash
-docker compose run --rm backend pytest -q            # 253 tests (needs postgres)
+docker compose run --rm backend pytest -q            # 306 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .
 docker compose run --rm --no-deps backend ruff format .
 ```
@@ -51,9 +51,10 @@ against a reachable `DATABASE_URL`.
 ## Storage (spec §23)
 
 ```
-users ─┬─< searches ─< leads ─< lead_notes
-       └─< jobs                 seed_state    (the "seeded once" marker)
-                                scrape_cache  (one row per page ever read)
+users ─┬─< searches ─┬─< leads ─< lead_notes
+       │             └─< search_rejections   (what the run turned away, and why)
+       └─< jobs                 seed_state   (the "seeded once" marker)
+                                scrape_cache (one row per page ever read)
 ```
 
 `scrape_cache` is the one table with no `user_id`: a page is a page, nothing in it
@@ -113,6 +114,7 @@ at the rows.
 | GET | `/searches` | history, newest first |
 | GET | `/searches/:id` | status, progress, usage, queries — the polling target (§43) |
 | GET | `/searches/:id/leads` | results, same filters as `/leads` |
+| GET | `/searches/:id/rejected` | the candidates it turned away, with the reason and the address (`?reason=`, `?limit=`) |
 | POST | `/searches/:id/cancel` | `409` if it is not running |
 | GET | `/leads` | filter, sort, paginate |
 | GET | `/leads/facets` | countries and platforms actually present |
@@ -160,9 +162,25 @@ Set `BRAVE_SEARCH_API_KEY` and restart the backend. What changes:
   to that language's index — `Україна`, `мережевий маркетинг`, `search_lang=uk`.
   The phrasebook is small and hand-checked (`services/search/phrasebook.py`); a
   language it cannot name the place in is not asked in at all, because that would
-  only be the English query with a foreign label on it. The client's own wording
-  is always asked as written, and the round-robin in `_interleave` is what stops
-  `MAX_QUERIES_PER_SEARCH` from spending the whole allowance on one language.
+  only be the English query with a foreign label on it. The round-robin in
+  `_interleave` is what stops `MAX_QUERIES_PER_SEARCH` from spending the whole
+  allowance on one language.
+* **English is a language you have to ask for.** The untagged pass writes the
+  client's words unchanged, which in practice means English words put to the
+  English index — and running it regardless spent a quarter of a Ukrainian
+  search's calls on `site:instagram.com "network marketing" Ukraine`: the widest
+  phrase in the niche, asked in the language of the niche's *global brands*. Back
+  came Network Marketing Pro, Network Marketing Quotes and Eric Worre — 17 of that
+  run's 41 addresses, not one of them a person in Ukraine. So it runs when English
+  is one of the chosen languages, when none was chosen, and as the fallback when
+  no chosen language can be written at all (`_passes`).
+* **The client's industry reaches the queries, not only the score.** The industry
+  and a role word (`дистриб'ютор`, `distributor`) join every `site:` query whose
+  keyword list holds one entry — which is what a search with no keywords of its
+  own has, and its one keyword is the niche's generic name. That is precisely what
+  the niche's brand accounts are called: one run refused 22 of 26 candidates as
+  organisations. Until now the industry reached only the open-web templates, so a
+  social-only search scored people it had had no hand in finding.
 * **One query is one billed call.** `count` is capped at Brave's maximum of 20 and
   no paging is attempted, so `usage.searchApiCalls` on the search record is exactly
   what was spent (§54).
@@ -179,6 +197,79 @@ Set `BRAVE_SEARCH_API_KEY` and restart the backend. What changes:
   only a search where nothing came back does.
 * **The key stays server-side** (§55): it travels in `X-Subscription-Token`, never
   in a URL, a log line or an error message.
+
+### Only the sources that were asked for
+
+Three of the templates carry no `site:` operator — they are how a personal website
+or a directory entry is found. With only social sources selected they were about a
+third of the billed calls, spent outside the sources, and that is how
+`pravo.ua/articles/setevoj-marketing` — a legal journal on network-marketing
+legislation — became a run's only lead. Two rules now, deliberately overlapping:
+
+* **no `site:`-less query unless an open-web source was selected**
+  (`PUBLIC_WEB`, `COMPANY_WEBSITES`, `BLOGS`);
+* **a discovered URL is dropped unless its platform is covered by a chosen source**
+  (`url_tools.PLATFORMS_BY_SOURCE`), counted as `rejectedOffSource`.
+
+The second is not redundant: `site:` is a request, not a guarantee. Enforcing the
+instruction where the money is spent *and* where the results arrive is what makes
+"look only where I said" true rather than likely.
+
+### Hashtags, and the post that names its author
+
+Generated hashtag queries were an obvious-looking idea that measurement killed:
+all six of them, across Instagram and Threads, returned exactly zero results — a
+quoted `"#tag"` inside a `site:` query is not a question the index answers, and a
+third of that run's billed calls bought nothing. Hashtags now live only in
+`customQueries`, where the client writes the form that works for their market and
+sees at once whether it returns anything.
+
+The mechanism they were for matters far beyond hashtags: searching a social
+network for a *phrase* returns content — reels, videos, photos, posts — much more
+often than it returns accounts. `classify` rightly refuses a post as a candidate,
+so `url_tools.promote_posts` exchanges it for the profile it points at, keeping
+the post's own words as the evidence that was found.
+
+The author is written down in two places, and the address is the one that counts.
+`instagram.com/yanarogozha/reel/C3Z5y19owoo` names `yanarogozha` in its first
+segment; anything shaped `{handle}/{reel|p|videos|posts|…}/…` does, on Instagram,
+Threads and Facebook alike. One run threw away three real people — two Instagram
+reels and a Facebook video — as "not a person" while their handle sat in the URL
+we had been handed. The second place is the result title
+("Марина Іванова (@marina.mlm) on Instagram: …"), which is where Instagram and
+Threads put the handle when the address carries none (`instagram.com/p/Cxyz`).
+Nothing is invented either way: the handle is verbatim from the provider's own
+address or text, and the profile URL is the platform's documented shape.
+
+The same shape check works the other way. A social platform publishes profiles in
+one documented form, so an address that is not that form is not a person we
+failed to recognise — `instagram.com/accounts/login`, `facebook.com/photo.php?…`,
+`facebook.com/581399108893746` and `instagram.com/popular/…` are a login form, a
+photograph, a page's internal id and a directory. They used to reach the scoring
+stage and land on the results screen counted as "not a person", which reads as
+"the search found somebody unsuitable" when it had found nothing at all.
+
+### Queries the client writes
+
+`criteria.customQueries` are run ahead of every generated query and are never
+dropped by `MAX_QUERIES_PER_SEARCH` — the cap eats templates instead. A template
+knows the criteria; it does not know that a market distributes `джерелія`, and
+somebody who does can write that in one word. The language is read off the query
+itself (`extraction/language.detect_codes`), so a Cyrillic query reaches the
+Cyrillic index without being told twice.
+
+**A query with no `site:` operator inherits the search's sources.** Asked to write
+the query, the client wrote `джерелія` — the right word, put to the whole indexed
+web, which answered with the brand's own site, four shops, a catalogue, an
+app-store listing and a hotel called Jerelia. Eighteen of those twenty results
+were then dropped as off-source, and the results screen reported them as "found on
+a platform you did not select", which read as though the search had gone
+somewhere it was not asked to. It had not. Now the query is asked of each chosen
+platform (`site:instagram.com джерелія`, …); when the open web is among the
+sources the bare query is a fair question and stays as written. The wizard makes
+the same thing explicit: *where* is a row of platform buttons, *what* is a text
+field, and the composed queries are shown before they are added — nobody should
+have to know that `site:` is what turns a brand name into a question about people.
 
 ---
 
@@ -221,6 +312,26 @@ is configuration so an account on either one works. What changes:
 * **Concurrency is bounded** by `EXTRACTION_CONCURRENCY` (§35), never one URL at a
   time and never unlimited. The per-key rate limit is shared by every search in the
   process, like Brave's.
+* **How the page is fetched decides whether it opens at all.** Sending only
+  `{url, prompt, schema}` — no `fetchConfig` — is what a measured run cost: 20 of 23
+  Instagram pages and 15 of 15 Facebook pages answered 502/504, because the
+  provider's default is a datacentre address, which is the request a social network
+  is surest to refuse. Social profiles are now fetched with `stealth` (a residential
+  proxy plus anti-bot headers), a settle-time `wait`, and `country` set to the
+  country being searched — which also makes the page arrive in the form a local
+  visitor sees, city included. Only the platforms that need it pay the surcharge
+  (`STEALTH_PLATFORMS`); a personal website is read the cheap way.
+* **…and sending a config the service will not honour costs more than sending
+  none.** `mode: "js"` is a documented value and reads like the right one for a
+  profile page, but on Instagram, Facebook and LinkedIn the service answers
+  `400 fetch_provider_config` — measured one key at a time against live URLs;
+  `stealth`, `country` and `wait` are each accepted, `js` alone is not. A 400 is
+  correctly not retryable, so the chain below switched page reading off for the
+  whole run: three searches finished in seven seconds with 0 pages read, 0 credits
+  spent and every candidate judged on two lines of search-result text. The mode is
+  `auto` now, and a refused `fetchConfig` is *dropped* — the page is asked for again
+  plainly, and the refusal is remembered so the rest of the process does not pay a
+  wasted round trip per page. One unsupported key can no longer end a search.
 * **The key stays server-side** (§55): `SGAI-APIKEY`, never a URL, a log line or an
   error message.
 
@@ -275,8 +386,28 @@ candidate is never paid for):
 | Gate | Refuses when | Switch |
 |---|---|---|
 | person | `personhood.assess` says the page is an organisation | always on |
-| country | the profile does not place the person in the chosen country | `requireLocation` |
-| language | the profile does not publish in one of the chosen languages | `requireLanguage` |
+| country | the profile places the person **somewhere else** | `requireLocation` |
+| country | …or says nothing about it | `requireConfirmedLocation` (off) |
+| language | the profile publishes **only in other** languages | `requireLanguage` |
+| language | …or shows no language at all | `requireConfirmedLanguage` (off) |
+
+**A gate refuses a contradiction, not a silence.** The first version treated "this
+person is in Romania" and "we could not tell" as one answer, and a search for ten
+leads returned none: of 24 candidates refused, 19 went on geography and exactly
+*one* was actually somewhere else. The rest were Instagram profiles whose page
+would not open and whose two-line description named no city — no evidence, not
+contrary evidence. So an unproven criterion passes and pays for it in points (the
+signal stays `detected: false`, so the lead sorts below the confirmed ones), and
+the `requireConfirmed*` switches restore the strict reading for a client who would
+rather have five certain people than fifty likely ones.
+
+The client's own search terms count as evidence too. `vocabulary.py` holds general
+words — "network marketing", "distribuidora", "сетевой маркетинг" — and has never
+heard of Jerelia, Farmasi or MIHI, so a search for Jerelia distributors found them
+and then refused them for missing the MLM signal while their profiles said the
+brand's name in the first line. `FixtureSignalDetector` now fills that gap from
+`keywords` + `businessTypes` (the MLM signal) and `industry` (the industry signal),
+quoted like anything else, and never overwriting what the page itself said.
 
 `services/extraction/personhood.py` asks three questions past the name's shape,
 and any one of them refuses: **the words** (community, news, magazine, academy, a
@@ -289,14 +420,53 @@ opinion, while a Facebook page announces itself with a like count and a category
 
 Both filters are per search because their honest cost is the person whose bio
 never says where they live. The refusals are counted on the search's progress
-record — `rejectedNotAPerson`, `rejectedCountry`, `rejectedLanguage`,
-`rejectedSignals` — so four leads out of forty is explained rather than mysterious.
+record — `rejectedNotAPerson`, `rejectedUnreadable`, `rejectedCountry`,
+`rejectedLanguage`, `rejectedSignals` — so four leads out of forty is explained
+rather than mysterious, and every one of them is also listed by address (below).
 
 Two supporting changes make the country gate survivable: `find_place` reads cities
 and inflected Slavic forms ("Київ", "з України"), because a bio names its city far
 more often than its country; and `services/extraction/language.py` gives the
 crawler's language tag a second opinion from the text's own script and function
 words, since one tag on a whole page decided too much.
+
+### The other half of the result (spec §43)
+
+A run that returns four leads out of fifty candidates used to answer *why* with a
+set of counters. A counter cannot be checked, and it does not answer the question
+the client actually asks: **are we losing leads in there?**
+
+So every candidate a run turns away is now stored with the address it was found at
+and the reason in words (`models/rejection.py`, table `search_rejections`,
+`GET /searches/:id/rejected`). Together with the leads it is a complete account of
+what the search saw — every discovered URL is in exactly one of the two lists —
+and a refusal that turns out to be a real person is then a bug with a URL attached
+to it rather than a suspicion.
+
+| Reason | Recorded at | Paid for |
+|---|---|---|
+| `not_a_profile` | discovery — a shop, an article, a login form, a numeric page id | no |
+| `off_source` | discovery — a real profile on a platform that was not a source | no |
+| `unreadable` | extraction — the reader failed on the address | attempt only |
+| `not_a_person` | extraction — the page was read and named nobody | yes |
+| `wrong_country` / `wrong_language` / `missing_signals` | judging | yes |
+| `not_examined` | the lead target was reached and the run stopped here | no |
+
+Two fields carry most of the value. `read` says whether the page itself was ever
+opened: a candidate refused on what they published was judged on evidence, one
+refused on a two-line search snippet was judged on almost nothing — and that is
+where a lost lead hides. `promise` is the ranking score the run gave the candidate
+before spending anything (`services/search/prospects.py`), so the list is ordered
+by *what the run itself thought was most worth reading*, and the first rows are the
+refusals worth a second look.
+
+Two consequences for the counters. `unreadable` is split out of
+`rejectedNotAPerson`, which used to hold both — "we opened the page and there was
+no person on it" is a verdict about the candidate, "we never got the page" is a
+verdict about the reader. And a post whose author *was* followed
+(`instagram.com/anna/reel/C3Z…` → `instagram.com/anna`) says so in its refusal
+line, because otherwise it reads as a person thrown away while that person is
+sitting in the lead list.
 
 ### What one search may spend
 
@@ -311,7 +481,9 @@ ends are configuration:
 | `PAGES_PER_LEAD` | how many paid pages one lead costs — turns a target into a budget | `3` |
 | `MAX_QUERIES_PER_SEARCH` | generated queries, and so billed search calls | `24` |
 | `SCRAPEGRAPH_READ_ATTEMPTS` | attempts per page — a served request is billed either way | `1` |
-| `SCRAPEGRAPH_CREDITS_PER_PAGE` | what one page costs in plan units; the API reports none | `10` |
+| `SCRAPEGRAPH_CREDITS_PER_PAGE` | what one page costs in plan units; the API reports none | `5` |
+| `SCRAPEGRAPH_STEALTH` | read social profiles through the residential proxy | `true` |
+| `SCRAPEGRAPH_STEALTH_CREDITS` | what that proxy adds per page | `5` |
 
 The lead target moved into the search itself: the wizard asks *"how many leads do
 you want?"*, `POST /searches/estimate` prices it, and the run is given exactly the
@@ -430,11 +602,11 @@ app/
     adapters.py      which implementation is wired to what
   workers/           job service + the run_search task
 alembic/versions/    the schema, versioned
-tests/               253 tests: contract, scoring, pipeline units, lifecycle, filters,
+tests/               306 tests: contract, scoring, pipeline units, lifecycle, filters,
                      persistence, the Brave provider, the ScrapeGraphAI reader, the
                      scrape cache, snippet extraction, the person/country/language
-                     gates, localized queries, the cost estimate, and two live
-                     end-to-end runs
+                     gates, the refused-candidate list, localized queries, the cost
+                     estimate, and two live end-to-end runs
 ```
 
 ### Seed data

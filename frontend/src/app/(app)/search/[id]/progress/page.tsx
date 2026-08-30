@@ -127,6 +127,12 @@ export default function SearchProgressPage() {
                 hint={`${formatNumber(refused(progress))} candidates did not meet a requirement`}
               />
               <CardBody className="flex flex-col gap-2 text-sm">
+                {(progress.rejectedOffSource ?? 0) > 0 && (
+                  <Row
+                    label="Not one of your sources"
+                    value={formatNumber(progress.rejectedOffSource ?? 0)}
+                  />
+                )}
                 {(progress.rejectedNotAPerson ?? 0) > 0 && (
                   <Row
                     label="Not a person"
@@ -220,6 +226,7 @@ export default function SearchProgressPage() {
 /** How many candidates a requirement turned away, across all four of them. */
 function refused(progress: SearchProgress): number {
   return (
+    (progress.rejectedOffSource ?? 0) +
     (progress.rejectedNotAPerson ?? 0) +
     (progress.rejectedCountry ?? 0) +
     (progress.rejectedLanguage ?? 0) +

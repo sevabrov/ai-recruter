@@ -147,6 +147,9 @@ def build_profile_extractor(
         timeout_seconds=settings.scrapegraph_timeout_seconds,
         rate_limit_per_second=settings.scrapegraph_rate_limit_per_second,
         credits_per_page=settings.scrapegraph_credits_per_page,
+        stealth_credits=settings.scrapegraph_stealth_credits,
+        stealth=settings.scrapegraph_stealth,
+        page_wait_ms=settings.scrapegraph_page_wait_ms,
         cost=cost,
         # Per search, like the counters: a ceiling shared between searches would
         # mean the second one of the day silently gets nothing.
@@ -162,6 +165,7 @@ def build_profile_extractor(
             "fallback": settings.scrapegraph_fallback_to_snippets,
             "max_pages_per_search": settings.max_pages_per_search or "unlimited",
             "read_attempts": settings.scrapegraph_read_attempts,
+            "stealth": settings.scrapegraph_stealth,
         },
     )
 

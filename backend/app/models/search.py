@@ -36,10 +36,22 @@ class SearchCriteria(BaseModel):
     languages: list[str] = Field(default_factory=list)
     #: Geography and language as requirements rather than as points (spec §32).
     #: A search for Ukraine that returns a distributor in Croatia is not a search
-    #: for Ukraine, so both default to on — and both are per search, because the
-    #: price of a hard filter is the person whose bio never says where they live.
+    #: for Ukraine, so both default to on.
     require_location: bool = True
     require_language: bool = True
+    #: …and what to do when the profile simply does not say.
+    #:
+    #: "This person is in Romania" and "we could not tell" are different answers,
+    #: and treating them the same emptied a search: of 24 candidates refused in one
+    #: measured run, 19 went on geography and exactly *one* of those was actually
+    #: somewhere else. An Instagram profile whose page will not open and whose
+    #: two-line description names no city is not evidence of the wrong country.
+    #:
+    #: So unknown passes by default and the missing signal costs its own points.
+    #: True is the strict reading — only what can be confirmed survives — which is
+    #: worth having when precision matters more than volume.
+    require_confirmed_location: bool = False
+    require_confirmed_language: bool = False
     must_have: list[SignalType] = Field(default_factory=list)
     nice_to_have: list[SignalType] = Field(default_factory=list)
     #: Points per signal. The backend owns the arithmetic (spec §37).
@@ -47,6 +59,11 @@ class SearchCriteria(BaseModel):
         default_factory=lambda: dict(DEFAULT_SIGNAL_WEIGHTS)
     )
     sources: list[SourceKind] = Field(default_factory=list)
+    #: Queries the client wrote themselves, run ahead of the generated ones and
+    #: never dropped to make room for a template (spec §29). Somebody who knows
+    #: their market can write `site:instagram.com "#млмукраина"` in one line; no
+    #: template is going to guess it. 380 characters is the provider's own limit.
+    custom_queries: list[str] = Field(default_factory=list, max_length=20)
     #: How many leads this search is being asked for. It is the client's own
     #: spending control: the page budget is derived from it, the wizard prices it
     #: before anything runs, and the search stops once it is met. 0 means "use
@@ -74,6 +91,11 @@ class SearchProgress(BaseModel):
     profiles_processed: int = 0
     qualified: int = 0
     high_quality: int = 0
+    #: Discovered on a platform the client did not ask to look at. Counted at
+    #: discovery, before anything is read — `site:` is a request, not a guarantee.
+    rejected_off_source: int = 0
+    #: The reader failed on the address — nothing was read, so nothing was judged.
+    rejected_unreadable: int = 0
     rejected_not_a_person: int = 0
     rejected_country: int = 0
     rejected_language: int = 0

@@ -46,13 +46,17 @@ log = get_logger(__name__)
 #:
 #: Kept small on purpose: a score runs to 100, so no prior here can outweigh a
 #: signal someone actually published. Evidence decides; this only breaks ties.
+#: Facebook sits below Instagram because that is what the runs say, twice over: 0
+#: of 15 Facebook pages readable in the first measurement, and every one of the
+#: four fetch timeouts in the latest run was a facebook.com address. Instagram is
+#: unreliable too, but it does open sometimes and it is where the volume is.
 PLATFORM_PRIOR: dict[Platform, int] = {
     Platform.WEBSITE: 8,
     Platform.BLOG: 8,
     Platform.LINKEDIN: 5,
-    Platform.FACEBOOK: 3,
-    Platform.THREADS: 3,
-    Platform.INSTAGRAM: 0,
+    Platform.INSTAGRAM: 2,
+    Platform.THREADS: 1,
+    Platform.FACEBOOK: 0,
 }
 
 #: Per must-have signal the search result already shows.

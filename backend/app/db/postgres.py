@@ -32,9 +32,11 @@ from app.db.mappers import (
     apply_scrape,
     apply_search,
     note_row,
+    rejection_row,
     scrape_key,
     to_job,
     to_lead,
+    to_rejection,
     to_scrape,
     to_search,
 )
@@ -45,6 +47,7 @@ from app.db.tables import (
     LeadNoteRow,
     LeadRow,
     ScrapeRow,
+    SearchRejectionRow,
     SearchRow,
     SeedStateRow,
     UserRow,
@@ -59,6 +62,7 @@ from app.models.common import (
 from app.models.job import Job
 from app.models.lead import Lead, LeadNote
 from app.models.query import LeadQuery, LeadStats, Page
+from app.models.rejection import RejectedCandidate, RejectionReason
 from app.models.scrape import USABLE_OUTCOMES, ScrapeOutcome, ScrapeRecord, SourceReliability
 from app.models.search import Search
 
@@ -73,7 +77,7 @@ FINISHED_STATUSES = (SearchStatus.CANCELLED.value, SearchStatus.FAILED.value)
 #: Tables the demo reset clears. Users survive: the accounts are not demo data.
 #: Neither does `scrape_cache` — those pages were paid for in credits (spec §53),
 #: and a reset of the demo workspace is no reason to buy them again.
-RESET_TABLES = "lead_notes, leads, jobs, searches, seed_state"
+RESET_TABLES = "lead_notes, leads, search_rejections, jobs, searches, seed_state"
 
 
 class PostgresRepository(Repository):
@@ -123,6 +127,52 @@ class PostgresRepository(Repository):
             updated = to_search(row).model_copy(update=updates)
             apply_search(row, updated)
             return updated
+
+    # ----------------------------------------------------------- rejections
+    async def add_rejections(self, rejections: list[RejectedCandidate]) -> None:
+        if not rejections:
+            return
+        async with self._session() as session, session.begin():
+            # A re-run of the same search re-records its refusals; the id is the
+            # search plus the address, so the second run replaces the first.
+            await session.execute(
+                delete(SearchRejectionRow).where(
+                    SearchRejectionRow.search_id.in_({entry.search_id for entry in rejections})
+                )
+            )
+            session.add_all([rejection_row(entry) for entry in rejections])
+
+    async def list_rejections(
+        self,
+        search_id: str,
+        *,
+        reason: RejectionReason | None = None,
+        limit: int = 500,
+    ) -> tuple[list[RejectedCandidate], dict[RejectionReason, int]]:
+        async with self._session() as session:
+            counted = await session.execute(
+                select(SearchRejectionRow.reason, func.count())
+                .where(SearchRejectionRow.search_id == search_id)
+                .group_by(SearchRejectionRow.reason)
+            )
+            counts = {RejectionReason(value): total for value, total in counted}
+
+            where = [SearchRejectionRow.search_id == search_id]
+            if reason is not None:
+                where.append(SearchRejectionRow.reason == reason.value)
+            rows = await session.scalars(
+                select(SearchRejectionRow)
+                .where(*where)
+                # Most promising first: a refusal the run itself rated highly is
+                # the one worth a second look, which is the point of the list.
+                .order_by(
+                    SearchRejectionRow.promise.desc().nullslast(),
+                    SearchRejectionRow.created_at,
+                    SearchRejectionRow.id,
+                )
+                .limit(limit)
+            )
+            return [to_rejection(row) for row in rows], counts
 
     # ---------------------------------------------------------------- leads
     async def query_leads(self, user_id: str, query: LeadQuery) -> Page:

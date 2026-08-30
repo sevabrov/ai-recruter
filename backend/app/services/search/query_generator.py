@@ -22,6 +22,7 @@ from typing import Protocol
 
 from app.models.common import SourceKind
 from app.models.search import SearchCriteria
+from app.services.extraction.language import detect_codes
 from app.services.search import phrasebook
 from app.services.search.markets import language_code
 
@@ -31,6 +32,21 @@ SITE_BY_SOURCE: dict[SourceKind, str] = {
     SourceKind.FACEBOOK_PUBLIC: "site:facebook.com",
     SourceKind.THREADS_PUBLIC: "site:threads.net",
 }
+
+#: A hashtag is how somebody labels themselves, so generated hashtag queries looked
+#: obviously right — and measurement said otherwise: all six of them, across
+#: Instagram and Threads, returned exactly zero results. A quoted `"#tag"` inside a
+#: `site:` query is not something the search index answers, so a third of that
+#: run's billed calls bought nothing.
+#:
+#: Hashtags therefore live in `criteria.custom_queries`, where the client writes the
+#: form that works for their market and can see immediately whether it returns
+#: anything. Generating them here would be spending money on a shape we have
+#: measured as empty.
+
+#: The sources that mean "anywhere on the indexed web". Without one of these
+#: selected, no query may go out without a `site:` operator.
+_WEB_SOURCES = {SourceKind.PUBLIC_WEB, SourceKind.COMPANY_WEBSITES, SourceKind.BLOGS}
 
 
 @dataclass(frozen=True)
@@ -48,28 +64,83 @@ class QueryGenerator(Protocol):
 
 class TemplateQueryGenerator(QueryGenerator):
     def generate(self, criteria: SearchCriteria, limit: int = 12) -> list[QueryPlan]:
-        seen: set[str] = set()
+        written = self._written(criteria, limit)
+        seen: set[str] = {plan.query for plan in written}
         negatives = " ".join(f'-"{word}"' for word in criteria.negative_keywords[:2])
-        by_language: list[list[QueryPlan]] = []
 
-        # The user's own wording first: it is the one language we know is right,
-        # and dropping it because a translation exists would be presumptuous.
-        for language in [None, *self._languages(criteria)]:
+        def pass_for(language: str | None) -> list[QueryPlan]:
             plans: list[QueryPlan] = []
 
-            def push(*parts: str | None, language: str | None = language, into=plans) -> None:
+            def push(*parts: str | None) -> None:
                 query = " ".join(_deduplicated(parts))
                 if not query or query in seen:
                     return
                 seen.add(query)
                 text = f"{query} {negatives}".strip() if negatives else query
-                into.append(QueryPlan(text, language))
+                plans.append(QueryPlan(text, language))
 
             self._for_language(criteria, language, push)
-            if plans:
-                by_language.append(plans)
+            return plans
 
-        return _interleave(by_language)[:limit]
+        by_language = [
+            plans for language in self._passes(criteria) if (plans := pass_for(language))
+        ]
+        if not by_language:
+            # Every chosen language was one the phrasebook cannot write. The
+            # client's own words, untranslated, are better than no query at all.
+            by_language = [plans] if (plans := pass_for(None)) else []
+
+        room = max(0, limit - len(written))
+        return [*written, *_interleave(by_language)[:room]]
+
+    # -------------------------------------------------------------- the client's own
+    @staticmethod
+    def _written(criteria: SearchCriteria, limit: int) -> list[QueryPlan]:
+        """
+        Queries the client typed, ahead of everything generated.
+
+        Templates cannot know that `site:instagram.com "#млмукраина"` is how the
+        people they are looking for label themselves. Somebody who knows their
+        market can write that in one line, so these are never dropped to make room
+        for a template — the cap eats the generated ones instead.
+
+        The language is read off the query itself, so a Cyrillic query reaches the
+        Cyrillic index without anybody having to say so twice.
+
+        A query with no `site:` operator inherits the search's sources. Written
+        plainly, `джерелія` is a question to the whole indexed web, and a search
+        restricted to social platforms then throws almost all of the answer away:
+        two such queries returned 20 results — the brand's own site, four shops, a
+        catalogue, an app-store listing and a hotel called Jerelia — of which 18
+        were dropped for being off-source. The client meant "find me this on the
+        platforms I chose", so that is what is asked. When the open web is among
+        the sources, the bare query is a fair question and stays as written.
+        """
+        sites = [
+            site for source in criteria.sources if (site := SITE_BY_SOURCE.get(source)) is not None
+        ]
+        scope_to_sites = bool(sites) and not (_WEB_SOURCES & set(criteria.sources))
+
+        plans: list[QueryPlan] = []
+        seen: set[str] = set()
+        for raw in criteria.custom_queries[:limit]:
+            query = " ".join((raw or "").split())
+            if not query:
+                continue
+            wanted = (
+                [f"{site} {query}" for site in sites]
+                if scope_to_sites and "site:" not in query.casefold()
+                else [query]
+            )
+            # The language belongs to the words the client wrote, not to the
+            # operator we prefixed, so it is detected once for the whole group.
+            codes = detect_codes(query)
+            for scoped in wanted:
+                if scoped in seen:
+                    continue
+                seen.add(scoped)
+                plans.append(QueryPlan(scoped, codes[0] if codes else None))
+        return plans
 
     # ------------------------------------------------------------------ per language
     def _for_language(
@@ -108,6 +179,27 @@ class TemplateQueryGenerator(QueryGenerator):
             push(site, f'"{keywords[0]}"', place)
             if len(keywords) > 1:
                 push(site, f'"{keywords[1]}"', industries[0], place)
+                continue
+            # One keyword — and when the client wrote none, that one is the
+            # niche's generic name, which is the widest question there is and
+            # brings back the niche's brands rather than its people. Two things
+            # narrow it, and both are things the client already told us:
+            #
+            #   * the industry they chose, which until now reached only the
+            #     open-web templates — so a search restricted to social sources
+            #     never used it to *find* anybody, only to score them;
+            #   * a role word. "Consultant", "distributor" is what a person puts
+            #     in their own bio and what a brand page does not.
+            if criteria.industry:
+                push(site, f'"{keywords[0]}"', industries[0], place)
+            push(site, f'"{keywords[0]}"', distributor, place)
+
+        # Open-web templates, and only when the client asked for the open web. They
+        # carry no `site:` operator, so with three social sources selected they were
+        # a third of the calls spent outside the sources — which is how a legal
+        # journal's article about network marketing became a run's only lead.
+        if not _WEB_SOURCES & set(criteria.sources):
+            return
 
         push(phrase(keywords[0], distributor), place)
         push(phrase(industries[0], leader), f'"{business[0]}"', place)
@@ -119,6 +211,30 @@ class TemplateQueryGenerator(QueryGenerator):
             push(f'"{industries[0]}"', f'"{business[0]}"', "blog", place)
 
     # ------------------------------------------------------------------- ingredients
+    @staticmethod
+    def _passes(criteria: SearchCriteria) -> list[str | None]:
+        """
+        Which languages to write queries in, and in what order.
+
+        The untagged pass writes the client's words unchanged — English, in
+        practice, asked against the English index. Running it regardless of what
+        was asked for is what spent a quarter of a Ukrainian search's calls on
+        `site:instagram.com "network marketing" Ukraine`: the widest phrase in the
+        niche, in the language of the niche's global brands. It came back with
+        Network Marketing Pro, Network Marketing Quotes and Eric Worre — famous
+        accounts, none of them a person in Ukraine, and 17 of that run's 41
+        addresses.
+
+        So it runs when English is one of the languages asked for, and when no
+        language was named at all. Otherwise the money goes to the languages the
+        client actually chose.
+        """
+        codes = TemplateQueryGenerator._languages(criteria)
+        english = any(language_code(name) == "en" for name in criteria.languages)
+        if english or not codes:
+            return [None, *codes]
+        return list(codes)
+
     @staticmethod
     def _languages(criteria: SearchCriteria) -> list[str]:
         """

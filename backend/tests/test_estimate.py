@@ -93,7 +93,10 @@ def test_the_price_is_the_calls_plus_the_pages(settings):
 
     assert priced.max_pages == 15
     assert priced.max_cost_eur == pytest.approx(priced.search_calls * 0.005 + 15 * 0.010)
-    assert priced.credits == 15 * settings.scrapegraph_credits_per_page
+    # Credits quote what the pages will actually be charged: the extraction plus the
+    # residential proxy, since the social platforms are read through it.
+    per_page = settings.scrapegraph_credits_per_page + settings.scrapegraph_stealth_credits
+    assert priced.credits == 15 * per_page
 
 
 def test_a_stage_that_is_not_plugged_in_is_not_priced(settings):
@@ -127,6 +130,26 @@ def test_the_quote_lists_the_queries_the_search_will_actually_run(settings):
     generated = TemplateQueryGenerator().generate(criteria(), limit=settings.max_queries_per_search)
 
     assert [plan.query for plan in priced.queries] == [plan.query for plan in generated]
+
+
+def test_the_quote_warns_about_criteria_that_will_return_nothing(settings):
+    """
+    The complaint was never that the filters were wrong — it was that a
+    reasonable-looking set of them returned nothing, and the screen blamed the
+    filters afterwards. Saying it first costs nothing.
+    """
+    strict = quote(
+        settings,
+        sources=["instagram_public"],
+        require_confirmed_location=True,
+        must_have=["mlm", "beauty", "activity"],
+    )
+
+    assert strict.warnings
+    assert any("confirmed" in note.lower() for note in strict.warnings)
+    assert any("must-have" in note for note in strict.warnings)
+    # And a workable set of criteria is not nagged at.
+    assert quote(settings, must_have=["mlm"]).warnings == []
 
 
 # --------------------------------------------------------------- over the wire

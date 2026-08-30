@@ -26,6 +26,7 @@ that nobody will spend.
 from dataclasses import dataclass, field
 
 from app.core.config import Settings
+from app.models.common import SignalType, SourceKind
 from app.models.search import SearchCriteria
 from app.services.search.query_generator import QueryGenerator, QueryPlan
 
@@ -44,6 +45,10 @@ class SearchEstimate:
     target_leads: int = 0
     pages_per_lead: int = 0
     max_cost_eur: float = 0.0
+    #: What is likely to go wrong with *these* criteria, in words the client can act
+    #: on. Written here rather than discovered afterwards: a search that returns
+    #: nothing has already been paid for.
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def unlimited_pages(self) -> bool:
@@ -91,12 +96,73 @@ def estimate(
         # is the closest bound the wizard can put on that before anything runs.
         cost += max(billable, 1) * settings.cost_per_llm_call_eur
 
+    per_page = settings.scrapegraph_credits_per_page + (
+        settings.scrapegraph_stealth_credits if settings.scrapegraph_stealth else 0
+    )
     return SearchEstimate(
         queries=queries,
         search_calls=len(queries),
         max_pages=pages,
-        credits=billable * settings.scrapegraph_credits_per_page if reads_pages else 0,
+        credits=billable * per_page if reads_pages else 0,
         target_leads=criteria.target_leads or settings.target_leads,
         pages_per_lead=settings.pages_per_lead,
         max_cost_eur=round(cost, 2),
+        warnings=warnings_for(criteria),
     )
+
+
+def warnings_for(criteria: SearchCriteria) -> list[str]:
+    """
+    What these criteria are likely to do to the result, said before the search runs.
+
+    Every line here is a lesson from a measured run, not a guess. The client's
+    complaint was not that the filters were wrong — it was that a reasonable-looking
+    set of criteria returned nothing and the screen blamed the filters afterwards.
+    """
+    notes: list[str] = []
+    social_only = bool(criteria.sources) and not (
+        {SourceKind.PUBLIC_WEB, SourceKind.COMPANY_WEBSITES, SourceKind.BLOGS}
+        & set(criteria.sources)
+    )
+
+    if criteria.location.country and criteria.require_confirmed_location and social_only:
+        notes.append(
+            f"Only social sources are selected, and “confirmed {criteria.location.country} "
+            "only” is on. Social profiles rarely state a location and their pages often "
+            "will not open, so most candidates will be dropped as unconfirmed."
+        )
+    if criteria.languages and criteria.require_confirmed_language and social_only:
+        notes.append(
+            "“Confirmed languages only” over social sources is strict: a two-line "
+            "profile description often shows no language at all."
+        )
+    if len(criteria.must_have) > 1:
+        notes.append(
+            f"{len(criteria.must_have)} must-have signals means all of them at once, "
+            "each proven by a quote from the profile. Two are already hard to find "
+            "together on a profile that could not be opened."
+        )
+    if SignalType.ACTIVITY in criteria.must_have:
+        notes.append(
+            "“Recent activity” as a must-have gates hard and is worth no points: it "
+            "needs a date the page states, which a search result usually omits."
+        )
+    if not criteria.keywords:
+        notes.append(
+            "No keywords of your own: the queries fall back to the niche's generic "
+            "name, which is what the niche's famous brand accounts are called. Add "
+            "the brand people actually distribute (jerelia, farmasi) and the "
+            "queries start describing a person."
+        )
+    if SourceKind.THREADS_PUBLIC in criteria.sources:
+        notes.append(
+            "Threads has returned zero results for every query in every measured "
+            "run. Each one still costs a search call — unselect it unless you know "
+            "it works for your market."
+        )
+    if criteria.location.city and criteria.require_confirmed_location:
+        notes.append(
+            f"A city narrows the queries sharply. If {criteria.location.city} returns "
+            "little, the country alone usually returns much more."
+        )
+    return notes

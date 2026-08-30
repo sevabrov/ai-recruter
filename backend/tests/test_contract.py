@@ -60,7 +60,11 @@ PROGRESS_KEYS = {
     "profilesProcessed",
     "qualified",
     "highQuality",
-    # Why the rest did not qualify: person, country, language, signals (spec §43).
+    # Why the rest did not qualify: source, reader, person, country, language,
+    # signals (§43). "The page would not open" is its own counter — it is the one
+    # refusal that says nothing about the candidate.
+    "rejectedOffSource",
+    "rejectedUnreadable",
     "rejectedNotAPerson",
     "rejectedCountry",
     "rejectedLanguage",

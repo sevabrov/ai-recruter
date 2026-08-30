@@ -22,6 +22,7 @@ import hashlib
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from urllib.parse import unquote, urlparse
 
 from app.core.config import Settings
 from app.core.logging import bind, get_logger
@@ -30,21 +31,48 @@ from app.db.repository import Repository
 from app.models.common import HIGH_QUALITY_THRESHOLD, SearchStage, SearchStatus
 from app.models.lead import Lead, LeadSignal, ScoreComponent
 from app.models.profile import ExtractedProfile
+from app.models.rejection import RejectedCandidate, RejectionReason
 from app.models.search import GeneratedQuery, Search, SearchProgress, SearchUsage
-from app.models.source import DiscoveredUrl, ProviderResult
+from app.models.source import DiscoveredUrl, ProviderResult, UrlKind
 from app.services.extraction.signal_detector import SignalDetector
 from app.services.scoring.scoring_service import ScoringService
-from app.services.scraping.base import ProfileExtractor, budget_of, cost_of
+from app.services.scraping.base import ProfileExtractor, budget_of, cost_of, fetch_from
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
 from app.services.search.deduplicator import deduplicate
 from app.services.search.eligibility import Refusal, admit
 from app.services.search.estimate import page_budget_for
-from app.services.search.prospects import rank
+from app.services.search.markets import iso_code
+from app.services.search.prospects import Prospect, rank
 from app.services.search.providers.base import SearchMarket, SearchProvider
 from app.services.search.query_generator import QueryGenerator
-from app.services.search.url_tools import candidates, discover
+from app.services.search.url_tools import (
+    SOCIAL_PLATFORMS,
+    author_profile,
+    candidates,
+    canonicalize,
+    discover,
+    promote_posts,
+)
 
 log = get_logger(__name__)
+
+#: Extractors that never open a page. A profile one of these produced was judged
+#: on the search result alone, which is what `RejectedCandidate.read` records.
+SNIPPET_ONLY = {"snippet"}
+
+#: Why an address is not somebody's profile, per classification. Written out
+#: rather than counted, because the client reads this list to check whether a
+#: refusal was right — and "irrelevant" on its own is not checkable.
+WHY_NOT_A_PROFILE: dict[UrlKind, str] = {
+    UrlKind.COMPANY: "A company or school page, not a person.",
+    UrlKind.ARTICLE: "A post or an article, not somebody's profile.",
+    UrlKind.PRODUCT: "A shop page.",
+    UrlKind.IRRELEVANT: "Nothing here relates to the search.",
+    UrlKind.UNKNOWN: (
+        "Not the shape of a profile address on this platform — a login form, a "
+        "photo, a directory page or a numeric page id."
+    ),
+}
 
 #: Where each stage ends on the 0–1 progress bar. Mirrors the Phase 1 timeline so
 #: the meter feels the same before and after the backend took over.
@@ -90,6 +118,10 @@ class Harvest:
     #: How many candidates each requirement turned away. A search that admits two
     #: of forty owes the client this breakdown (spec §43).
     refusals: Counter[Refusal] = field(default_factory=Counter)
+    #: What each candidate's search result alone supported, by canonical URL. Kept
+    #: so a refusal recorded at judging can still say how promising the run had
+    #: rated it — the highest-rated refusals are the ones worth re-reading.
+    promise: dict[str, int] = field(default_factory=dict)
     #: True when the lead target was reached and the remaining candidates were left
     #: unread. Reported, never hidden: a thin result must be explained by the limit.
     stopped_early: bool = False
@@ -119,6 +151,10 @@ class SearchPipeline:
         self._snippets = SnippetProfileExtractor()
         self._progress = SearchProgress()
         self._usage = SearchUsage()
+        #: Every candidate this run turned away, by rejection id. A dict rather
+        #: than a list because one address is one verdict: whichever stage refuses
+        #: it first is the one that owns the explanation.
+        self._rejected: dict[str, RejectedCandidate] = {}
         #: How many leads this run was asked for; set per search by `_aim`.
         self._target = 0
 
@@ -133,6 +169,7 @@ class SearchPipeline:
 
         self._progress = SearchProgress()
         self._usage = SearchUsage()
+        self._rejected = {}
         self._aim(search)
 
         try:
@@ -167,6 +204,10 @@ class SearchPipeline:
         wizard and the budget the run is actually given cannot drift apart.
         """
         self._target = search.criteria.target_leads or self.settings.target_leads
+        # Fetch the pages through the country being searched: a social platform
+        # then serves the page a local visitor sees, which is also the version
+        # that names the city the geographic filter needs (spec §33).
+        fetch_from(self.extractor, iso_code(search.criteria.location.country))
         budget = budget_of(self.extractor)
         if budget is not None:
             budget.limit = page_budget_for(search.criteria, self.settings)
@@ -257,12 +298,33 @@ class SearchPipeline:
 
     # --------------------------------------------------------------- stage 3
     async def _discover(self, search: Search, results: list[ProviderResult]) -> list[DiscoveredUrl]:
+        """
+        Normalize, classify, and keep only what the client asked to look at.
+
+        The source list is enforced here as well as in the queries, because a
+        `site:` operator is a request and not a guarantee: a search told to look at
+        Instagram, LinkedIn and Facebook returned a legal journal's article about
+        network marketing, and it became the run's only lead.
+
+        Both refusals are also written down one by one, not just counted. They are
+        the free ones — nothing here is read or paid for — and they are therefore
+        the ones a client has no other way of checking: an address dropped here
+        never appears anywhere else in the product.
+        """
         await self._enter(search.id, SearchStage.DISCOVERING_PROFILES)
-        normalized = discover(results)
-        profile_urls = candidates(normalized)
+        # A hashtag search returns posts, and a post names its author: the profile
+        # behind it is the candidate, not the post (`url_tools.promote_posts`).
+        normalized = promote_posts(discover(results))
+        sources = search.criteria.sources
+        profile_urls = candidates(normalized, sources)
+        kept = {url.canonical_url for url in profile_urls}
+        readable = candidates(normalized)
+        off_source = [url for url in readable if url.canonical_url not in kept]
+        self._refuse_addresses(search, normalized, readable, off_source, kept)
 
         self._progress.urls_discovered = len(normalized)
         self._progress.profiles_discovered = len(profile_urls)
+        self._progress.rejected_off_source = len(off_source)
         await self._tick()
         await self._save(search.id, SearchStage.DISCOVERING_PROFILES, 1.0)
         log.info(
@@ -271,9 +333,34 @@ class SearchPipeline:
                 "unique_urls": len(normalized),
                 "candidates": len(profile_urls),
                 "rejected": len(normalized) - len(profile_urls),
+                "off_source": len(off_source),
+                "platforms": sorted({url.platform.value for url in profile_urls}),
             },
         )
         return profile_urls
+
+    def _refuse_addresses(
+        self,
+        search: Search,
+        normalized: list[DiscoveredUrl],
+        readable: list[DiscoveredUrl],
+        off_source: list[DiscoveredUrl],
+        kept: set[str],
+    ) -> None:
+        """Write down each address discovery threw away, with the reason in words."""
+        profile_shaped = {url.canonical_url for url in readable}
+        for url in normalized:
+            if url.canonical_url in profile_shaped:
+                continue
+            self._refuse(search, url, RejectionReason.NOT_A_PROFILE, _why_not_a_profile(url, kept))
+        for url in off_source:
+            self._refuse(
+                search,
+                url,
+                RejectionReason.OFF_SOURCE,
+                f"Found on {url.platform.value}, which is not among this search's "
+                "sources — so it was never opened and nothing was paid for it.",
+            )
 
     # --------------------------------------------------------------- stage 4
     async def _extract(self, search: Search, urls: list[DiscoveredUrl]) -> Harvest:
@@ -305,26 +392,27 @@ class SearchPipeline:
         semaphore = asyncio.Semaphore(self.settings.extraction_concurrency)
         processed = 0
 
-        async def extract_one(url: DiscoveredUrl) -> ExtractedProfile | None:
+        async def extract_one(url: DiscoveredUrl) -> tuple[ExtractedProfile | None, bool]:
+            """The profile, and whether the reader failed outright getting it."""
             async with semaphore:
                 await self._tick()
                 try:
-                    return await retry_async(
+                    profile = await retry_async(
                         lambda: self.extractor.extract(url),
                         attempts=self.settings.max_retries,
                         label=f"extract:{self.extractor.name}",
                     )
                 except Exception:
                     log.warning("extraction_failed", extra={"url": url.canonical_url})
-                    return None
+                    return None, True
+                return profile, False
 
         while processed < len(ranked):
             wave = ranked[processed : processed + self._wave_size()]
             found = await asyncio.gather(*(extract_one(prospect.url) for prospect in wave))
-            fresh = [profile for profile in found if profile and profile.is_person]
             # A page nobody could find a person on is the first refusal, and it
             # happens here rather than at judging: there is nothing to judge.
-            harvest.refusals[Refusal.NOT_A_PERSON] += len(wave) - len(fresh)
+            fresh = self._sift(search, wave, found, harvest)
             harvest.profiles.extend(fresh)
 
             processed += len(wave)
@@ -346,6 +434,19 @@ class SearchPipeline:
                     extra={"target": target, "leads": len(harvest.leads), "pages": processed},
                 )
                 break
+
+        # Whatever the break left behind is not a judgement about anybody: those
+        # candidates were never opened. Recorded all the same, because "we had
+        # enough" is the one refusal the client may want to undo by asking for more.
+        for prospect in ranked[processed:]:
+            self._refuse(
+                search,
+                prospect.url,
+                RejectionReason.NOT_EXAMINED,
+                f"The search already had the {target} leads it was asked for and "
+                "stopped here. This candidate was never opened or paid for.",
+                promise=prospect.promise,
+            )
 
         self._bill_extraction()
         spent = cost_of(self.extractor)
@@ -371,6 +472,56 @@ class SearchPipeline:
             },
         )
         return harvest
+
+    def _sift(
+        self,
+        search: Search,
+        wave: list[Prospect],
+        found: list[tuple[ExtractedProfile | None, bool]],
+        harvest: Harvest,
+    ) -> list[ExtractedProfile]:
+        """
+        Split a wave into profiles worth judging and refusals worth explaining.
+
+        Two different things used to be counted as one here, and the difference is
+        the whole reason the refused list exists. *We opened the page and there was
+        no person on it* is a verdict about the candidate. *We never got the page*
+        is a verdict about the reader — and behind it there may well be a lead.
+        """
+        fresh: list[ExtractedProfile] = []
+        for prospect, (profile, failed) in zip(wave, found, strict=True):
+            harvest.promise[prospect.url.canonical_url] = prospect.promise
+            if profile is not None and profile.is_person:
+                fresh.append(profile)
+                continue
+
+            if failed:
+                harvest.refusals[Refusal.UNREADABLE] += 1
+                self._refuse(
+                    search,
+                    prospect.url,
+                    RejectionReason.UNREADABLE,
+                    "The reader failed on this address, so nothing about this "
+                    "person was ever seen.",
+                    promise=prospect.promise,
+                )
+                continue
+
+            # `None` here is the reader settling the question — a shop it opened
+            # and read. A profile without a name is whatever the chain fell back to.
+            read = profile is None or profile.extractor not in SNIPPET_ONLY
+            harvest.refusals[Refusal.NOT_A_PERSON] += 1
+            self._refuse(
+                search,
+                prospect.url,
+                RejectionReason.NOT_A_PERSON,
+                "The page was read and named no person: a brand account, a community or a shop."
+                if read
+                else "The page would not open, and the search result on its own named nobody.",
+                promise=prospect.promise,
+                read=read,
+            )
+        return fresh
 
     def _wave_size(self) -> int:
         """
@@ -470,6 +621,13 @@ class SearchPipeline:
             eligible = admit(profile, search.criteria)
             if not eligible.admitted:
                 harvest.refusals[eligible.refusal] += 1
+                self._refuse_profile(
+                    search,
+                    profile,
+                    RejectionReason(str(eligible.refusal)),
+                    eligible.detail,
+                    harvest.promise.get(profile.canonical_url),
+                )
                 log.info(
                     "candidate_refused",
                     extra={
@@ -488,6 +646,14 @@ class SearchPipeline:
             detected = {signal.type for signal in signals if signal.detected}
             if not required.issubset(detected):
                 harvest.refusals[Refusal.MISSING_SIGNALS] += 1
+                missing = sorted(signal.value for signal in required - detected)
+                self._refuse_profile(
+                    search,
+                    profile,
+                    RejectionReason.MISSING_SIGNALS,
+                    f"Nothing on this profile showed: {', '.join(missing)}.",
+                    harvest.promise.get(profile.canonical_url),
+                )
                 return
 
             score, breakdown = self.scoring.score(signals, weights)
@@ -504,8 +670,71 @@ class SearchPipeline:
         await asyncio.gather(*(judge_one(profile) for profile in profiles))
         self._tally(harvest)
 
+    def _refuse(
+        self,
+        search: Search,
+        url: DiscoveredUrl,
+        reason: RejectionReason,
+        detail: str,
+        *,
+        promise: int | None = None,
+        read: bool = False,
+    ) -> None:
+        """Record a refused address — one the run never got a profile out of."""
+        self._record(
+            RejectedCandidate(
+                id=_rejection_id(search.id, url.canonical_url),
+                user_id=search.user_id,
+                search_id=search.id,
+                url=url.url,
+                canonical_url=url.canonical_url,
+                platform=url.platform,
+                reason=reason,
+                detail=detail,
+                read=read,
+                name=_handle_in(url),
+                title=url.title,
+                snippet=url.snippet,
+                query=url.query,
+                promise=promise,
+            )
+        )
+
+    def _refuse_profile(
+        self,
+        search: Search,
+        profile: ExtractedProfile,
+        reason: RejectionReason,
+        detail: str,
+        promise: int | None = None,
+    ) -> None:
+        """Record a refused person — one the run did read something about."""
+        source = profile.sources[0] if profile.sources else None
+        self._record(
+            RejectedCandidate(
+                id=_rejection_id(search.id, profile.canonical_url),
+                user_id=search.user_id,
+                search_id=search.id,
+                url=profile.url,
+                canonical_url=profile.canonical_url,
+                platform=profile.platform,
+                reason=reason,
+                detail=detail,
+                read=profile.extractor not in SNIPPET_ONLY,
+                name=profile.name or "",
+                title=source.title if source else (profile.headline or ""),
+                snippet=source.snippet if source else (profile.summary or ""),
+                promise=promise,
+            )
+        )
+
+    def _record(self, rejected: RejectedCandidate) -> None:
+        """First verdict wins: one address is refused once, by the stage that got to it."""
+        self._rejected.setdefault(rejected.id, rejected)
+
     def _tally(self, harvest: Harvest) -> None:
         """Put the refusals on the progress record, where the client can read them."""
+        self._progress.rejected_unreadable = harvest.refusals[Refusal.UNREADABLE]
         self._progress.rejected_not_a_person = harvest.refusals[Refusal.NOT_A_PERSON]
         self._progress.rejected_country = harvest.refusals[Refusal.WRONG_COUNTRY]
         self._progress.rejected_language = harvest.refusals[Refusal.WRONG_LANGUAGE]
@@ -526,6 +755,9 @@ class SearchPipeline:
 
     async def _complete(self, search: Search, leads: list[Lead]) -> None:
         await self.repo.add_leads(leads)
+        # The result is both lists. Storing only the leads left the client with a
+        # count of refusals and no way to check a single one of them.
+        await self.repo.add_rejections(list(self._rejected.values()))
         high_quality = sum(1 for lead in leads if lead.score >= HIGH_QUALITY_THRESHOLD)
         self._progress.stage = SearchStage.DONE
         self._progress.percent = 100
@@ -541,7 +773,17 @@ class SearchPipeline:
             progress=self._progress.model_copy(),
             usage=self._costed(),
         )
-        log.info("search_completed", extra={"leads": len(leads), "high_quality": high_quality})
+        log.info(
+            "search_completed",
+            extra={
+                "leads": len(leads),
+                "high_quality": high_quality,
+                "refused": len(self._rejected),
+                # Where a lost lead would be hiding, if there is one: refusals
+                # decided without anybody ever opening the page.
+                "refused_unseen": sum(1 for entry in self._rejected.values() if not entry.read),
+            },
+        )
 
     # ----------------------------------------------------------------- plumbing
     async def _enter(self, search_id: str, stage: SearchStage) -> None:
@@ -613,6 +855,37 @@ class SearchPipeline:
         delay = self.settings.pipeline_step_delay_ms
         if delay > 0:
             await asyncio.sleep(delay / 1000)
+
+
+def _why_not_a_profile(url: DiscoveredUrl, kept: set[str]) -> str:
+    """
+    Why this address is not a person, said so the client can check it.
+
+    A post gets its own sentence, and it matters: `instagram.com/anna/reel/C3Z…`
+    appears in the refused list *and* its author appears in the leads. Without the
+    sentence the first reads as a person thrown away.
+    """
+    profile = author_profile(url)
+    if profile is not None and canonicalize(profile) in kept:
+        return (
+            "A post rather than a profile — the account that published it "
+            f"({canonicalize(profile)}) was looked at instead."
+        )
+    return WHY_NOT_A_PROFILE.get(url.kind, "Not a person's page.")
+
+
+def _rejection_id(search_id: str, canonical_url: str) -> str:
+    """One address is one row per search, so re-running replaces rather than doubles."""
+    return f"{search_id}__rej_{_digest(canonical_url)}"
+
+
+def _handle_in(url: DiscoveredUrl) -> str:
+    """What to call an address nobody managed to read a name out of."""
+    parsed = urlparse(url.canonical_url)
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    if url.platform in SOCIAL_PLATFORMS and segments:
+        return unquote(segments[0]).lstrip("@")
+    return parsed.netloc
 
 
 def _percent(stage: SearchStage, fraction: float) -> int:

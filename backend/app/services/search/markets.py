@@ -247,6 +247,82 @@ CITY_NAMES: dict[str, str] = {
 PLACE_NAMES: dict[str, str] = {**COUNTRY_NAMES, **CITY_NAMES}
 
 
+#: Country-code top-level domains, and the LinkedIn subdomains that use the same
+#: letters. A URL is weaker evidence than a bio — but a bio that says nothing is
+#: what the country filter meets most of the time, and `ua.linkedin.com/in/…` is a
+#: fact about where that profile is registered.
+COUNTRY_BY_TLD: dict[str, str] = {
+    "ua": "Ukraine",
+    "pl": "Poland",
+    "es": "Spain",
+    "de": "Germany",
+    "at": "Austria",
+    "ch": "Switzerland",
+    "it": "Italy",
+    "pt": "Portugal",
+    "fr": "France",
+    "nl": "Netherlands",
+    "cz": "Czechia",
+    "ru": "Russia",
+    "ro": "Romania",
+    "hr": "Croatia",
+    "uk": "United Kingdom",
+}
+
+
+#: ISO 3166-1 alpha-2, which is not the same list as Brave's markets: Brave has no
+#: market for Ukraine, but a proxy can still be routed through it. Used for the page
+#: reader's geo-targeting, where the code is a routing instruction rather than an
+#: index to search.
+ISO_CODES: dict[str, str] = {
+    "austria": "AT",
+    "belgium": "BE",
+    "croatia": "HR",
+    "czechia": "CZ",
+    "czech republic": "CZ",
+    "denmark": "DK",
+    "finland": "FI",
+    "france": "FR",
+    "germany": "DE",
+    "italy": "IT",
+    "netherlands": "NL",
+    "norway": "NO",
+    "poland": "PL",
+    "portugal": "PT",
+    "romania": "RO",
+    "russia": "RU",
+    "spain": "ES",
+    "sweden": "SE",
+    "switzerland": "CH",
+    "ukraine": "UA",
+    "united kingdom": "GB",
+    "great britain": "GB",
+    "united states": "US",
+}
+
+
+def iso_code(country: str | None) -> str | None:
+    """The country's ISO code, for routing a fetch rather than choosing an index."""
+    return ISO_CODES.get((country or "").strip().lower())
+
+
+def country_from_host(host: str | None) -> str | None:
+    """
+    The country a hostname is registered to, or None.
+
+    Both shapes that carry it: a country-code suffix (`oksana.com.ua`) and the
+    market subdomain the professional networks use (`ua.linkedin.com`). Generic
+    suffixes say nothing and must not be guessed at — `.com` is not America.
+    """
+    labels = [label for label in (host or "").strip().lower().split(".") if label]
+    if len(labels) < 2:
+        return None
+    country = COUNTRY_BY_TLD.get(labels[-1])
+    if country:
+        return country
+    return COUNTRY_BY_TLD.get(labels[0]) if len(labels) > 2 else None
+
+
 def country_code(country: str | None) -> str | None:
     return COUNTRY_CODES.get((country or "").strip().lower())
 

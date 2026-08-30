@@ -512,8 +512,14 @@ async def test_pages_are_billed_by_what_was_read(settings):
     usage = search.usage
     assert usage.pages_read == len(reads) == len(PAGES)
     # Credits are the plan's units, not a page count: the API reports none, so a page
-    # costs what the configuration says it costs.
-    assert usage.scrape_credits == usage.pages_read * settings.scrapegraph_credits_per_page
+    # costs what the configuration says it costs — the extraction everywhere, plus the
+    # residential-proxy surcharge on the platforms that need it. The personal website
+    # is read the cheap way, which is the point of charging per platform.
+    through_proxy = sum(1 for url in reads if "luciaferrer.es" not in url)
+    assert usage.scrape_credits == (
+        usage.pages_read * settings.scrapegraph_credits_per_page
+        + through_proxy * settings.scrapegraph_stealth_credits
+    )
     assert (usage.pages_cached, usage.pages_skipped) == (0, 0)
     assert usage.pages_analyzed == search.progress.profiles_processed
     # Search calls plus pages read, at the configured unit prices (spec §54). Judging

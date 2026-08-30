@@ -64,9 +64,23 @@ export interface SearchCriteria {
    */
   requireLocation?: boolean;
   requireLanguage?: boolean;
+  /**
+   * …and whether a profile that says nothing about it is refused too. Off by
+   * default: "we could not tell" is not "somewhere else", and treating the two as
+   * one answer emptied a search — 18 of 19 geographic refusals in one run were
+   * profiles with no location on them at all.
+   */
+  requireConfirmedLocation?: boolean;
+  requireConfirmedLanguage?: boolean;
   /** Score points per signal. Must total 100 — the backend owns the arithmetic. */
   signalWeights: Record<ScoredSignalType, number>;
   sources: SourceKind[];
+  /**
+   * Queries written by hand, run ahead of the generated ones and never dropped by
+   * the query cap. No template is going to guess that
+   * `site:instagram.com "#млмукраина"` is how a particular market labels itself.
+   */
+  customQueries?: string[];
   /**
    * How many leads to look for. It buys the page budget, so it is also what the
    * wizard prices. 0 means "whatever the server allows".
@@ -86,6 +100,10 @@ export interface SearchProgress {
    * Why the rest did not qualify. Optional because searches recorded before the
    * criteria became gates have no such counters and are still valid history.
    */
+  /** Found on a platform that was not among the chosen sources. */
+  rejectedOffSource?: number;
+  /** The reader failed on the address, so nothing was read and nothing judged. */
+  rejectedUnreadable?: number;
   rejectedNotAPerson?: number;
   rejectedCountry?: number;
   rejectedLanguage?: number;
@@ -183,6 +201,63 @@ export interface SearchEstimate {
   maxCostEur: number;
   /** Whether pages are read at all right now, so the UI can say why it is free. */
   readsPages: boolean;
+  /** What these criteria are likely to do to the result, before it is paid for. */
+  warnings?: string[];
+}
+
+/* ---------------------------------------------------------------- rejected */
+
+/**
+ * Why a candidate is not in the lead list.
+ *
+ * Four of these are the requirements the search was given; the other four happen
+ * before anything is judged — the address was not a profile, it was on a platform
+ * nobody asked for, the reader failed, or the search already had enough leads.
+ */
+export type RejectionReason =
+  | "not_a_profile"
+  | "off_source"
+  | "unreadable"
+  | "not_a_person"
+  | "wrong_country"
+  | "wrong_language"
+  | "missing_signals"
+  | "not_examined";
+
+export interface RejectedCandidate {
+  id: string;
+  url: string;
+  platform: Platform;
+  reason: RejectionReason;
+  /** The sentence that explains this refusal, written where it happened. */
+  detail: string;
+  /**
+   * Whether the page itself was opened. False means the verdict rests on a
+   * two-line search result — which is where a missed lead would be hiding.
+   */
+  read: boolean;
+  name: string;
+  title: string;
+  snippet: string;
+  query: string;
+  /** What the search result alone supported, 0–100. Absent when never ranked. */
+  promise?: number | null;
+  createdAt: string;
+}
+
+/**
+ * The other half of a search result: everything the run turned away.
+ *
+ * Every discovered address ends up in exactly one of the two lists, so leads plus
+ * these are a complete account of what the search saw.
+ */
+export interface RejectedList {
+  items: RejectedCandidate[];
+  total: number;
+  /** Counted over the whole run, not over `items` — see the backend schema. */
+  byReason: Partial<Record<RejectionReason, number>>;
+  /** Refusals decided without the page ever being opened. */
+  unseen: number;
 }
 
 /* -------------------------------------------------------------------- lead */
@@ -430,6 +505,8 @@ export interface SearchService {
   create(input: CreateSearchInput): Promise<CreateSearchResponse>;
   cancel(id: string): Promise<Search>;
   leads(id: string, filters?: LeadFilters): Promise<Paginated<Lead>>;
+  /** Everything the run turned away, so a thin result can be checked, not believed. */
+  rejected(id: string, reason?: RejectionReason): Promise<RejectedList>;
 }
 
 export interface LeadService {

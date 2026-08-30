@@ -19,6 +19,8 @@ import type {
   OutreachRequest,
   Paginated,
   Platform,
+  RejectedList,
+  RejectionReason,
   Search,
   SearchCriteria,
   SearchEstimate,
@@ -75,6 +77,10 @@ export class ApiSearchService implements SearchService {
 
   leads(id: string, filters: LeadFilters = {}) {
     return request<Paginated<Lead>>(`/searches/${id}/leads`, { query: leadQuery(filters) });
+  }
+
+  rejected(id: string, reason?: RejectionReason) {
+    return request<RejectedList>(`/searches/${id}/rejected`, { query: { reason } });
   }
 }
 

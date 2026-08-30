@@ -35,7 +35,7 @@ from dataclasses import dataclass
 
 from app.models.common import Platform
 from app.models.profile import ExtractedProfile
-from app.services.extraction.vocabulary import find_place
+from app.services.extraction.vocabulary import find_place, find_terms
 from app.services.scraping.names import commercial
 
 #: What an organisation calls itself. Distinct from `names.NOT_A_PERSON`, which
@@ -171,6 +171,9 @@ _LEGAL = {form.replace(".", "") for form in LEGAL_FORMS}
 _CORPORATE = [re.compile(pattern, re.IGNORECASE) for pattern in CORPORATE_VOICE]
 _FACEBOOK_PAGE = [re.compile(pattern, re.IGNORECASE) for pattern in FACEBOOK_PAGE]
 _WORDS = re.compile(r"[^\w]+", re.UNICODE)
+#: A domain where a name should be. The article that got through was headlined by
+#: its own publication: "PRAVO.UA".
+_WEB_ADDRESS = re.compile(r"\w+\.(?:ua|ru|com|net|org|info|biz|io|co)\b", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -202,6 +205,13 @@ def assess(profile: ExtractedProfile) -> Verdict:
         if token in _LEGAL:
             return Verdict(False, f"“{name}” carries a company form ({token.upper()}).")
 
+    topic = _topic(name)
+    if topic:
+        return Verdict(False, f"“{name}” is the subject being searched for, not a person.")
+
+    if _WEB_ADDRESS.search(name):
+        return Verdict(False, f"“{name}” is a web address, not a person.")
+
     place = find_place(name)
     if place:
         return Verdict(
@@ -220,6 +230,25 @@ def assess(profile: ExtractedProfile) -> Verdict:
         return Verdict(False, f"“{name}” writes about itself as an organisation: “{corporate}”.")
 
     return PERSON
+
+
+def _topic(name: str) -> bool:
+    """
+    Is the "name" simply what the search is about?
+
+    A legal journal's article headed *СЕТЕВОЙ МАРКЕТИНГ* became a client's only
+    lead: two capitalised words, no company noun, no place, and a Russian summary
+    with no corporate voice in it. What gives it away is that the name is nothing
+    but the vocabulary the search itself is built from — a subject line, not
+    somebody who could be contacted.
+    """
+    words = _tokens(name)
+    if not words:
+        return False
+    for terms in find_terms(name).values():
+        for term in terms:
+            words -= _tokens(term)
+    return not words
 
 
 def _tokens(text: str) -> set[str]:

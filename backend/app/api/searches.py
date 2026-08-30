@@ -1,20 +1,22 @@
 """
 Search endpoints (spec §57).
 
-    POST   /searches            create + enqueue, returns immediately (§39)
-    GET    /searches            history
-    GET    /searches/:id        status and progress — the polling target (§43)
-    GET    /searches/:id/leads  results, filterable
-    POST   /searches/:id/cancel stop a running search
+    POST   /searches               create + enqueue, returns immediately (§39)
+    GET    /searches               history
+    GET    /searches/:id           status and progress — the polling target (§43)
+    GET    /searches/:id/leads     results, filterable
+    GET    /searches/:id/rejected  the candidates that were turned away, and why
+    POST   /searches/:id/cancel    stop a running search
 
 `response_model_exclude_none` keeps optional fields absent rather than `null`,
 which is what the TypeScript contract's `field?:` means.
 """
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from app.api.deps import ContainerDep, UserDep
 from app.api.params import LeadFiltersDep
+from app.models.rejection import UNSEEN_REASONS, RejectionReason
 from app.models.search import SearchCriteria
 from app.schemas.common import Paginated
 from app.schemas.lead import LeadOut
@@ -24,6 +26,8 @@ from app.schemas.search import (
     EstimateIn,
     EstimateOut,
     QueryPreviewOut,
+    RejectedCandidateOut,
+    RejectedOut,
     SearchOut,
     SearchSummaryOut,
 )
@@ -81,6 +85,7 @@ async def estimate_search(payload: EstimateIn, container: ContainerDep) -> Estim
         pages_per_lead=quote.pages_per_lead,
         max_cost_eur=quote.max_cost_eur,
         reads_pages=reads_pages,
+        warnings=quote.warnings,
     )
 
 
@@ -114,6 +119,35 @@ async def search_leads(
         total=page.total,
         page=page.page,
         page_size=page.page_size,
+    )
+
+
+@router.get("/{search_id}/rejected", response_model=RejectedOut)
+async def search_rejected(
+    search_id: str,
+    container: ContainerDep,
+    user_id: UserDep,
+    reason: RejectionReason | None = None,
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> RejectedOut:
+    """
+    The candidates this search turned away, and why.
+
+    The counterpart to `/leads`, and the answer to the only question a thin result
+    really raises: *are we losing people in there?* Every discovered address is in
+    exactly one of the two lists, so the pair is a complete account of the run —
+    and each refusal carries the address, so any one of them can be opened and
+    checked rather than believed.
+    """
+    await container.searches.get(user_id, search_id)
+    items, counts = await container.repository.list_rejections(
+        search_id, reason=reason, limit=limit
+    )
+    return RejectedOut(
+        items=[RejectedCandidateOut.model_validate(entry) for entry in items],
+        total=sum(counts.values()),
+        by_reason=counts,
+        unseen=sum(total for key, total in counts.items() if key in UNSEEN_REASONS),
     )
 
 

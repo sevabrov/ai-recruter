@@ -10,6 +10,7 @@ Geographic match is the one signal that cannot be read off a page in isolation:
 it only means something relative to the criteria, so it is re-derived per search.
 """
 
+import re
 from typing import Protocol
 
 from app.core.errors import ProviderError
@@ -17,6 +18,7 @@ from app.models.common import SignalType
 from app.models.lead import LeadSignal
 from app.models.profile import ExtractedProfile
 from app.models.search import SearchCriteria
+from app.services.extraction.vocabulary import quote
 
 
 class SignalDetector(Protocol):
@@ -36,6 +38,17 @@ class FixtureSignalDetector(SignalDetector):
     Phase 2 detector: trusts the observations the extractor returned and only
     re-judges what is criteria-relative. Phase 6 replaces it with the LLM
     detector — the pipeline call site is identical.
+
+    Two things are criteria-relative, not two ways of saying one thing:
+
+    * **geography**, which only means anything against the country that was asked
+      for, and is therefore re-derived per search;
+    * **the client's own words.** The vocabulary in `extraction/vocabulary.py` is a
+      general one — "network marketing", "distribuidora", "сетевой маркетинг" — and
+      it does not contain `Jerelia`, `Farmasi` or `MIHI`. So a search for Jerelia
+      distributors found them and then refused them for missing the MLM signal,
+      because their profiles say "Jerelia" and nothing the word list knows. A brand
+      the client is hunting *is* the signal, and it is quoted like any other.
     """
 
     name = "fixture"
@@ -46,7 +59,7 @@ class FixtureSignalDetector(SignalDetector):
         profile_country = (profile.location.country or "").strip().lower()
 
         signals: list[LeadSignal] = []
-        for observation in profile.observations:
+        for observation in _with_client_terms(profile, criteria):
             if observation.type is not SignalType.LOCATION or not target:
                 signals.append(observation.model_copy())
                 continue
@@ -67,6 +80,81 @@ class FixtureSignalDetector(SignalDetector):
                     )
                 )
         return signals
+
+
+#: The shortest a client's term may be before it is worth searching for. Two-letter
+#: terms match inside other words often enough to be worse than nothing.
+MIN_TERM = 3
+
+#: What a term found in the profile's own text is worth. Below a page's own claim
+#: (0.9) and at a search snippet's ceiling: it is one word, quoted, nothing more.
+CLIENT_TERM_CONFIDENCE = 0.55
+
+
+def _with_client_terms(profile: ExtractedProfile, criteria: SearchCriteria) -> list[LeadSignal]:
+    """
+    The observations, plus any signal the client's own search terms support.
+
+    Only fills gaps: an observation the extractor already detected is never
+    overwritten, because the page's own words outrank a keyword match. Every
+    addition carries the sentence it was found in, like any other signal — a
+    detection without a quote is not a detection (spec §16, §36).
+    """
+    wanted = {
+        SignalType.MLM: [*criteria.keywords, *criteria.business_types],
+        SignalType.BEAUTY: list(criteria.industry),
+    }
+    detected = {observation.type for observation in profile.observations if observation.detected}
+    text = " ".join(
+        part for part in (profile.name, profile.headline, profile.company, profile.summary) if part
+    )
+    if not text.strip():
+        return list(profile.observations)
+
+    found: dict[SignalType, str] = {}
+    for signal, terms in wanted.items():
+        if signal in detected:
+            continue
+        for term in terms:
+            cleaned = term.strip()
+            if len(cleaned) < MIN_TERM:
+                continue
+            if re.search(rf"(?<!\w){re.escape(cleaned)}(?!\w)", text, re.IGNORECASE):
+                found[signal] = quote(text, cleaned)
+                break
+
+    if not found:
+        return list(profile.observations)
+
+    upgraded = [
+        observation.model_copy(
+            update={
+                "detected": True,
+                "confidence": CLIENT_TERM_CONFIDENCE,
+                "evidence": found[observation.type],
+            }
+        )
+        if observation.type in found
+        else observation.model_copy()
+        for observation in profile.observations
+    ]
+    # An extractor is not obliged to report every signal; a term found for one it
+    # never mentioned still has to arrive as a sighting of its own.
+    seen = {observation.type for observation in profile.observations}
+    source = profile.sources[0] if profile.sources else None
+    upgraded.extend(
+        LeadSignal(
+            type=signal,
+            detected=True,
+            confidence=CLIENT_TERM_CONFIDENCE,
+            evidence=evidence,
+            source_url=source.url if source else profile.url,
+            source_platform=profile.platform,
+        )
+        for signal, evidence in found.items()
+        if signal not in seen
+    )
+    return upgraded
 
 
 class LlmSignalDetector(SignalDetector):

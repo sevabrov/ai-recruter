@@ -1,13 +1,22 @@
 "use client";
 
-import { AlertTriangle, Minus, Plus, Terminal } from "lucide-react";
-import { SCORED_SIGNALS, SIGNAL_LABELS, SOURCE_KINDS } from "@/lib/domain";
+import { AlertTriangle, Minus, Plus, Terminal, X } from "lucide-react";
+import {
+  PLATFORM_LABELS,
+  SCORED_SIGNALS,
+  SIGNAL_LABELS,
+  SITE_BY_SOURCE,
+  SOURCE_KINDS,
+  WEB_SOURCES,
+} from "@/lib/domain";
+import type { SourceKind } from "@/services/types";
 import { useSearchEstimate } from "@/services/hooks";
 import { useWizardStore } from "@/store/wizard-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/field";
 import { Eyebrow } from "@/components/ui/misc";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 /** What the wizard offers with one click. Any number can still be typed. */
 const TARGETS = [5, 10, 25, 50];
@@ -75,6 +84,23 @@ export function StepReview() {
         <Cost estimate={estimate.data} loading={estimate.isPending} failed={estimate.isError} />
       </section>
 
+      {/* Said before the money is spent. The client's complaint was never that the
+          filters were wrong — it was that a reasonable-looking set of them returned
+          nothing, and the screen blamed the filters afterwards. */}
+      {estimate.data?.warnings?.length ? (
+        <section className="rounded-card border border-warn/30 bg-warn-soft px-4 py-3.5">
+          <Eyebrow className="mb-2 text-warn">Worth knowing before you start</Eyebrow>
+          <ul className="flex flex-col gap-2">
+            {estimate.data.warnings.map((warning) => (
+              <li key={warning} className="flex gap-2 text-xs leading-relaxed text-fg-muted">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warn" />
+                <span>{warning}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
         <Summary label="Search">{name || <Missing>unnamed search</Missing>}</Summary>
         <Summary label="Target">
@@ -137,29 +163,13 @@ export function StepReview() {
         </Summary>
       </dl>
 
-      <section className="rounded-card border border-line bg-surface-2">
-        <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
-          <Terminal className="size-3.5 text-fg-faint" />
-          <Eyebrow>Queries the search will run</Eyebrow>
-          <span className="num ml-auto text-2xs text-fg-faint">
-            {estimate.data ? `${estimate.data.queries.length} queries` : "…"}
-          </span>
-        </header>
-        <ul className="divide-y divide-line/60">
-          {(estimate.data?.queries ?? []).map(({ query, language }) => (
-            <li
-              key={`${language ?? "any"}:${query}`}
-              className="flex items-start gap-2 px-4 py-2 font-mono text-xs break-all text-fg-muted"
-            >
-              <span className="min-w-0 flex-1">{query}</span>
-              {language ? <Badge mono>{language}</Badge> : null}
-            </li>
-          ))}
-          {estimate.isPending ? (
-            <li className="px-4 py-2 text-xs text-fg-faint">Asking the backend…</li>
-          ) : null}
-        </ul>
-      </section>
+      <Queries
+        own={criteria.customQueries ?? []}
+        sources={criteria.sources}
+        generated={estimate.data?.queries ?? []}
+        loading={estimate.isPending}
+        onChange={(customQueries) => patchCriteria({ customQueries })}
+      />
 
       <section>
         <Eyebrow className="mb-2">Scoring model</Eyebrow>
@@ -176,6 +186,203 @@ export function StepReview() {
         </div>
       </section>
     </div>
+  );
+}
+
+/**
+ * The queries, with room to write your own.
+ *
+ * The generated ones are templates: they know the criteria, not the market. The
+ * people a client is looking for label *themselves*, with a brand name nobody
+ * outside that market would guess — so the panel that shows what will run is also
+ * where a line of it can be written by hand. Hand-written queries run first and
+ * are never dropped by the query cap.
+ *
+ * Where to look is a set of buttons rather than something to type. Asked to write
+ * the query itself, the client wrote `джерелія` — a perfectly good question, put
+ * to the whole indexed web, which answered with the brand's own site, four shops,
+ * a catalogue and a hotel called Jerelia. Eighteen of those twenty results were
+ * then thrown away for being off-source. Nobody should have to know that
+ * `site:instagram.com` is what turns that into a question about people.
+ */
+function Queries({
+  own,
+  sources,
+  generated,
+  loading,
+  onChange,
+}: {
+  own: string[];
+  sources: SourceKind[];
+  generated: { query: string; language?: string | null }[];
+  loading: boolean;
+  onChange: (queries: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [picked, setPicked] = useState<string[] | null>(null);
+
+  // Only the sources this search actually looks at: a query aimed anywhere else
+  // would be answered and then discarded.
+  const places: { id: string; label: string; operator: string | null }[] = [
+    ...SOURCE_KINDS.filter(
+      (kind) => sources.includes(kind.id) && SITE_BY_SOURCE[kind.id],
+    ).map((kind) => ({
+      id: kind.id as string,
+      label: kind.platform ? PLATFORM_LABELS[kind.platform] : kind.label,
+      operator: SITE_BY_SOURCE[kind.id]!,
+    })),
+    ...(sources.some((source) => WEB_SOURCES.includes(source))
+      ? [{ id: "web", label: "Whole web", operator: null }]
+      : []),
+  ];
+
+  // Null means "none of them touched yet", which reads as all of them.
+  const chosen = places.filter(
+    (place) => picked === null || picked.includes(place.id),
+  );
+  const toggle = (id: string) => {
+    const current = chosen.map((place) => place.id);
+    setPicked(
+      current.includes(id)
+        ? current.filter((entry) => entry !== id)
+        : [...current, id],
+    );
+  };
+
+  // The backend returns the client's own queries first, so showing both lists
+  // would show them twice.
+  const templates = generated.filter((entry) => !own.includes(entry.query));
+
+  const cleaned = draft.trim().replace(/\s+/g, " ");
+  const written = /\bsite:/i.test(cleaned);
+  const composed = !cleaned
+    ? []
+    : written
+      ? [cleaned]
+      : chosen.map((place) =>
+          place.operator ? `${place.operator} ${cleaned}` : cleaned,
+        );
+  const fresh = composed.filter((query) => !own.includes(query));
+
+  const add = () => {
+    if (!fresh.length) return;
+    onChange([...own, ...fresh]);
+    setDraft("");
+  };
+
+  return (
+    <section className="rounded-card border border-line bg-surface-2">
+      <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
+        <Terminal className="size-3.5 text-fg-faint" />
+        <Eyebrow>Queries the search will run</Eyebrow>
+        <span className="num ml-auto text-2xs text-fg-faint">
+          {loading ? "…" : `${own.length + templates.length} queries`}
+        </span>
+      </header>
+
+      <div className="flex flex-col gap-2.5 border-b border-line px-4 py-3">
+        {places.length ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Eyebrow className="mr-1">Search in</Eyebrow>
+            {places.map((place) => {
+              const on = chosen.some((entry) => entry.id === place.id);
+              return (
+                <button
+                  key={place.id}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => toggle(place.id)}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                    on
+                      ? "border-accent bg-accent-soft text-accent"
+                      : "border-line text-fg-faint hover:text-fg"
+                  }`}
+                >
+                  {place.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
+        <div className="flex gap-2">
+          <Input
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                add();
+              }
+            }}
+            placeholder="джерелія"
+            aria-label="What to search for"
+            className="text-xs"
+          />
+          <Button variant="secondary" onClick={add} disabled={!fresh.length}>
+            <Plus />
+            Add
+          </Button>
+        </div>
+
+        {/* What the buttons and the words add up to, before it is added. */}
+        {composed.length ? (
+          <ul className="flex flex-col gap-1">
+            {composed.map((query) => (
+              <li
+                key={query}
+                className={`font-mono text-2xs break-all ${
+                  own.includes(query) ? "text-fg-faint line-through" : "text-fg-muted"
+                }`}
+              >
+                {query}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs leading-relaxed text-fg-muted">
+            {chosen.length
+              ? "Type the brand people distribute, or how they describe themselves — джерелія, фармасі, консультант. One query is one billed call, and a name your market uses beats any template."
+              : "Pick at least one place to search."}
+          </p>
+        )}
+        {written ? (
+          <p className="text-xs text-fg-muted">
+            This query names its own <code className="font-mono">site:</code>, so
+            it is added exactly as written.
+          </p>
+        ) : null}
+      </div>
+
+      <ul className="divide-y divide-line/60">
+        {own.map((query) => (
+          <li key={query} className="flex items-start gap-2 px-4 py-2 text-xs">
+            <span className="min-w-0 flex-1 font-mono break-all">{query}</span>
+            <Badge tone="accent">yours</Badge>
+            <button
+              type="button"
+              aria-label={`Remove query ${query}`}
+              onClick={() => onChange(own.filter((entry) => entry !== query))}
+              className="text-fg-faint transition-colors hover:text-bad"
+            >
+              <X className="size-3.5" />
+            </button>
+          </li>
+        ))}
+        {templates.map(({ query, language }) => (
+          <li
+            key={`${language ?? "any"}:${query}`}
+            className="flex items-start gap-2 px-4 py-2 font-mono text-xs break-all text-fg-muted"
+          >
+            <span className="min-w-0 flex-1">{query}</span>
+            {language ? <Badge mono>{language}</Badge> : null}
+          </li>
+        ))}
+        {loading ? (
+          <li className="px-4 py-2 text-xs text-fg-faint">Asking the backend…</li>
+        ) : null}
+      </ul>
+    </section>
   );
 }
 

@@ -15,9 +15,10 @@ models from `app/models/`; everything below it works with the tables in
 import hashlib
 from typing import Any
 
-from app.db.tables import JobRow, LeadNoteRow, LeadRow, ScrapeRow, SearchRow
+from app.db.tables import JobRow, LeadNoteRow, LeadRow, ScrapeRow, SearchRejectionRow, SearchRow
 from app.models.job import Job
 from app.models.lead import Lead, LeadNote
+from app.models.rejection import RejectedCandidate
 from app.models.scrape import ScrapeRecord
 from app.models.search import Search
 
@@ -64,6 +65,48 @@ def to_search(row: SearchRow) -> Search:
             "usage": row.usage,
             "queries": row.queries,
             "error": row.error,
+        }
+    )
+
+
+def rejection_row(rejected: RejectedCandidate) -> SearchRejectionRow:
+    return SearchRejectionRow(
+        id=rejected.id,
+        user_id=rejected.user_id,
+        search_id=rejected.search_id,
+        url=rejected.url,
+        canonical_url=rejected.canonical_url,
+        platform=rejected.platform.value,
+        reason=rejected.reason.value,
+        detail=rejected.detail,
+        read=rejected.read,
+        name=rejected.name,
+        title=rejected.title,
+        snippet=rejected.snippet,
+        query=rejected.query,
+        promise=rejected.promise,
+        created_at=rejected.created_at,
+    )
+
+
+def to_rejection(row: SearchRejectionRow) -> RejectedCandidate:
+    return RejectedCandidate.model_validate(
+        {
+            "id": row.id,
+            "user_id": row.user_id,
+            "search_id": row.search_id,
+            "url": row.url,
+            "canonical_url": row.canonical_url,
+            "platform": row.platform,
+            "reason": row.reason,
+            "detail": row.detail,
+            "read": row.read,
+            "name": row.name,
+            "title": row.title,
+            "snippet": row.snippet,
+            "query": row.query,
+            "promise": row.promise,
+            "created_at": row.created_at,
         }
     )
 

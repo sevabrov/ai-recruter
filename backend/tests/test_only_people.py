@@ -133,10 +133,15 @@ def test_a_person_in_the_wrong_country_is_refused_not_discounted():
 # ------------------------------------------------------------------ the gates
 
 
-def test_a_profile_that_never_says_where_it_is_does_not_pass_a_country_filter():
+def test_a_profile_that_never_says_where_it_is_is_not_evidence_of_anywhere():
     """
-    The honest cost of the filter, made explicit: "we could not tell" is a refusal,
-    not a pass. It is per search (`requireLocation`) for exactly this reason.
+    The rule the second measured run turned on. Of 19 candidates refused on
+    geography, exactly one was actually somewhere else; the rest were profiles whose
+    page would not open and whose two-line description named no city. That is not
+    the wrong country — it is no answer, and refusing it emptied the search.
+
+    So an unproven country passes and loses the points instead, unless the client
+    asks for confirmed locations only.
     """
     nowhere = profile(
         "Marta Ruiz",
@@ -145,8 +150,24 @@ def test_a_profile_that_never_says_where_it_is_does_not_pass_a_country_filter():
         languages=["Ukrainian"],
     )
 
-    assert admit(nowhere, criteria()).refusal is Refusal.WRONG_COUNTRY
-    assert admit(nowhere, criteria(require_location=False)).admitted
+    assert admit(nowhere, criteria()).admitted
+    assert admit(nowhere, criteria(require_confirmed_location=True)).refusal is (
+        Refusal.WRONG_COUNTRY
+    )
+
+
+def test_a_profile_that_names_another_country_is_still_refused():
+    """The contradiction is what the filter is for, and no setting relaxes it."""
+    romania = profile(
+        "Gabriela Petrescu",
+        platform=Platform.LINKEDIN,
+        url="https://www.linkedin.com/in/gabrielapetrescu/",
+        country="Romania",
+        languages=["Russian"],
+    )
+
+    assert admit(romania, criteria()).refusal is Refusal.WRONG_COUNTRY
+    assert admit(romania, criteria(require_location=False)).admitted
 
 
 def test_the_language_filter_asks_what_the_person_publishes_in():
@@ -163,6 +184,21 @@ def test_the_language_filter_asks_what_the_person_publishes_in():
     assert outcome.refusal is Refusal.WRONG_LANGUAGE
     assert "English" in outcome.detail
     assert admit(english_only, criteria(require_language=False)).admitted
+
+
+def test_a_profile_with_no_language_at_all_passes_unless_confirmation_is_asked_for():
+    """A two-line description often shows no language. That is not another language."""
+    silent = profile(
+        "Marta Ruiz",
+        platform=Platform.LINKEDIN,
+        url="https://www.linkedin.com/in/marta-ruiz/",
+        country="Ukraine",
+    )
+
+    assert admit(silent, criteria()).admitted
+    assert admit(silent, criteria(require_confirmed_language=True)).refusal is (
+        Refusal.WRONG_LANGUAGE
+    )
 
 
 def test_a_filter_the_client_did_not_ask_for_does_not_apply():

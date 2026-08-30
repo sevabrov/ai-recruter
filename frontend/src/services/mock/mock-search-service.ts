@@ -1,10 +1,13 @@
 import { generateQueryPreview } from "@/lib/query-preview";
+import { rejectedFor } from "@/mocks/rejected";
 import type {
   CreateSearchInput,
   CreateSearchResponse,
   Lead,
   LeadFilters,
   Paginated,
+  RejectedList,
+  RejectionReason,
   Search,
   SearchCriteria,
   SearchEstimate,
@@ -83,6 +86,19 @@ export class MockSearchService implements SearchService {
     await latency();
     const filtered = filterLeads(allLeads(), { ...filters, searchId: id });
     return paginate(filtered, filters.page ?? 1, filters.pageSize ?? 50);
+  }
+
+  /**
+   * The other half of the result. Offline there is no web to be refused by, so
+   * the spread is generated from the search's own counters — see mocks/rejected.
+   */
+  async rejected(id: string, reason?: RejectionReason): Promise<RejectedList> {
+    await latency();
+    const search = findSearch(id);
+    if (!search) throw new Error(`Search ${id} not found`);
+    const list = rejectedFor(search);
+    if (!reason) return list;
+    return { ...list, items: list.items.filter((entry) => entry.reason === reason) };
   }
 }
 

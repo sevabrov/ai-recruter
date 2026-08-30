@@ -20,10 +20,13 @@ The rule the file is built around: **a limit may cost depth, never coverage.** A
 page the budget refuses still becomes a lead from its search snippet.
 """
 
+import json
+
 import httpx
 import pytest
 
 from app.core.errors import ProviderError, ProviderUnavailableError
+from app.models.common import Platform
 from app.models.scrape import ScrapeOutcome
 from app.services.scraping.base import ExtractionCost
 from app.services.scraping.budget import PageBudget
@@ -170,11 +173,110 @@ async def test_a_connection_that_never_opened_is_not_billed():
 
 async def test_credits_follow_the_plan_not_the_page_count():
     """The v2 response reports no credits, so what a page costs is configuration."""
-    page_reader = reader(counting()[1], credits_per_page=25)
+    page_reader = reader(counting()[1], credits_per_page=25, stealth_credits=0)
 
     await page_reader.read(INSTAGRAM)
 
     assert page_reader.cost.credits == 25
+
+
+async def test_the_residential_proxy_is_charged_where_it_is_used():
+    """
+    Instagram is read through the proxy and a personal site is not, so they do not
+    cost the same. A single per-page figure drifted from the dashboard.
+    """
+    social = reader(counting()[1], credits_per_page=5, stealth_credits=5)
+    own_site = reader(counting()[1], credits_per_page=5, stealth_credits=5)
+
+    await social.read(INSTAGRAM)
+    await own_site.read(
+        INSTAGRAM.model_copy(
+            update={
+                "url": "https://oksana.com.ua/pro-mene",
+                "canonical_url": "https://oksana.com.ua/pro-mene",
+                "platform": Platform.WEBSITE,
+            }
+        )
+    )
+
+    assert social.cost.credits == 10
+    assert own_site.cost.credits == 5
+
+
+async def test_the_request_says_how_the_page_should_be_fetched():
+    """
+    What was missing entirely. Sending no fetch configuration is what made 20 of 23
+    Instagram pages answer 502/504: the provider's default is a datacentre address
+    asking for un-rendered HTML, which is the request a social network refuses.
+    """
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.read().decode()))
+        return httpx.Response(200, json=completed())
+
+    page_reader = reader(handler)
+    page_reader.country = "UA"
+
+    await page_reader.read(INSTAGRAM)
+
+    fetch = bodies[0]["fetchConfig"]
+    assert fetch["stealth"] is True, "a social profile needs the residential proxy"
+    assert fetch["country"] == "UA", "fetched through the country being searched"
+    assert fetch["wait"] > 0, "a profile's bio is not in the first response"
+    assert fetch["mode"] == "auto", (
+        "`js` is documented and reads like the right mode for a profile page, but "
+        "the service answers 400 fetch_provider_config for it on Instagram, "
+        "Facebook and LinkedIn — measured one key at a time — and reads nothing"
+    )
+
+
+async def test_a_fetch_config_the_service_refuses_is_dropped_not_obeyed():
+    """
+    The regression this exists to prevent, and it cost three whole runs.
+
+    One unsupported key in `fetchConfig` is answered 400 before the page is
+    fetched. That is not retryable, so the chain above switched page reading off
+    for the entire search: 0 pages read, 0 credits spent, every candidate judged
+    on two lines of search-result text, and a run that finished in seven seconds
+    with nothing in it.
+
+    The page itself was fine — asked for plainly, the same profile answered. So a
+    refused config is dropped and the page is asked for again.
+    """
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read().decode())
+        bodies.append(body)
+        if "fetchConfig" in body:
+            return httpx.Response(
+                400,
+                json={
+                    "error": {
+                        "type": "fetch_provider_config",
+                        "message": "No fetch provider matches this content type and fetch config",
+                    }
+                },
+            )
+        return httpx.Response(200, json=completed())
+
+    page_reader = reader(handler, credits_per_page=5, stealth_credits=5)
+
+    read = await page_reader.read(INSTAGRAM)
+
+    assert read.profile is not None, "the page opened; only our request was wrong"
+    assert len(bodies) == 2, "asked once with the config, once without"
+    assert "fetchConfig" not in bodies[1]
+    assert page_reader.cost.credits == 5, (
+        "the refusal came before the fetch, so only the plain request is billed — "
+        "and it did not go through the proxy, so it does not carry the surcharge"
+    )
+
+    # And the process does not pay a wasted round trip per page from here on.
+    await page_reader.read(INSTAGRAM)
+    assert len(bodies) == 3
+    assert "fetchConfig" not in bodies[2]
 
 
 async def test_one_page_is_attempted_once_and_then_falls_back(settings):

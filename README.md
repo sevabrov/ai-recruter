@@ -95,13 +95,41 @@ cannot cost more than it was quoted for. Candidates are read best-first, and the
 past the budget still become leads from their search result, so a limit costs depth,
 not coverage.
 
+**Your own queries, next to the generated ones.** The review step lists every query
+the search will run and lets you add your own. You pick where — Instagram,
+LinkedIn, Facebook — and type what: `джерелія`. No operators to remember; the
+composed queries are shown before they are added, and a bare word never leaks
+into the whole web when only social platforms were chosen. Hand-written queries
+run first and are never dropped by the query cap, and a Cyrillic one is put to the
+Cyrillic index automatically.
+
+Searching a social network returns posts far more often than profiles, so a reel,
+a video or a photo is exchanged for the person who published it — the handle is in
+the address (`instagram.com/yanarogozha/reel/…`) or in the result's own title.
+
 **People only, and only where you asked.** Choosing a country and languages makes them
-requirements, not points: a candidate who is not a person, or is not in that country,
-or does not publish in one of those languages, never becomes a lead. The same choice
-also shapes the questions — a search for Ukraine in Ukrainian is asked in Ukrainian
-words, against the Ukrainian index. Both requirements can be switched off per search
-on the *Geography* step, and the progress screen breaks down who was turned away and
-by which one, so a short list is explained rather than mysterious.
+requirements, not points: a candidate who is not a person, or whose profile places
+them in another country, or who publishes only in other languages, never becomes a
+lead. A profile that says *nothing* about where it is passes and scores lower —
+"we could not tell" is not "somewhere else", and treating the two the same emptied a
+search once. The strict reading — *only if it can be confirmed* — is a switch of its
+own on the *Geography* step.
+
+The same choice also shapes the questions: a search for Ukraine in Ukrainian is
+asked in Ukrainian words, against the Ukrainian index. The chosen sources are a
+restriction too — no query leaves them, and a result from a platform you did not
+pick is dropped rather than scored. Every requirement is switchable per search, the
+wizard warns before you spend anything if a combination is likely to come back
+empty, and if a search does return nobody the results screen breaks down who was
+turned away, by which requirement, and what to change.
+
+A result is two lists, not one. Alongside the people a search selected, it keeps
+every candidate it turned away — with the address, the reason in words, and
+whether anybody ever opened the page. That last column is the point: a candidate
+refused on what they published was judged on evidence, one refused on a two-line
+search snippet was judged on almost nothing, and the screen counts those
+separately so *"are we losing leads in there?"* can be answered by opening them
+rather than by trusting a number.
 
 Other commands:
 
@@ -113,7 +141,7 @@ npx eslint .                                             # lint
 
 # backend (nothing installed on the host)
 docker compose logs -f backend                           # structured JSON logs
-docker compose run --rm backend pytest -q                # 253 tests (needs postgres)
+docker compose run --rm backend pytest -q                # 306 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .   # lint
 docker compose run --rm backend alembic current          # schema revision
 docker compose build backend                             # after a dependency change
@@ -224,7 +252,7 @@ stand-in until Phase 6. Details and the phase-by-phase swap table are in
 | `/` | Dashboard: stat tiles, recent searches, source share, score distribution, weekly discovery |
 | `/search/new` | 5-step wizard: who → where → signals & weights → sources → preview |
 | `/search/:id/progress` | Live pipeline (~3 s on fixtures, longer live), measured counters, generated queries, pages read vs. cached, usage & cost, cancel |
-| `/search/:id/results` | Candidate table, filters (score/country/platform/signals/email/social), sorting, re-run |
+| `/search/:id/results` | Two lists — **Selected** (filters by score/country/platform/signals/email/social, sorting, re-run) and **Filtered out** (every refused candidate with its address, reason and whether the page was ever read) |
 | `/leads` | All / Saved / Archived across searches |
 | `/leads/:id` | Score dial + breakdown, per-signal evidence with source links, AI summary, sources, notes, outreach draft |
 | `/searches` | Search history, running searches separated |
@@ -270,10 +298,16 @@ spec, which is the fastest way to walk the whole flow.
   hand-checked table of a handful of concepts and place names
   (`services/search/phrasebook.py`), so a language or country it does not know is
   simply searched in the client's own wording rather than badly.
-* **Some platforms cannot be read at all.** Instagram and Facebook show servers a
-  login or consent screen more often than not; those leads fall back to the search
-  snippet and say so. `GET /sources` and Settings → *Reading the sources* report the
-  hit rate per platform, measured from this workspace's own attempts.
+* **Some platforms are hard to read.** Measured over this workspace's own attempts
+  *before* the residential proxy was switched on: LinkedIn opened about half the
+  time, Instagram once in twenty-three, Facebook never. Social pages are now
+  fetched through ScrapeGraphAI's proxy with the page rendered (`SCRAPEGRAPH_STEALTH`,
+  on by default, which doubles the credits those pages cost), and this is the number
+  to re-measure after a run — expect improvement, not a solved problem. Those leads fall back to the search snippet and say
+  so, which is why the wording of the *query* matters most on Instagram — a post
+  caption found by a hashtag carries more about a person than a profile page nobody
+  can open. `GET /sources` and Settings → *Reading the sources* report the hit rate
+  per platform, so this is checkable rather than a claim.
 * **One person can still appear twice** when the pages that would connect them are the
   ones that would not open. Merging is on strong keys only — shared URL, handle,
   e-mail, website — and a page that was read contributes the links a snippet cannot.

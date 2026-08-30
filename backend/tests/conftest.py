@@ -33,7 +33,7 @@ from app.main import create_app
 #: Cleared between tests. `users` is included so the seeding path runs in full, and
 #: `scrape_cache` because a page read by one test must not be a cache hit in the
 #: next one — the product keeps it across a reset on purpose (pages cost credits).
-TABLES = "lead_notes, leads, jobs, searches, seed_state, users, scrape_cache"
+TABLES = "lead_notes, leads, search_rejections, jobs, searches, seed_state, users, scrape_cache"
 
 #: The wizard's "Fill example" scenario, in the shape the frontend posts.
 MIHI_SPAIN: dict[str, Any] = {
