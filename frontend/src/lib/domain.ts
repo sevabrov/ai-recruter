@@ -1,6 +1,12 @@
 /**
- * Display vocabulary for the domain: labels, orderings and small derivations
- * shared by every screen. Keeps wording consistent and out of components.
+ * Domain vocabulary: orderings, tones and small derivations shared by every
+ * screen.
+ *
+ * The *words* live in `messages/<locale>.json` under the `domain` namespace and
+ * are keyed by the ids below — a component reads them with
+ * `t('domain.signal.mlm')` and friends, so wording stays consistent without
+ * being pinned to one language. Anything here that is still a string is either
+ * an id or an operator, never display copy.
  */
 
 import type {
@@ -15,25 +21,15 @@ import type {
   SourceKind,
 } from "@/services/types";
 
-export const SIGNAL_LABELS: Record<SignalType, string> = {
-  mlm: "MLM experience",
-  beauty: "Beauty / cosmetics",
-  recruiting: "Active recruiting",
-  leadership: "Team leadership",
-  location: "Geographic match",
-  personalBrand: "Personal brand",
-  activity: "Active social media",
-};
-
-export const SIGNAL_SHORT_LABELS: Record<SignalType, string> = {
-  mlm: "MLM",
-  beauty: "Beauty",
-  recruiting: "Recruiting",
-  leadership: "Leadership",
-  location: "Location",
-  personalBrand: "Brand",
-  activity: "Activity",
-};
+export const SIGNAL_TYPES: SignalType[] = [
+  "mlm",
+  "beauty",
+  "recruiting",
+  "leadership",
+  "activity",
+  "personalBrand",
+  "location",
+];
 
 export const SCORED_SIGNALS: ScoredSignalType[] = [
   "mlm",
@@ -53,64 +49,29 @@ export const DEFAULT_SIGNAL_WEIGHTS: Record<ScoredSignalType, number> = {
   personalBrand: 5,
 };
 
-export const PLATFORM_LABELS: Record<Platform, string> = {
-  instagram: "Instagram",
-  linkedin: "LinkedIn",
-  facebook: "Facebook",
-  threads: "Threads",
-  website: "Website",
-  blog: "Blog",
-};
+export const PLATFORMS: Platform[] = [
+  "instagram",
+  "linkedin",
+  "facebook",
+  "threads",
+  "website",
+  "blog",
+];
 
-export const SOURCE_KINDS: {
-  id: SourceKind;
-  label: string;
-  hint: string;
-  platform?: Platform;
-}[] = [
-  {
-    id: "public_web",
-    label: "Public web",
-    hint: "Indexed pages, directories, press",
-  },
-  {
-    id: "instagram_public",
-    label: "Instagram public pages",
-    hint: "Public profiles and posts",
-    platform: "instagram",
-  },
-  {
-    id: "linkedin_public",
-    label: "LinkedIn public pages",
-    hint: "Public /in/ profiles",
-    platform: "linkedin",
-  },
-  {
-    id: "facebook_public",
-    label: "Facebook public pages",
-    hint: "Public pages and groups",
-    platform: "facebook",
-  },
-  {
-    id: "threads_public",
-    label: "Threads public pages",
-    // Not a guess: every Threads query in every measured run came back with
-    // nothing, while still costing a search call.
-    hint: "Public profiles — returns almost nothing",
-    platform: "threads",
-  },
-  {
-    id: "company_websites",
-    label: "Company websites",
-    hint: "Team and distributor pages",
-    platform: "website",
-  },
-  {
-    id: "blogs",
-    label: "Blogs",
-    hint: "Personal blogs, guest posts",
-    platform: "blog",
-  },
+/**
+ * Sources in the order the wizard offers them. The label and the hint are
+ * `domain.source.<id>.label` / `.hint`; a note about why a source behaves the
+ * way it does belongs with the translation, not here — Threads, for instance,
+ * came back empty in every measured run while still costing a search call.
+ */
+export const SOURCE_KINDS: { id: SourceKind; platform?: Platform }[] = [
+  { id: "public_web" },
+  { id: "instagram_public", platform: "instagram" },
+  { id: "linkedin_public", platform: "linkedin" },
+  { id: "facebook_public", platform: "facebook" },
+  { id: "threads_public", platform: "threads" },
+  { id: "company_websites", platform: "website" },
+  { id: "blogs", platform: "blog" },
 ];
 
 /**
@@ -129,13 +90,13 @@ export const SITE_BY_SOURCE: Partial<Record<SourceKind, string>> = {
 /** Sources that mean "anywhere on the indexed web", where a bare query belongs. */
 export const WEB_SOURCES: SourceKind[] = ["public_web", "company_websites", "blogs"];
 
-export const LEAD_STATUSES: { id: LeadStatus; label: string; tone: Tone }[] = [
-  { id: "new", label: "New", tone: "neutral" },
-  { id: "reviewed", label: "Reviewed", tone: "info" },
-  { id: "qualified", label: "Qualified", tone: "good" },
-  { id: "contact_later", label: "Contact later", tone: "warn" },
-  { id: "contacted", label: "Contacted", tone: "accent" },
-  { id: "rejected", label: "Rejected", tone: "bad" },
+export const LEAD_STATUSES: { id: LeadStatus; tone: Tone }[] = [
+  { id: "new", tone: "neutral" },
+  { id: "reviewed", tone: "info" },
+  { id: "qualified", tone: "good" },
+  { id: "contact_later", tone: "warn" },
+  { id: "contacted", tone: "accent" },
+  { id: "rejected", tone: "bad" },
 ];
 
 export type Tone = "neutral" | "accent" | "good" | "warn" | "bad" | "info";
@@ -153,113 +114,50 @@ export type RejectionGroup = "unseen" | "excluded" | "judged";
 
 export const REJECTION_REASONS: {
   id: RejectionReason;
-  label: string;
   tone: Tone;
   group: RejectionGroup;
-  hint: string;
 }[] = [
-  {
-    id: "unreadable",
-    label: "Page would not open",
-    tone: "warn",
-    group: "unseen",
-    hint: "The reader failed on the address. Nothing about these people was ever seen.",
-  },
-  {
-    id: "not_examined",
-    label: "Never opened",
-    tone: "warn",
-    group: "unseen",
-    hint: "The search already had the leads it was asked for and stopped. Ask for more to reach these.",
-  },
-  {
-    id: "not_a_profile",
-    label: "Not a profile page",
-    tone: "neutral",
-    group: "unseen",
-    hint: "A shop, an article, a login form or a numeric page id — refused for free, before anything was read.",
-  },
-  {
-    id: "off_source",
-    label: "Outside your sources",
-    tone: "info",
-    group: "excluded",
-    hint: "Real profiles on a platform you did not pick. Add that platform to the sources to reach them.",
-  },
-  {
-    id: "not_a_person",
-    label: "No person on the page",
-    tone: "neutral",
-    group: "judged",
-    hint: "A brand account, a community or a shop.",
-  },
-  {
-    id: "wrong_country",
-    label: "Another country",
-    tone: "neutral",
-    group: "judged",
-    hint: "The profile places itself somewhere other than the country you asked for.",
-  },
-  {
-    id: "wrong_language",
-    label: "Another language",
-    tone: "neutral",
-    group: "judged",
-    hint: "The profile publishes in a language this search did not ask for.",
-  },
-  {
-    id: "missing_signals",
-    label: "Missing a must-have",
-    tone: "neutral",
-    group: "judged",
-    hint: "Every must-have signal is an AND. Keeping one is usually enough.",
-  },
+  { id: "unreadable", tone: "warn", group: "unseen" },
+  { id: "not_examined", tone: "warn", group: "unseen" },
+  { id: "not_a_profile", tone: "neutral", group: "unseen" },
+  { id: "off_source", tone: "info", group: "excluded" },
+  { id: "not_a_person", tone: "neutral", group: "judged" },
+  { id: "wrong_country", tone: "neutral", group: "judged" },
+  { id: "wrong_language", tone: "neutral", group: "judged" },
+  { id: "missing_signals", tone: "neutral", group: "judged" },
 ];
+
+/** True for a reason this build knows how to name; unknown ones render raw. */
+export function isKnownRejectionReason(reason: string) {
+  return REJECTION_REASONS.some((entry) => entry.id === reason);
+}
 
 export function rejectionMeta(reason: RejectionReason) {
   return (
     REJECTION_REASONS.find((entry) => entry.id === reason) ?? {
       id: reason,
-      label: reason,
       tone: "neutral" as Tone,
       group: "judged" as RejectionGroup,
-      hint: "",
     }
   );
 }
 
-export const REJECTION_GROUPS: { id: RejectionGroup; label: string; note: string }[] = [
-  {
-    id: "unseen",
-    label: "Never read",
-    note: "Nobody opened these pages. If a lead was lost, it is here.",
-  },
-  {
-    id: "excluded",
-    label: "Excluded by your sources",
-    note: "Real profiles, on platforms this search was not given.",
-  },
-  {
-    id: "judged",
-    label: "Read and refused",
-    note: "The page was opened and failed one of your requirements.",
-  },
-];
+export const REJECTION_GROUPS: RejectionGroup[] = ["unseen", "excluded", "judged"];
 
 export function leadStatusMeta(status: LeadStatus) {
   return LEAD_STATUSES.find((entry) => entry.id === status)!;
 }
 
-export const SEARCH_STATUS_LABELS: Record<SearchStatus, string> = {
-  draft: "Draft",
-  queued: "Queued",
-  searching: "Searching",
-  extracting: "Extracting",
-  scoring: "Scoring",
-  completed: "Completed",
-  failed: "Failed",
-  cancelled: "Cancelled",
-};
+export const SEARCH_STATUSES: SearchStatus[] = [
+  "draft",
+  "queued",
+  "searching",
+  "extracting",
+  "scoring",
+  "completed",
+  "failed",
+  "cancelled",
+];
 
 export function searchStatusTone(status: SearchStatus): Tone {
   if (status === "completed") return "good";
@@ -278,13 +176,13 @@ export function isSearchRunning(status: SearchStatus) {
 }
 
 /** The pipeline the progress screen narrates, in order. */
-export const PIPELINE_STAGES: { id: SearchStage; label: string }[] = [
-  { id: "generating_queries", label: "Queries generated" },
-  { id: "web_search", label: "Web search completed" },
-  { id: "discovering_profiles", label: "Profiles identified" },
-  { id: "extracting", label: "Analyzing candidates" },
-  { id: "scoring", label: "Calculating AI scores" },
-  { id: "deduplicating", label: "Removing duplicates" },
+export const PIPELINE_STAGES: SearchStage[] = [
+  "generating_queries",
+  "web_search",
+  "discovering_profiles",
+  "extracting",
+  "scoring",
+  "deduplicating",
 ];
 
 export type ScoreTier = "high" | "medium" | "low";
@@ -295,12 +193,6 @@ export function scoreTier(score: number): ScoreTier {
   return "low";
 }
 
-export const SCORE_TIER_LABELS: Record<ScoreTier, string> = {
-  high: "High match",
-  medium: "Medium match",
-  low: "Low match",
-};
-
 export function scoreTierTone(score: number): Tone {
   const tier = scoreTier(score);
   if (tier === "high") return "good";
@@ -310,18 +202,25 @@ export function scoreTierTone(score: number): Tone {
 
 export const HIGH_QUALITY_THRESHOLD = 85;
 
-export function weightLevel(points: number) {
+export type WeightLevel = "HIGH" | "MEDIUM" | "LOW";
+
+export function weightLevel(points: number): WeightLevel {
   if (points >= 25) return "HIGH";
   if (points >= 12) return "MEDIUM";
   return "LOW";
 }
 
+/**
+ * The short summary line next to a search name. It is built from the client's
+ * own words, so it is not translated; only the empty case has to say something,
+ * and that is left to the caller.
+ */
 export function criteriaTarget(criteria: SearchCriteria) {
   const parts = [
     criteria.businessTypes.join(" / "),
     criteria.industry.join(" / "),
   ].filter(Boolean);
-  return parts.join(" · ") || "Unspecified target";
+  return parts.join(" · ");
 }
 
 export function emptyCriteria(): SearchCriteria {

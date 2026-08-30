@@ -1,8 +1,9 @@
 "use client";
 
 import { Bookmark, Mail, Minus } from "lucide-react";
-import Link from "next/link";
-import { leadStatusMeta, SIGNAL_SHORT_LABELS } from "@/lib/domain";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
+import { leadStatusMeta } from "@/lib/domain";
 import { cn, initials } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Hint } from "@/components/ui/controls";
@@ -22,6 +23,10 @@ export function LeadsTable({
   isPending?: boolean;
   showStatus?: boolean;
 }) {
+  const t = useTranslations("leadsTable");
+  const short = useTranslations("domain.signalShort");
+  const statuses = useTranslations("domain.leadStatus");
+  const common = useTranslations("common");
   const updateLead = useUpdateLead();
 
   if (isPending) {
@@ -39,18 +44,18 @@ export function LeadsTable({
       <table className="w-full min-w-[52rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-line">
-            <Th className="pl-5">Candidate</Th>
-            <Th className="w-28">Score</Th>
-            <Th className="w-28">Platforms</Th>
-            <Th className="w-36">Location</Th>
+            <Th className="pl-5">{t("candidate")}</Th>
+            <Th className="w-28">{t("score")}</Th>
+            <Th className="w-28">{t("platforms")}</Th>
+            <Th className="w-36">{t("location")}</Th>
             {SIGNAL_COLUMNS.map((signal) => (
               <Th key={signal} className="w-20 text-center">
-                {SIGNAL_SHORT_LABELS[signal]}
+                {short(signal)}
               </Th>
             ))}
-            {showStatus ? <Th className="w-32">Status</Th> : null}
+            {showStatus ? <Th className="w-32">{t("status")}</Th> : null}
             <Th className="w-12 pr-5 text-right">
-              <span className="sr-only">Save</span>
+              <span className="sr-only">{t("save")}</span>
             </Th>
           </tr>
         </thead>
@@ -108,7 +113,8 @@ export function LeadsTable({
 
                 <td className="text-fg-muted">
                   <span className="block truncate">
-                    {[lead.location?.city, lead.location?.country].filter(Boolean).join(", ") || "—"}
+                    {[lead.location?.city, lead.location?.country].filter(Boolean).join(", ") ||
+                      common("dash")}
                   </span>
                 </td>
 
@@ -122,7 +128,9 @@ export function LeadsTable({
                             <span>
                               {signal.evidence}
                               <span className="mt-1 block text-fg-faint">
-                                confidence {Math.round(signal.confidence * 100)}%
+                                {t("confidence", {
+                                  percent: Math.round(signal.confidence * 100),
+                                })}
                               </span>
                             </span>
                           }
@@ -143,14 +151,18 @@ export function LeadsTable({
 
                 {showStatus ? (
                   <td>
-                    <Badge tone={status.tone}>{status.label}</Badge>
+                    <Badge tone={status.tone}>{statuses(status.id)}</Badge>
                   </td>
                 ) : null}
 
                 <td className="pr-5 text-right">
                   <button
                     type="button"
-                    aria-label={lead.saved ? `Unsave ${lead.name}` : `Save ${lead.name}`}
+                    aria-label={
+                      lead.saved
+                        ? t("unsaveLead", { name: lead.name })
+                        : t("saveLead", { name: lead.name })
+                    }
                     onClick={() => updateLead.mutate({ id: lead.id, input: { saved: !lead.saved } })}
                     className={cn(
                       "rounded-ctl p-1.5 transition-colors",

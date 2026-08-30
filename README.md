@@ -199,6 +199,72 @@ Mono** (labels, queries, data).
 
 ---
 
+## Languages
+
+Three, on [next-intl](https://next-intl.dev) over the App Router. **Ukrainian is
+the source language**: it is the default, and it is merged underneath the other
+two, so a key a translation has not caught up with renders in Ukrainian rather
+than as a dotted path.
+
+| Locale | URL prefix | Catalogue |
+|---|---|---|
+| **Українська** (default) | `/uk/…` | [frontend/messages/uk.json](frontend/messages/uk.json) |
+| **English** | `/en/…` | [frontend/messages/en.json](frontend/messages/en.json) |
+| **Русский** | `/ru/…` | [frontend/messages/ru.json](frontend/messages/ru.json) |
+
+Every route carries its prefix, so a link pasted into a chat opens in the
+language it was written in. A request without one is negotiated by
+[frontend/src/proxy.ts](frontend/src/proxy.ts) — `middleware` under its Next 16
+name — in this order: the `NEXT_LOCALE` cookie a previous visit set, then
+`Accept-Language`, then Ukrainian. All three locales prerender statically.
+
+```
+frontend/
+  messages/{uk,en,ru}.json        the catalogues
+  src/i18n/routing.ts             locales, default, prefix policy, cookie
+  src/i18n/navigation.ts          locale-aware Link / useRouter / usePathname
+  src/i18n/request.ts             per-request messages + number/date formats
+  src/proxy.ts                    negotiation and redirect
+  src/app/[locale]/…              every route lives under the segment
+  src/lib/format.ts               useNumbers / useTimeAgo / useDateTime
+```
+
+**Writing a screen.** Import `Link`, `useRouter` and `usePathname` from
+`@/i18n/navigation`, never from `next/link` or `next/navigation` — those keep the
+prefix on every href, and `usePathname` hands back the path *without* it, so
+route matching stays written as `/leads`, `/search/new`. Read copy with
+`useTranslations("namespace")`; it works in both server and client components.
+Numbers, euros and dates go through the hooks in `src/lib/format.ts` so `1 284`
+separates the way each language separates it. Counts use ICU plurals, which is
+why Ukrainian and Russian get their `one / few / many / other` forms right and
+English does not have to pretend it has them.
+
+**Domain vocabulary** — signals, platforms, sources, lead statuses, rejection
+reasons, pipeline stages — is keyed by id under the `domain` namespace.
+[frontend/src/lib/domain.ts](frontend/src/lib/domain.ts) holds orderings, tones
+and ids; not one display string. Adding a language is one file in `messages/`
+plus an entry in `LOCALES`; adding a *term* is one key in three files.
+
+### What is deliberately not translated
+
+Three kinds of string stay as they are, and the reasons differ:
+
+* **Query tokens.** Country and language names, keyword suggestions and
+  `site:` operators are appended to search queries verbatim and pick the market
+  index. Translating them would make the same search ask a different question
+  depending on who opened it.
+* **Product names.** Brave Search, ScrapeGraphAI, PostgreSQL, environment
+  variable names, shell commands.
+* **Whatever the data source says.** Dashboard stat *hints*, estimate warnings,
+  rejection details, AI summaries and outreach drafts are produced by the backend
+  (or, in mock mode, by the fixtures that stand in for it) and arrive as prose,
+  not as keys. The interface labels around them are translated — the dashboard
+  tiles, for instance, are told which stat they are showing and take the heading
+  from the catalogue. Localising the rest needs the backend to return keys, or to
+  honour `Accept-Language`; the frontend cannot do it alone.
+
+---
+
 ## Architecture — one switch, two data sources
 
 No component imports a data source. Data flows:

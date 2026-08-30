@@ -10,15 +10,13 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { DEFAULT_SIGNAL_WEIGHTS, DEFAULT_TARGET_LEADS, emptyCriteria } from "@/lib/domain";
 import type { ScoredSignalType, SearchCriteria, SignalType, SourceKind } from "@/services/types";
 
-export const WIZARD_STEPS = [
-  { id: 1, label: "Who", title: "Who are we looking for?" },
-  { id: 2, label: "Where", title: "Geography" },
-  { id: 3, label: "Signals", title: "Candidate criteria" },
-  { id: 4, label: "Sources", title: "Where to look" },
-  { id: 5, label: "Review", title: "Search preview" },
-] as const;
+/**
+ * The five steps, in order. Their label and title are
+ * `wizard.steps.<id>.label` / `.title` in the message catalogue.
+ */
+export const WIZARD_STEPS = [1, 2, 3, 4, 5] as const;
 
-export type WizardStepId = (typeof WIZARD_STEPS)[number]["id"];
+export type WizardStepId = (typeof WIZARD_STEPS)[number];
 
 type WizardState = {
   step: WizardStepId;
@@ -142,16 +140,22 @@ function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((entry) => entry !== value) : [...list, value];
 }
 
+/** What a step can complain about; the wording is `wizard.issues.<id>`. */
+export type WizardIssue = "name" | "keywords" | "sources";
+
 /** Step gating: only the essentials block progress (spec §9: fields are optional). */
-export function stepIssues(state: { name: string; criteria: SearchCriteria }, step: WizardStepId) {
-  const issues: string[] = [];
+export function stepIssues(
+  state: { name: string; criteria: SearchCriteria },
+  step: WizardStepId,
+): WizardIssue[] {
+  const issues: WizardIssue[] = [];
   if (step === 1) {
-    if (!state.name.trim()) issues.push("Give the search a name");
+    if (!state.name.trim()) issues.push("name");
     if (!state.criteria.keywords.length && !state.criteria.industry.length)
-      issues.push("Add at least one keyword or industry");
+      issues.push("keywords");
   }
   if (step === 4 && !state.criteria.sources.length) {
-    issues.push("Select at least one source");
+    issues.push("sources");
   }
   return issues;
 }

@@ -10,8 +10,9 @@ import {
   MoreHorizontal,
   Search as SearchIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
+import { Link } from "@/i18n/navigation";
 import { NotesPanel } from "@/components/leads/notes-panel";
 import { OutreachDialog } from "@/components/leads/outreach-dialog";
 import { ScoreBreakdown } from "@/components/leads/score-breakdown";
@@ -25,12 +26,20 @@ import { Menu, MenuItem } from "@/components/ui/overlay";
 import { Eyebrow, PlatformIcon, Skeleton } from "@/components/ui/misc";
 import { ScoreDial, ScoreTierBadge } from "@/components/ui/score";
 import { useToast } from "@/components/ui/toast";
-import { LEAD_STATUSES, PLATFORM_LABELS } from "@/lib/domain";
-import { cn, formatNumber, formatRelativeTime } from "@/lib/utils";
+import { LEAD_STATUSES } from "@/lib/domain";
+import { useNumbers, useTimeAgo } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useLead, useUpdateLead } from "@/services/hooks";
 import type { LeadStatus } from "@/services/types";
 
 export default function LeadDetailPage() {
+  const t = useTranslations("leadDetail");
+  const common = useTranslations("common");
+  const statuses = useTranslations("domain.leadStatus");
+  const platforms = useTranslations("domain.platform");
+  const { number } = useNumbers();
+  const timeAgo = useTimeAgo();
+
   const { id } = useParams<{ id: string }>();
   const { data: lead, isPending, isError } = useLead(id);
   const updateLead = useUpdateLead();
@@ -40,7 +49,7 @@ export default function LeadDetailPage() {
     return (
       <Card>
         <CardBody>
-          <p className="text-sm text-fg-muted">This lead could not be found.</p>
+          <p className="text-sm text-fg-muted">{t("notFound")}</p>
         </CardBody>
       </Card>
     );
@@ -61,8 +70,8 @@ export default function LeadDetailPage() {
   const toggleSaved = () => {
     updateLead.mutate({ id: lead.id, input: { saved: !lead.saved } });
     toast({
-      title: lead.saved ? "Removed from saved" : "Saved",
-      description: lead.saved ? undefined : "Find it under Leads → Saved.",
+      title: lead.saved ? t("toastUnsaved") : t("toastSaved"),
+      description: lead.saved ? undefined : t("toastSavedBody"),
       tone: lead.saved ? "neutral" : "accent",
     });
   };
@@ -92,21 +101,24 @@ export default function LeadDetailPage() {
         actions={
           <>
             <SelectField
-              ariaLabel="Lead status"
+              ariaLabel={t("statusAria")}
               value={lead.status}
               onValueChange={(value) =>
                 updateLead.mutate({ id: lead.id, input: { status: value as LeadStatus } })
               }
-              options={LEAD_STATUSES.map((status) => ({ value: status.id, label: status.label }))}
+              options={LEAD_STATUSES.map((status) => ({
+                value: status.id,
+                label: statuses(status.id),
+              }))}
             />
             <OutreachDialog lead={lead} />
             <Button variant={lead.saved ? "primary" : "secondary"} onClick={toggleSaved}>
               <Bookmark className={cn(lead.saved && "fill-current")} />
-              {lead.saved ? "Saved" : "Save"}
+              {lead.saved ? t("saved") : t("save")}
             </Button>
             <Menu
               trigger={
-                <Button variant="ghost" size="icon" aria-label="More actions">
+                <Button variant="ghost" size="icon" aria-label={t("moreActions")}>
                   <MoreHorizontal />
                 </Button>
               }
@@ -116,18 +128,18 @@ export default function LeadDetailPage() {
                 onSelect={() => {
                   updateLead.mutate({ id: lead.id, input: { archived: !lead.archived } });
                   toast({
-                    title: lead.archived ? "Restored" : "Archived",
+                    title: lead.archived ? t("toastRestored") : t("toastArchived"),
                     tone: "neutral",
                   });
                 }}
               >
-                {lead.archived ? "Restore from archive" : "Archive lead"}
+                {lead.archived ? t("restoreFromArchive") : t("archiveLead")}
               </MenuItem>
               <MenuItem
                 icon={<SearchIcon />}
                 onSelect={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(lead.name)}`, "_blank")}
               >
-                Verify on the web
+                {t("verifyOnWeb")}
               </MenuItem>
             </Menu>
           </>
@@ -137,24 +149,22 @@ export default function LeadDetailPage() {
       <div className="grid gap-5 lg:grid-cols-[1.45fr_1fr]">
         <div className="flex flex-col gap-5">
           <Card>
-            <CardHeader
-              title="Why this candidate matches"
-              hint="Each signal keeps the quote and page it came from"
-            />
+            <CardHeader title={t("whyMatches")} hint={t("whyMatchesHint")} />
             <SignalEvidence signals={lead.signals} />
           </Card>
 
           <Card>
-            <CardHeader title="AI summary" hint="Generated from the extracted profile" />
+            <CardHeader title={t("aiSummary")} hint={t("aiSummaryHint")} />
             <CardBody>
+              {/* Written by the model, in the language the profile was in. */}
               <p className="text-sm leading-relaxed text-fg-muted">{lead.summary}</p>
             </CardBody>
           </Card>
 
           <Card>
             <CardHeader
-              title="Sources"
-              hint={`${lead.sources.length} pages kept for re-analysis`}
+              title={t("sources")}
+              hint={t("sourcesHint", { count: lead.sources.length })}
             />
             <ul className="divide-y divide-line">
               {lead.sources.map((source) => (
@@ -179,8 +189,8 @@ export default function LeadDetailPage() {
                         {source.snippet}
                       </span>
                       <span className="label mt-1 block text-fg-faint">
-                        {PLATFORM_LABELS[source.platform]} · discovered{" "}
-                        {formatRelativeTime(source.discoveredAt)}
+                        {platforms(source.platform)} ·{" "}
+                        {t("discoveredAt", { when: timeAgo(source.discoveredAt) })}
                       </span>
                     </span>
                   </a>
@@ -190,7 +200,7 @@ export default function LeadDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Notes" hint="Private to your workspace" />
+            <CardHeader title={t("notes")} hint={t("notesHint")} />
             <NotesPanel leadId={lead.id} notes={lead.notes} />
           </Card>
         </div>
@@ -198,28 +208,28 @@ export default function LeadDetailPage() {
         <div className="flex flex-col gap-5">
           <Card>
             <CardBody className="flex flex-col items-center gap-3 py-6">
-              <Eyebrow>AI match score</Eyebrow>
+              <Eyebrow>{t("aiMatchScore")}</Eyebrow>
               <ScoreDial score={lead.score} />
               <ScoreTierBadge score={lead.score} />
             </CardBody>
             <div className="border-t border-line px-5 py-4">
-              <Eyebrow className="mb-3">How the score was built</Eyebrow>
+              <Eyebrow className="mb-3">{t("howScoreBuilt")}</Eyebrow>
               <ScoreBreakdown breakdown={lead.scoreBreakdown} total={lead.score} />
             </div>
           </Card>
 
           <Card>
-            <CardHeader title="Overview" />
+            <CardHeader title={t("overview")} />
             <CardBody className="grid grid-cols-2 gap-x-4 gap-y-4">
-              <Detail label="Location">
+              <Detail label={t("location")}>
                 {[lead.location?.city, lead.location?.region, lead.location?.country]
                   .filter(Boolean)
-                  .join(", ") || "—"}
+                  .join(", ") || common("dash")}
               </Detail>
-              <Detail label="Languages">{lead.languages.join(", ") || "—"}</Detail>
-              <Detail label="Company">{lead.company ?? "—"}</Detail>
-              <Detail label="Discovered">{formatRelativeTime(lead.createdAt)}</Detail>
-              <Detail label="From search" className="col-span-2">
+              <Detail label={t("languages")}>{lead.languages.join(", ") || common("dash")}</Detail>
+              <Detail label={t("company")}>{lead.company ?? common("dash")}</Detail>
+              <Detail label={t("discovered")}>{timeAgo(lead.createdAt)}</Detail>
+              <Detail label={t("fromSearch")} className="col-span-2">
                 <Link
                   href={`/search/${lead.searchId}/results`}
                   className="text-accent hover:underline"
@@ -231,7 +241,7 @@ export default function LeadDetailPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Profiles & contacts" />
+            <CardHeader title={t("profilesContacts")} />
             <ul className="divide-y divide-line">
               {lead.platforms.map((platform) => (
                 <li key={platform.url}>
@@ -247,7 +257,7 @@ export default function LeadDetailPage() {
                     </span>
                     {platform.followers ? (
                       <span className="num text-xs text-fg-faint">
-                        {formatNumber(platform.followers)}
+                        {number(platform.followers)}
                       </span>
                     ) : null}
                     <ExternalLink className="size-3 text-fg-faint" />
@@ -284,16 +294,14 @@ export default function LeadDetailPage() {
             </ul>
             {!lead.contacts.email && !lead.contacts.website ? (
               <CardBody className="pt-0">
-                <p className="text-xs text-fg-faint">
-                  No public contact details found. Outreach would go through a platform message.
-                </p>
+                <p className="text-xs text-fg-faint">{t("noContacts")}</p>
               </CardBody>
             ) : null}
           </Card>
 
           {lead.archived ? (
             <Badge tone="warn" className="self-start">
-              Archived
+              {t("archived")}
             </Badge>
           ) : null}
         </div>

@@ -73,10 +73,7 @@ export function activeFilterCount(filters: LeadFilters) {
   return count;
 }
 
-export const SORT_OPTIONS: { id: LeadSort; label: string }[] = [
-  { id: "score_desc", label: "Highest score" },
-  { id: "newest", label: "Newest" },
-  { id: "name_asc", label: "Name" },
-];
+/** Offered orderings; each one's wording is `domain.sort.<id>`. */
+export const SORT_OPTIONS: LeadSort[] = ["score_desc", "newest", "name_asc"];
 
 export type { LeadStatus, Platform, SignalType };

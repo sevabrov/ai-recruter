@@ -1,8 +1,10 @@
 "use client";
 
 import { CircleSlash, Terminal } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useParams } from "next/navigation";
 import { useEffect } from "react";
+import { useRouter } from "@/i18n/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { PipelineChecklist } from "@/components/search/pipeline-checklist";
 import { ProgressMeter } from "@/components/search/progress-meter";
@@ -10,13 +12,31 @@ import { Badge, Dot } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Eyebrow, Skeleton } from "@/components/ui/misc";
-import { isSearchRunning, SEARCH_STATUS_LABELS, searchStatusTone } from "@/lib/domain";
-import { stageNote } from "@/mocks/search-progress";
-import { formatCurrencyEur, formatNumber } from "@/lib/utils";
+import { isSearchRunning, searchStatusTone } from "@/lib/domain";
+import { useNumbers } from "@/lib/format";
 import { useCancelSearch, useSearch } from "@/services/hooks";
 import type { SearchProgress } from "@/services/types";
 
+/** Stages the meter has a sentence for; see `domain.stageNote`. */
+const NARRATED_STAGES: string[] = [
+  "generating_queries",
+  "web_search",
+  "discovering_profiles",
+  "extracting",
+  "scoring",
+  "deduplicating",
+];
+
 export default function SearchProgressPage() {
+  const t = useTranslations("progress");
+  const statuses = useTranslations("domain.searchStatus");
+  const stageNotes = useTranslations("domain.stageNote");
+  const { number, eur } = useNumbers();
+
+  /** `queued` and anything the catalogue has no line for read as "finished". */
+  const stageNote = (stage: string) =>
+    NARRATED_STAGES.includes(stage) ? stageNotes(stage) : stageNotes("done");
+
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { data: search, isPending, isError } = useSearch(id);
@@ -35,7 +55,7 @@ export default function SearchProgressPage() {
     return (
       <Card>
         <CardBody>
-          <p className="text-sm text-fg-muted">This search could not be found.</p>
+          <p className="text-sm text-fg-muted">{t("notFound")}</p>
         </CardBody>
       </Card>
     );
@@ -57,14 +77,14 @@ export default function SearchProgressPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Search in progress"
+        eyebrow={t("eyebrow")}
         title={search.name}
         description={`${search.target}${search.country ? ` · ${search.country}` : ""}`}
         actions={
           <>
             <Badge tone={tone}>
               <Dot tone={tone} pulse={running} />
-              {SEARCH_STATUS_LABELS[search.status]}
+              {statuses(search.status)}
             </Badge>
             {running ? (
               <Button
@@ -73,7 +93,7 @@ export default function SearchProgressPage() {
                 disabled={cancelSearch.isPending}
               >
                 <CircleSlash />
-                Cancel
+                {t("cancel")}
               </Button>
             ) : null}
           </>
@@ -88,9 +108,9 @@ export default function SearchProgressPage() {
                 percent={progress.percent}
                 label={
                   finished
-                    ? "Search complete — opening results"
+                    ? t("complete")
                     : search.status === "cancelled"
-                      ? "Search cancelled"
+                      ? t("cancelled")
                       : `${stageNote(progress.stage)}…`
                 }
                 tone={finished ? "good" : "accent"}
@@ -99,7 +119,7 @@ export default function SearchProgressPage() {
           </Card>
 
           <Card>
-            <CardHeader title="Pipeline" hint="Each step reports from the worker, not the browser" />
+            <CardHeader title={t("pipeline")} hint={t("pipelineHint")} />
             <CardBody className="py-2">
               <PipelineChecklist progress={progress} />
             </CardBody>
@@ -108,12 +128,12 @@ export default function SearchProgressPage() {
 
         <div className="flex flex-col gap-5">
           <Card>
-            <CardHeader title="Live counters" />
+            <CardHeader title={t("liveCounters")} />
             <div className="grid grid-cols-2 divide-x divide-y divide-line">
-              <Counter label="Pages discovered" value={progress.urlsDiscovered} />
-              <Counter label="Profiles found" value={progress.profilesDiscovered} />
-              <Counter label="Relevant candidates" value={progress.qualified} />
-              <Counter label="High quality" value={progress.highQuality} tone="good" />
+              <Counter label={t("pagesDiscovered")} value={progress.urlsDiscovered} />
+              <Counter label={t("profilesFound")} value={progress.profilesDiscovered} />
+              <Counter label={t("relevantCandidates")} value={progress.qualified} />
+              <Counter label={t("highQuality")} value={progress.highQuality} tone="good" />
             </div>
           </Card>
 
@@ -123,42 +143,42 @@ export default function SearchProgressPage() {
           {refused(progress) > 0 && (
             <Card>
               <CardHeader
-                title="Not taken forward"
-                hint={`${formatNumber(refused(progress))} candidates did not meet a requirement`}
+                title={t("notTakenForward")}
+                hint={t("notTakenForwardHint", { count: refused(progress) })}
               />
               <CardBody className="flex flex-col gap-2 text-sm">
                 {(progress.rejectedOffSource ?? 0) > 0 && (
                   <Row
-                    label="Not one of your sources"
-                    value={formatNumber(progress.rejectedOffSource ?? 0)}
+                    label={t("reasonOffSource")}
+                    value={number(progress.rejectedOffSource ?? 0)}
                   />
                 )}
                 {(progress.rejectedNotAPerson ?? 0) > 0 && (
                   <Row
-                    label="Not a person"
-                    value={formatNumber(progress.rejectedNotAPerson ?? 0)}
+                    label={t("reasonNotAPerson")}
+                    value={number(progress.rejectedNotAPerson ?? 0)}
                   />
                 )}
                 {(progress.rejectedCountry ?? 0) > 0 && (
                   <Row
                     label={
                       search.criteria.location.country
-                        ? `Not in ${search.criteria.location.country}`
-                        : "Wrong country"
+                        ? t("reasonCountry", { country: search.criteria.location.country })
+                        : t("reasonCountryGeneric")
                     }
-                    value={formatNumber(progress.rejectedCountry ?? 0)}
+                    value={number(progress.rejectedCountry ?? 0)}
                   />
                 )}
                 {(progress.rejectedLanguage ?? 0) > 0 && (
                   <Row
-                    label="Publishes in another language"
-                    value={formatNumber(progress.rejectedLanguage ?? 0)}
+                    label={t("reasonLanguage")}
+                    value={number(progress.rejectedLanguage ?? 0)}
                   />
                 )}
                 {(progress.rejectedSignals ?? 0) > 0 && (
                   <Row
-                    label="Missing a must-have signal"
-                    value={formatNumber(progress.rejectedSignals ?? 0)}
+                    label={t("reasonSignals")}
+                    value={number(progress.rejectedSignals ?? 0)}
                   />
                 )}
               </CardBody>
@@ -166,29 +186,26 @@ export default function SearchProgressPage() {
           )}
 
           <Card>
-            <CardHeader title="Usage this search" hint="Tracked from the first request" />
+            <CardHeader title={t("usage")} hint={t("usageHint")} />
             <CardBody className="flex flex-col gap-2 text-sm">
-              <Row label="Search API calls" value={formatNumber(search.usage.searchApiCalls)} />
-              <Row label="Pages analyzed" value={formatNumber(search.usage.pagesAnalyzed)} />
+              <Row label={t("searchApiCalls")} value={number(search.usage.searchApiCalls)} />
+              <Row label={t("pagesAnalyzed")} value={number(search.usage.pagesAnalyzed)} />
               {/* Read is what was paid for; cached is what an earlier search paid for. */}
-              <Row label="Pages read" value={formatNumber(search.usage.pagesRead)} />
-              <Row label="From cache" value={formatNumber(search.usage.pagesCached)} />
+              <Row label={t("pagesRead")} value={number(search.usage.pagesRead)} />
+              <Row label={t("fromCache")} value={number(search.usage.pagesCached)} />
               {/* Only shown when the budget actually refused something, so the row is
                   an explanation of a thinner result rather than a permanent zero. */}
               {search.usage.pagesSkipped > 0 && (
-                <Row
-                  label="Skipped (page budget)"
-                  value={formatNumber(search.usage.pagesSkipped)}
-                />
+                <Row label={t("pagesSkipped")} value={number(search.usage.pagesSkipped)} />
               )}
               {search.usage.scrapeCredits > 0 && (
-                <Row label="Reader credits" value={formatNumber(search.usage.scrapeCredits)} />
+                <Row label={t("readerCredits")} value={number(search.usage.scrapeCredits)} />
               )}
-              <Row label="LLM calls" value={formatNumber(search.usage.llmCalls)} />
+              <Row label={t("llmCalls")} value={number(search.usage.llmCalls)} />
               <div className="hairline my-1" />
               <Row
-                label="Estimated cost"
-                value={formatCurrencyEur(search.usage.estimatedCostEur)}
+                label={t("estimatedCost")}
+                value={eur(search.usage.estimatedCostEur)}
                 emphasis
               />
             </CardBody>
@@ -196,8 +213,8 @@ export default function SearchProgressPage() {
 
           <Card>
             <CardHeader
-              title="Generated queries"
-              hint={`${search.queries.length} deterministic templates`}
+              title={t("generatedQueries")}
+              hint={t("generatedQueriesHint", { count: search.queries.length })}
               action={<Terminal className="size-3.5 text-fg-faint" />}
             />
             <ul className="max-h-64 divide-y divide-line overflow-y-auto">
@@ -243,6 +260,8 @@ function Counter({
   value: number;
   tone?: "good";
 }) {
+  const { number } = useNumbers();
+
   return (
     <div className="px-5 py-4">
       <Eyebrow>{label}</Eyebrow>
@@ -251,7 +270,7 @@ function Counter({
           tone === "good" ? "text-good" : ""
         }`}
       >
-        {formatNumber(value)}
+        {number(value)}
       </p>
     </div>
   );

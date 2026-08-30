@@ -1,6 +1,7 @@
 "use client";
 
 import { Bookmark, SlidersHorizontal } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { FiltersBar } from "@/components/leads/filters-bar";
@@ -15,6 +16,8 @@ import { useFiltersStore } from "@/store/filters-store";
 type View = "all" | "saved" | "archived";
 
 export default function LeadsPage() {
+  const t = useTranslations("leads");
+  const common = useTranslations("common");
   const [view, setView] = useState<View>("all");
   const filters = useFiltersStore((state) => state.scopes.leads);
   const clear = useFiltersStore((state) => state.clear);
@@ -36,19 +39,15 @@ export default function LeadsPage() {
 
   return (
     <>
-      <PageHeader
-        eyebrow="Pipeline"
-        title="Leads"
-        description="Everything discovered across searches. Status and notes stay with the person, not the search."
-      />
+      <PageHeader eyebrow={t("eyebrow")} title={t("title")} description={t("description")} />
 
       <TabsRoot
         value={view}
         onValueChange={(value) => setView(value as View)}
         tabs={[
-          { value: "all", label: "All leads", count: allPage?.total },
-          { value: "saved", label: "Saved", count: savedPage?.total },
-          { value: "archived", label: "Archived" },
+          { value: "all", label: t("tabAll"), count: allPage?.total },
+          { value: "saved", label: t("tabSaved"), count: savedPage?.total },
+          { value: "archived", label: t("tabArchived") },
         ]}
       >
         <div className="pt-4">
@@ -63,22 +62,22 @@ export default function LeadsPage() {
               ) : view === "saved" ? (
                 <EmptyState
                   icon={<Bookmark className="size-4" />}
-                  title="No saved leads yet"
-                  body="Use the bookmark in a results table or on a lead page to keep candidates here."
+                  title={t("emptySavedTitle")}
+                  body={t("emptySavedBody")}
                 />
               ) : view === "archived" ? (
                 <EmptyState
                   icon={<Bookmark className="size-4" />}
-                  title="Nothing archived"
-                  body="Archiving hides a candidate from the main list without deleting the evidence."
+                  title={t("emptyArchivedTitle")}
+                  body={t("emptyArchivedBody")}
                 />
               ) : (
                 <EmptyState
                   icon={<SlidersHorizontal className="size-4" />}
-                  title="No leads match these filters"
+                  title={t("emptyFilteredTitle")}
                   action={
                     <Button variant="secondary" size="sm" onClick={() => clear("leads")}>
-                      Clear filters
+                      {common("clearFilters")}
                     </Button>
                   }
                 />

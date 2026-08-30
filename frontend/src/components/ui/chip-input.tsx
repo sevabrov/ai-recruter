@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState, type KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,7 @@ export function ChipInput({
   tone?: "neutral" | "negative";
   id?: string;
 }) {
+  const t = useTranslations("common");
   const [draft, setDraft] = useState("");
 
   const commit = (raw: string) => {
@@ -70,7 +72,7 @@ export function ChipInput({
               type="button"
               onClick={() => onChange(values.filter((entry) => entry !== value))}
               className="rounded-full p-0.5 opacity-60 transition hover:opacity-100"
-              aria-label={`Remove ${value}`}
+              aria-label={t("removeValue", { value })}
             >
               <X className="size-3" />
             </button>
@@ -89,7 +91,7 @@ export function ChipInput({
 
       {unusedSuggestions.length ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-2xs text-fg-faint">Suggestions</span>
+          <span className="text-2xs text-fg-faint">{t("suggestions")}</span>
           {unusedSuggestions.slice(0, 6).map((suggestion) => (
             <button
               key={suggestion}

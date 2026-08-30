@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown, Minus } from "lucide-react";
 import { Checkbox, Select, Separator, Slider, Switch, Tabs, Tooltip } from "radix-ui";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -91,7 +92,7 @@ export function SelectField({
   value,
   onValueChange,
   options,
-  placeholder = "Select…",
+  placeholder,
   className,
   ariaLabel,
 }: {
@@ -102,6 +103,8 @@ export function SelectField({
   className?: string;
   ariaLabel?: string;
 }) {
+  const t = useTranslations("common");
+
   return (
     <Select.Root value={value} onValueChange={onValueChange}>
       <Select.Trigger
@@ -112,7 +115,7 @@ export function SelectField({
           className,
         )}
       >
-        <Select.Value placeholder={placeholder} />
+        <Select.Value placeholder={placeholder ?? t("select")} />
         <Select.Icon>
           <ChevronDown className="size-3.5 text-fg-faint" />
         </Select.Icon>

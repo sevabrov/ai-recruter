@@ -1,6 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { WIZARD_STEPS, type WizardStepId } from "@/store/wizard-store";
 
@@ -15,17 +16,19 @@ export function WizardSteps({
   current: WizardStepId;
   onSelect: (step: WizardStepId) => void;
 }) {
+  const t = useTranslations("wizard.steps");
+
   return (
     <ol className="flex flex-wrap items-center gap-x-1 gap-y-2">
       {WIZARD_STEPS.map((step, index) => {
-        const done = step.id < current;
-        const active = step.id === current;
+        const done = step < current;
+        const active = step === current;
 
         return (
-          <li key={step.id} className="flex items-center gap-1">
+          <li key={step} className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => (done || active ? onSelect(step.id) : undefined)}
+              onClick={() => (done || active ? onSelect(step) : undefined)}
               disabled={!done && !active}
               className={cn(
                 "flex items-center gap-2 rounded-pill border px-2.5 py-1 transition-colors",
@@ -44,7 +47,7 @@ export function WizardSteps({
               >
                 {done ? <Check className="size-2.5" strokeWidth={3} /> : index + 1}
               </span>
-              <span className="label">{step.label}</span>
+              <span className="label">{t(`${step}.label`)}</span>
             </button>
             {index < WIZARD_STEPS.length - 1 ? (
               <span className="h-px w-4 bg-line" aria-hidden />

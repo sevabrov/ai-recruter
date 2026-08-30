@@ -1,11 +1,8 @@
 "use client";
 
 import { ChevronDown, Search, X } from "lucide-react";
-import {
-  LEAD_STATUSES,
-  PLATFORM_LABELS,
-  SIGNAL_LABELS,
-} from "@/lib/domain";
+import { useTranslations } from "next-intl";
+import { LEAD_STATUSES } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,12 +15,7 @@ import type { LeadSort, Platform, SignalType } from "@/services/types";
 
 const SIGNAL_FILTERS: SignalType[] = ["mlm", "beauty", "leadership", "recruiting", "personalBrand"];
 
-const SCORE_OPTIONS = [
-  { value: "0", label: "Any score" },
-  { value: "70", label: "70 and above" },
-  { value: "85", label: "85 and above" },
-  { value: "90", label: "90 and above" },
-];
+const SCORE_THRESHOLDS = [0, 70, 85, 90];
 
 /** One row of controls above the table (spec §14). */
 export function FiltersBar({
@@ -33,6 +25,13 @@ export function FiltersBar({
   scope: FilterScope;
   showStatus?: boolean;
 }) {
+  const t = useTranslations("filters");
+  const common = useTranslations("common");
+  const platforms = useTranslations("domain.platform");
+  const signals = useTranslations("domain.signal");
+  const statuses = useTranslations("domain.leadStatus");
+  const sorts = useTranslations("domain.sort");
+
   const filters = useFiltersStore((state) => state.scopes[scope]);
   const patch = useFiltersStore((state) => state.patch);
   const toggleIn = useFiltersStore((state) => state.toggleIn);
@@ -48,48 +47,54 @@ export function FiltersBar({
         <Input
           value={filters.query ?? ""}
           onChange={(event) => patch(scope, { query: event.target.value })}
-          placeholder="Search name, company, city…"
+          placeholder={t("searchPlaceholder")}
           className="pl-8.5"
-          aria-label="Search leads"
+          aria-label={t("searchAria")}
         />
       </div>
 
       <SelectField
-        ariaLabel="Minimum score"
+        ariaLabel={t("minScoreAria")}
         value={String(filters.minScore ?? 0)}
         onValueChange={(value) => patch(scope, { minScore: Number(value) })}
-        options={SCORE_OPTIONS}
+        options={SCORE_THRESHOLDS.map((score) => ({
+          value: String(score),
+          label: score === 0 ? t("anyScore") : t("scoreAtLeast", { score }),
+        }))}
       />
 
       <MultiFilter
-        label="Country"
+        label={t("country")}
         selected={filters.countries ?? []}
         options={(facets?.countries ?? []).map((country) => ({ value: country, label: country }))}
         onToggle={(value) => toggleIn(scope, "countries", value)}
       />
 
       <MultiFilter
-        label="Platform"
+        label={t("platform")}
         selected={filters.platforms ?? []}
         options={(facets?.platforms ?? []).map((platform) => ({
           value: platform,
-          label: PLATFORM_LABELS[platform as Platform],
+          label: platforms(platform as Platform),
         }))}
         onToggle={(value) => toggleIn(scope, "platforms", value as Platform)}
       />
 
       <MultiFilter
-        label="Signals"
+        label={t("signals")}
         selected={filters.signals ?? []}
-        options={SIGNAL_FILTERS.map((signal) => ({ value: signal, label: SIGNAL_LABELS[signal] }))}
+        options={SIGNAL_FILTERS.map((signal) => ({ value: signal, label: signals(signal) }))}
         onToggle={(value) => toggleIn(scope, "signals", value as SignalType)}
       />
 
       {showStatus ? (
         <MultiFilter
-          label="Status"
+          label={t("status")}
           selected={filters.statuses ?? []}
-          options={LEAD_STATUSES.map((status) => ({ value: status.id, label: status.label }))}
+          options={LEAD_STATUSES.map((status) => ({
+            value: status.id,
+            label: statuses(status.id),
+          }))}
           onToggle={(value) => toggleIn(scope, "statuses", value as never)}
         />
       ) : null}
@@ -98,30 +103,30 @@ export function FiltersBar({
         active={Boolean(filters.hasEmail)}
         onClick={() => patch(scope, { hasEmail: !filters.hasEmail })}
       >
-        Has email
+        {t("hasEmail")}
       </ToggleChip>
       <ToggleChip
         active={Boolean(filters.hasSocial)}
         onClick={() => patch(scope, { hasSocial: !filters.hasSocial })}
       >
-        Has social
+        {t("hasSocial")}
       </ToggleChip>
 
       <div className="ml-auto flex items-center gap-2">
         {active ? (
           <Button variant="ghost" size="sm" onClick={() => clear(scope)}>
             <X />
-            Clear
+            {common("clear")}
             <Badge tone="accent" className="ml-0.5">
               {active}
             </Badge>
           </Button>
         ) : null}
         <SelectField
-          ariaLabel="Sort leads"
+          ariaLabel={t("sortAria")}
           value={filters.sort ?? "score_desc"}
           onValueChange={(value) => patch(scope, { sort: value as LeadSort })}
-          options={SORT_OPTIONS.map((option) => ({ value: option.id, label: option.label }))}
+          options={SORT_OPTIONS.map((option) => ({ value: option, label: sorts(option) }))}
         />
       </div>
     </div>
@@ -139,6 +144,8 @@ function MultiFilter({
   selected: string[];
   onToggle: (value: string) => void;
 }) {
+  const t = useTranslations("filters");
+
   return (
     <Menu
       align="start"
@@ -166,7 +173,7 @@ function MultiFilter({
           </MenuCheckboxItem>
         ))
       ) : (
-        <p className="px-2.5 py-1.5 text-xs text-fg-faint">Nothing to filter yet</p>
+        <p className="px-2.5 py-1.5 text-xs text-fg-faint">{t("nothingToFilter")}</p>
       )}
     </Menu>
   );

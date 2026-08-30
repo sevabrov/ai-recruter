@@ -1,0 +1,752 @@
+{
+  "meta": {
+    "title": "AI Recruiter",
+    "description": "AI-assisted lead discovery across the public web: criteria in, scored candidates with evidence out."
+  },
+  "common": {
+    "newSearch": "New search",
+    "back": "Back",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "close": "Close",
+    "clear": "Clear",
+    "clearFilters": "Clear filters",
+    "reset": "Reset",
+    "save": "Save",
+    "saved": "Saved",
+    "add": "Add",
+    "copy": "Copy",
+    "showAll": "Show all",
+    "none": "none",
+    "any": "any",
+    "required": "required",
+    "optional": "optional",
+    "suggestions": "Suggestions",
+    "select": "Select…",
+    "dash": "—",
+    "loading": "Loading…",
+    "removeValue": "Remove {value}"
+  },
+  "nav": {
+    "brand": "AI Recruiter",
+    "tagline": "public web first",
+    "dashboard": "Dashboard",
+    "newSearch": "New search",
+    "leads": "Leads",
+    "searchHistory": "Search history",
+    "settings": "Settings",
+    "workspace": "Workspace",
+    "navigation": "Navigation",
+    "openNavigation": "Open navigation",
+    "closeNavigation": "Close navigation",
+    "breadcrumb": "Breadcrumb"
+  },
+  "crumbs": {
+    "search": "Search",
+    "new": "New search",
+    "searches": "Search history",
+    "leads": "Leads",
+    "settings": "Settings",
+    "progress": "Progress",
+    "results": "Results"
+  },
+  "language": {
+    "label": "Language",
+    "change": "Change language"
+  },
+  "theme": {
+    "label": "Theme",
+    "change": "Change theme",
+    "tooltip": "Theme: {name}",
+    "followSystem": "Follow system",
+    "followSystemLower": "follow system",
+    "currently": "Currently {theme}",
+    "daylight": {
+      "name": "Daylight",
+      "hint": "Paper-cool light"
+    },
+    "graphite": {
+      "name": "Graphite",
+      "hint": "Violet-tinted dark"
+    }
+  },
+  "format": {
+    "justNow": "just now",
+    "minutesAgo": "{count}m ago",
+    "hoursAgo": "{count}h ago",
+    "daysAgo": "{count}d ago"
+  },
+  "backend": {
+    "mockTitle": "Phase 1 · mock data",
+    "unreachableTitle": "Backend unreachable",
+    "connectingTitle": "Connecting…",
+    "databaseDownTitle": "Database unreachable",
+    "liveTitle": "Live backend · v{version}",
+    "mockDetail": "No external services are called. Every number is fixture data.",
+    "unreachableDetail": "No answer from {url}. Start it with: docker compose up -d backend",
+    "databaseDownDetail": "The API is running but PostgreSQL is not answering: docker compose up -d postgres",
+    "fixtureDetail": "Connected. Search providers are not configured yet, so results come from the seeded catalogue.",
+    "readingDetail": "Connected. New searches query the live web through {provider} and read the pages they find.",
+    "searchOnlyDetail": "Connected. New searches query the live web through {provider}; the pages themselves are not read yet.",
+    "connectedDetail": "Connected to the FastAPI backend."
+  },
+  "domain": {
+    "criteriaTargetFallback": "Unspecified target",
+    "signal": {
+      "mlm": "MLM experience",
+      "beauty": "Beauty / cosmetics",
+      "recruiting": "Active recruiting",
+      "leadership": "Team leadership",
+      "location": "Geographic match",
+      "personalBrand": "Personal brand",
+      "activity": "Active social media"
+    },
+    "signalShort": {
+      "mlm": "MLM",
+      "beauty": "Beauty",
+      "recruiting": "Recruiting",
+      "leadership": "Leadership",
+      "location": "Location",
+      "personalBrand": "Brand",
+      "activity": "Activity"
+    },
+    "signalHint": {
+      "mlm": "Partner, distributor or consultant language in public bios",
+      "beauty": "Product category the person actually works in",
+      "recruiting": "Open calls to join a team, posted recently",
+      "leadership": "Mentions of a team, structure or the people they train",
+      "location": "Profile location or geotagged activity",
+      "personalBrand": "Own domain, course, podcast or press mentions",
+      "activity": "Posting cadence over the last 30 days"
+    },
+    "platform": {
+      "instagram": "Instagram",
+      "linkedin": "LinkedIn",
+      "facebook": "Facebook",
+      "threads": "Threads",
+      "website": "Website",
+      "blog": "Blog"
+    },
+    "source": {
+      "public_web": {
+        "label": "Public web",
+        "hint": "Indexed pages, directories, press"
+      },
+      "instagram_public": {
+        "label": "Instagram public pages",
+        "hint": "Public profiles and posts"
+      },
+      "linkedin_public": {
+        "label": "LinkedIn public pages",
+        "hint": "Public /in/ profiles"
+      },
+      "facebook_public": {
+        "label": "Facebook public pages",
+        "hint": "Public pages and groups"
+      },
+      "threads_public": {
+        "label": "Threads public pages",
+        "hint": "Public profiles — returns almost nothing"
+      },
+      "company_websites": {
+        "label": "Company websites",
+        "hint": "Team and distributor pages"
+      },
+      "blogs": {
+        "label": "Blogs",
+        "hint": "Personal blogs, guest posts"
+      }
+    },
+    "leadStatus": {
+      "new": "New",
+      "reviewed": "Reviewed",
+      "qualified": "Qualified",
+      "contact_later": "Contact later",
+      "contacted": "Contacted",
+      "rejected": "Rejected"
+    },
+    "searchStatus": {
+      "draft": "Draft",
+      "queued": "Queued",
+      "searching": "Searching",
+      "extracting": "Extracting",
+      "scoring": "Scoring",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "pipelineStage": {
+      "generating_queries": "Queries generated",
+      "web_search": "Web search completed",
+      "discovering_profiles": "Profiles identified",
+      "extracting": "Analyzing candidates",
+      "scoring": "Calculating AI scores",
+      "deduplicating": "Removing duplicates"
+    },
+    "stageNote": {
+      "generating_queries": "Generating search queries from your criteria",
+      "web_search": "Searching the public web",
+      "discovering_profiles": "Identifying candidate profiles",
+      "extracting": "Extracting structured profiles",
+      "scoring": "Detecting signals and calculating AI scores",
+      "deduplicating": "Merging duplicate people across platforms",
+      "done": "Search complete"
+    },
+    "scoreTier": {
+      "high": "High match",
+      "medium": "Medium match",
+      "low": "Low match"
+    },
+    "weightLevel": {
+      "HIGH": "HIGH",
+      "MEDIUM": "MEDIUM",
+      "LOW": "LOW"
+    },
+    "sort": {
+      "score_desc": "Highest score",
+      "newest": "Newest",
+      "name_asc": "Name"
+    },
+    "rejectionReason": {
+      "unreadable": {
+        "label": "Page would not open",
+        "hint": "The reader failed on the address. Nothing about these people was ever seen."
+      },
+      "not_examined": {
+        "label": "Never opened",
+        "hint": "The search already had the leads it was asked for and stopped. Ask for more to reach these."
+      },
+      "not_a_profile": {
+        "label": "Not a profile page",
+        "hint": "A shop, an article, a login form or a numeric page id — refused for free, before anything was read."
+      },
+      "off_source": {
+        "label": "Outside your sources",
+        "hint": "Real profiles on a platform you did not pick. Add that platform to the sources to reach them."
+      },
+      "not_a_person": {
+        "label": "No person on the page",
+        "hint": "A brand account, a community or a shop."
+      },
+      "wrong_country": {
+        "label": "Another country",
+        "hint": "The profile places itself somewhere other than the country you asked for."
+      },
+      "wrong_language": {
+        "label": "Another language",
+        "hint": "The profile publishes in a language this search did not ask for."
+      },
+      "missing_signals": {
+        "label": "Missing a must-have",
+        "hint": "Every must-have signal is an AND. Keeping one is usually enough."
+      }
+    },
+    "rejectionGroup": {
+      "unseen": {
+        "label": "Never read",
+        "note": "Nobody opened these pages. If a lead was lost, it is here."
+      },
+      "excluded": {
+        "label": "Excluded by your sources",
+        "note": "Real profiles, on platforms this search was not given."
+      },
+      "judged": {
+        "label": "Read and refused",
+        "note": "The page was opened and failed one of your requirements."
+      }
+    }
+  },
+  "dashboard": {
+    "eyebrow": "Workspace",
+    "title": "Dashboard",
+    "description": "Candidates discovered from public web sources, scored against your criteria.",
+    "stats": {
+      "totalLeads": "Total leads",
+      "highQuality": "High quality",
+      "searches": "Searches",
+      "savedLeads": "Saved leads"
+    },
+    "recentSearches": "Recent searches",
+    "recentSearchesHint": "Open a completed search to review its candidates",
+    "allSearches": "All searches",
+    "emptyTitle": "No searches yet",
+    "emptyBody": "Define who you are looking for and the AI pipeline takes it from there.",
+    "emptyAction": "Create the first search",
+    "topSources": "Top sources",
+    "topSourcesHint": "Share of discovered candidates",
+    "scoreDistribution": "Score distribution",
+    "scoreDistributionHint": "All leads in the workspace",
+    "leadsDiscovered": "Leads discovered",
+    "leadsDiscoveredHint": "Last 7 days",
+    "sourceTooltip": "{count, number} leads discovered via {platform}",
+    "weeklyAria": "Leads discovered per day this week",
+    "dayTooltip": "{day}: {count, number} leads"
+  },
+  "leads": {
+    "eyebrow": "Pipeline",
+    "title": "Leads",
+    "description": "Everything discovered across searches. Status and notes stay with the person, not the search.",
+    "tabAll": "All leads",
+    "tabSaved": "Saved",
+    "tabArchived": "Archived",
+    "emptySavedTitle": "No saved leads yet",
+    "emptySavedBody": "Use the bookmark in a results table or on a lead page to keep candidates here.",
+    "emptyArchivedTitle": "Nothing archived",
+    "emptyArchivedBody": "Archiving hides a candidate from the main list without deleting the evidence.",
+    "emptyFilteredTitle": "No leads match these filters"
+  },
+  "leadsTable": {
+    "candidate": "Candidate",
+    "score": "Score",
+    "platforms": "Platforms",
+    "location": "Location",
+    "status": "Status",
+    "save": "Save",
+    "saveLead": "Save {name}",
+    "unsaveLead": "Unsave {name}",
+    "confidence": "confidence {percent}%"
+  },
+  "filters": {
+    "searchPlaceholder": "Search name, company, city…",
+    "searchAria": "Search leads",
+    "minScoreAria": "Minimum score",
+    "anyScore": "Any score",
+    "scoreAtLeast": "{score} and above",
+    "country": "Country",
+    "platform": "Platform",
+    "signals": "Signals",
+    "status": "Status",
+    "hasEmail": "Has email",
+    "hasSocial": "Has social",
+    "sortAria": "Sort leads",
+    "nothingToFilter": "Nothing to filter yet"
+  },
+  "leadDetail": {
+    "notFound": "This lead could not be found.",
+    "statusAria": "Lead status",
+    "save": "Save",
+    "saved": "Saved",
+    "moreActions": "More actions",
+    "archiveLead": "Archive lead",
+    "restoreFromArchive": "Restore from archive",
+    "verifyOnWeb": "Verify on the web",
+    "whyMatches": "Why this candidate matches",
+    "whyMatchesHint": "Each signal keeps the quote and page it came from",
+    "aiSummary": "AI summary",
+    "aiSummaryHint": "Generated from the extracted profile",
+    "sources": "Sources",
+    "sourcesHint": "{count, plural, one {# page} other {# pages}} kept for re-analysis",
+    "discoveredAt": "discovered {when}",
+    "notes": "Notes",
+    "notesHint": "Private to your workspace",
+    "aiMatchScore": "AI match score",
+    "howScoreBuilt": "How the score was built",
+    "overview": "Overview",
+    "location": "Location",
+    "languages": "Languages",
+    "company": "Company",
+    "discovered": "Discovered",
+    "fromSearch": "From search",
+    "profilesContacts": "Profiles & contacts",
+    "noContacts": "No public contact details found. Outreach would go through a platform message.",
+    "archived": "Archived",
+    "toastSaved": "Saved",
+    "toastSavedBody": "Find it under Leads → Saved.",
+    "toastUnsaved": "Removed from saved",
+    "toastArchived": "Archived",
+    "toastRestored": "Restored"
+  },
+  "notes": {
+    "empty": "No notes yet.",
+    "placeholder": "What did you notice about this candidate?",
+    "add": "Add note",
+    "saving": "Saving…"
+  },
+  "score": {
+    "total": "Total",
+    "outOf": "{score} / 100"
+  },
+  "signals": {
+    "notDetected": "Not detected",
+    "source": "Source"
+  },
+  "outreach": {
+    "draft": "Draft outreach",
+    "modalTitle": "Message {name}",
+    "modalDescription": "Generated from the evidence on this profile — review before sending.",
+    "generate": "Generate draft",
+    "regenerate": "Regenerate",
+    "writing": "Writing…",
+    "channel": "Channel",
+    "tone": "Tone",
+    "language": "Language",
+    "channels": {
+      "instagram_dm": "Instagram DM",
+      "linkedin_dm": "LinkedIn message",
+      "email": "Email"
+    },
+    "tones": {
+      "warm": "Warm",
+      "direct": "Direct",
+      "formal": "Formal"
+    },
+    "noDraft": "No draft yet. Pick a channel and generate one.",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed",
+    "copyFailedBody": "Select the text and copy manually."
+  },
+  "searches": {
+    "eyebrow": "History",
+    "title": "Searches",
+    "description": "Every search keeps its criteria, so any result set can be re-run or refined later.",
+    "runningNow": "Running now",
+    "allSearches": "All searches",
+    "count": "{count, plural, one {# search} other {# searches}}",
+    "emptyTitle": "No searches yet",
+    "emptyBody": "Every search starts with criteria: who the person is, where they are, and which signals matter.",
+    "emptyAction": "Create a search"
+  },
+  "searchRow": {
+    "inProgress": "in progress",
+    "leads": "{count, plural, one {# lead} other {# leads}}",
+    "highQuality": "{count, number} high quality"
+  },
+  "progress": {
+    "notFound": "This search could not be found.",
+    "eyebrow": "Search in progress",
+    "cancel": "Cancel",
+    "complete": "Search complete — opening results",
+    "cancelled": "Search cancelled",
+    "pipeline": "Pipeline",
+    "pipelineHint": "Each step reports from the worker, not the browser",
+    "liveCounters": "Live counters",
+    "pagesDiscovered": "Pages discovered",
+    "profilesFound": "Profiles found",
+    "relevantCandidates": "Relevant candidates",
+    "highQuality": "High quality",
+    "notTakenForward": "Not taken forward",
+    "notTakenForwardHint": "{count, number} candidates did not meet a requirement",
+    "reasonOffSource": "Not one of your sources",
+    "reasonNotAPerson": "Not a person",
+    "reasonCountry": "Not in {country}",
+    "reasonCountryGeneric": "Wrong country",
+    "reasonLanguage": "Publishes in another language",
+    "reasonSignals": "Missing a must-have signal",
+    "usage": "Usage this search",
+    "usageHint": "Tracked from the first request",
+    "searchApiCalls": "Search API calls",
+    "pagesAnalyzed": "Pages analyzed",
+    "pagesRead": "Pages read",
+    "fromCache": "From cache",
+    "pagesSkipped": "Skipped (page budget)",
+    "readerCredits": "Reader credits",
+    "llmCalls": "LLM calls",
+    "estimatedCost": "Estimated cost",
+    "generatedQueries": "Generated queries",
+    "generatedQueriesHint": "{count, number} deterministic templates",
+    "meterAria": "Search progress",
+    "stageDetail": {
+      "generating_queries": "{done, number} of {total, number} queries",
+      "web_search": "{count, number} pages discovered",
+      "discovering_profiles": "{count, number} profiles identified",
+      "extracting": "{done, number} of {total, number} analyzed",
+      "scoring": "{count, number} candidates scored",
+      "deduplicating": "{count, number} high-quality matches"
+    }
+  },
+  "results": {
+    "eyebrow": "Search results",
+    "liveProgress": "Live progress",
+    "refineRerun": "Refine and re-run",
+    "rerunSuffix": "(v2)",
+    "selected": "Selected",
+    "highQuality": "High quality",
+    "averageScore": "Average score",
+    "filteredOut": "Filtered out",
+    "cost": "Cost",
+    "tabSelected": "Selected {count, number}",
+    "tabFilteredOut": "Filtered out {count, number}",
+    "noMatchTitle": "No candidates match these filters",
+    "noMatchBody": "Loosen the score threshold or clear a filter to see the rest of this search.",
+    "showing": "Showing {shown, number} of {total, number} candidates. Duplicates across platforms are already merged into single people.",
+    "rejectedNote": "Every address this search discovered is in one of the two lists, so the pair is the whole of what it saw. A refusal that turns out to be a real person is worth reporting: it is a bug with a URL attached to it.",
+    "nothingFoundTitle": "This search found nobody",
+    "nothingFoundBody": "No candidate reached the scoring stage. Widen the keywords or add a source, then run it again.",
+    "seeFilteredOut": "See what was filtered out",
+    "seeEveryFilteredOut": "See every candidate that was filtered out",
+    "nothingFoundIntro": "{count, number} candidates were looked at and every one was refused by a requirement. Which requirement, and what to change:",
+    "reason": {
+      "unreadable": {
+        "label": "pages the reader could not open",
+        "fix": "Nothing about these people was ever seen, so this is not a verdict on them. Open the filtered-out list and check the addresses."
+      },
+      "offSource": {
+        "label": "offered by the search engine outside your sources, and refused",
+        "fix": "Nothing was read or paid for here. If one of your own queries has no site: operator it is asked of the whole web — the wizard now scopes those to the platforms you picked."
+      },
+      "notAPerson": {
+        "label": "not people (brand accounts, communities, articles)",
+        "fix": "Narrow the wording: add a role word to your own query (консультант, дистриб’ютор), or exclude shops with -shop -магазин."
+      },
+      "country": {
+        "label": "not confirmed to be in {country}",
+        "labelGeneric": "refused on geography",
+        "fix": "Turn off “only if it can be confirmed” on the Geography step, or put the city into your own query so the description carries it."
+      },
+      "language": {
+        "label": "publishing in another language",
+        "fix": "Turn off the language requirement: a two-line profile description often shows no language at all."
+      },
+      "signals": {
+        "label": "missing a must-have signal",
+        "fix": "Keep one must-have. Every extra one is an AND, proven by a quote from a profile that may not have opened."
+      }
+    }
+  },
+  "rejected": {
+    "nothingTurnedAwayTitle": "Nothing was turned away",
+    "nothingTurnedAwayBody": "Every candidate this search discovered became a lead. Searches that ran before this list existed show nothing here.",
+    "all": "All {count, number}",
+    "chip": "{label} {count, number}",
+    "candidate": "Candidate",
+    "promise": "Promise",
+    "refusedBecause": "Refused because",
+    "whichIs": "Which is",
+    "nothingUnderReasonTitle": "Nothing under this reason",
+    "nothingUnderReasonBody": "The counts above cover the whole run; this page of the list does not reach it.",
+    "showingMostPromising": "Showing the {shown, number} most promising of {total, number}. The counts above are over the whole run.",
+    "wasRead": "The page itself was opened and read.",
+    "wasNotRead": "Nobody opened this page — the verdict rests on the search result alone."
+  },
+  "wizard": {
+    "stepOf": "Step {step} of 5",
+    "fillExample": "Fill example",
+    "starting": "Starting…",
+    "startSearch": "Start search",
+    "untitled": "Untitled search",
+    "almostThere": "Almost there",
+    "steps": {
+      "1": {
+        "label": "Who",
+        "title": "Who are we looking for?"
+      },
+      "2": {
+        "label": "Where",
+        "title": "Geography"
+      },
+      "3": {
+        "label": "Signals",
+        "title": "Candidate criteria"
+      },
+      "4": {
+        "label": "Sources",
+        "title": "Where to look"
+      },
+      "5": {
+        "label": "Review",
+        "title": "Search preview"
+      }
+    },
+    "descriptions": {
+      "1": "Describe the person you want to find. Keywords here become the search queries the pipeline runs.",
+      "2": "Narrow by geography and language. Everything on this step is optional.",
+      "3": "Define the signals that matter and how many points each one is worth.",
+      "4": "Choose which public sources to look at. No account, login or cookie is ever used.",
+      "5": "Review what will run, then start the search."
+    },
+    "issues": {
+      "name": "Give the search a name",
+      "keywords": "Add at least one keyword or industry",
+      "sources": "Select at least one source"
+    },
+    "identity": {
+      "nameLabel": "Search name",
+      "nameHint": "Only for your workspace — it never reaches a search query.",
+      "namePlaceholder": "MIHI Beauty Leaders Spain",
+      "industryLabel": "Industry",
+      "industryHint": "Narrows the vocabulary used to build queries.",
+      "industryPlaceholder": "Beauty, cosmetics…",
+      "businessLabel": "Business type",
+      "businessHint": "How these people earn — the strongest single signal.",
+      "businessPlaceholder": "MLM, network marketing…",
+      "keywordsLabel": "Keywords",
+      "keywordsHint": "Brand names, role titles and phrases these people use about themselves. Each keyword multiplies into several search queries.",
+      "keywordsPlaceholder": "MIHI, team leader, distributor…",
+      "negativeLabel": "Negative keywords",
+      "negativeHint": "Pages containing these are dropped before analysis — the cheapest way to keep customers and shops out of your results.",
+      "negativePlaceholder": "customer, shop, salon…"
+    },
+    "geography": {
+      "countryLabel": "Country",
+      "countryHint": "Appended to every generated query.",
+      "anyCountry": "Any country",
+      "regionLabel": "Region",
+      "regionPlaceholder": "Catalonia",
+      "cityLabel": "City",
+      "cityPlaceholder": "Barcelona",
+      "languagesLabel": "Languages",
+      "languagesHint": "Used for query wording and, later, for the language of outreach drafts. Migrant communities are often the strongest match — Russian and Ukrainian speakers in Spain, for example.",
+      "languagesPlaceholder": "Spanish, English…",
+      "requirementsTitle": "Requirements, not preferences",
+      "noOutsideCountry": "Nobody from outside {country}",
+      "noOutsideCountryGeneric": "Nobody from outside the chosen country",
+      "noOutsideCountryHint": "A profile that places the person somewhere else is refused. Turn this off and geographic match goes back to being worth points instead.",
+      "confirmedOnly": "…and only if it can be confirmed",
+      "confirmedLocationHint": "Strict: a profile that says nothing about where the person is gets dropped too. Off, it becomes a lead that scores lower — which is usually what you want, because most social profiles never name a city and their pages will not open.",
+      "noOtherLanguages": "Nobody publishing only in other languages than {languages}",
+      "noOtherLanguagesGeneric": "Nobody publishing only in other languages",
+      "noOtherLanguagesHint": "Judged on what the profile is written in.",
+      "confirmedLanguageHint": "A two-line profile description often shows no language at all. Leave this off unless you would rather have five certain people than fifty likely ones.",
+      "socialOnlyWarning": "Only social sources are selected. Profiles there rarely state a country or a language, so “only if it can be confirmed” will drop most of what this search finds. Worth turning on once you have seen what it returns without it.",
+      "footnote": "The country and languages also shape the questions asked: a search for Ukraine in Ukrainian is run against the Ukrainian index, in Ukrainian words. Leaving both empty widens the search to the whole public web, and the switches above then have nothing to apply."
+    },
+    "criteria": {
+      "mustHave": "Must have",
+      "mustHaveHint": "A candidate missing any of these is dropped before scoring.",
+      "niceToHave": "Nice to have",
+      "niceToHaveHint": "Not required, but each one detected adds points.",
+      "weights": "Signal weights",
+      "weightsHint": "Points a fully-confident signal contributes. The score is the weighted sum — no model invents the total.",
+      "points": "{total} / 100 pts",
+      "weightAria": "{signal} weight",
+      "totalWarning": "Weights total {total}. Scores stay comparable inside this search, but a 100-point scale keeps them comparable across searches."
+    },
+    "sources": {
+      "privacyTitle": "These are search targets, not logins.",
+      "privacyBody": "AI Recruiter reads publicly indexed pages only. It never asks for social network passwords, never stores platform cookies and never automates a personal account. Selecting Instagram means “look at public Instagram pages the search engine already indexes”.",
+      "selectOne": "Select at least one source to continue."
+    },
+    "review": {
+      "howMany": "How many leads do you want?",
+      "fewer": "Fewer leads",
+      "more": "More leads",
+      "leadsToFind": "Leads to find",
+      "targetHint": "The search stops once it has this many leads that pass every requirement. Candidates are read best first, so what a limit drops is the weakest tail — and the pages it never pays for still become leads from their search result.",
+      "warningsTitle": "Worth knowing before you start",
+      "summarySearch": "Search",
+      "summaryTarget": "Target",
+      "summaryGeography": "Geography",
+      "summaryLanguages": "Languages",
+      "summaryKeywords": "Keywords",
+      "summaryExcluded": "Excluded",
+      "summarySources": "Sources",
+      "missingUnnamed": "unnamed search",
+      "missingTarget": "not specified",
+      "missingGeography": "worldwide",
+      "missingLanguages": "any",
+      "missingNone": "none",
+      "scoringModel": "Scoring model",
+      "queriesTitle": "Queries the search will run",
+      "queriesCount": "{count, number} queries",
+      "searchIn": "Search in",
+      "wholeWeb": "Whole web",
+      "queryPlaceholder": "джерелія",
+      "queryAria": "What to search for",
+      "queryHint": "Type the brand people distribute, or how they describe themselves — джерелія, фармасі, консультант. One query is one billed call, and a name your market uses beats any template.",
+      "queryPickPlace": "Pick at least one place to search.",
+      "queryOwnSite": "This query names its own <code>site:</code>, so it is added exactly as written.",
+      "queryYours": "yours",
+      "queryRemove": "Remove query {query}",
+      "queryLoading": "Asking the backend…",
+      "costFailed": "The backend could not price this search. It can still be started — the limits configured on the server apply either way.",
+      "costTitle": "This search will cost at most",
+      "costQueries": "Search queries",
+      "costCalls": "{count, number} calls",
+      "costPagesRead": "Pages read",
+      "costNoReader": "none — no page reader configured",
+      "costUpTo": "up to {pages, number} ({credits, number} credits)",
+      "costUnlimited": "unlimited",
+      "costPerLead": "{pages, number} pages per lead, measured from earlier runs. A page already read this week is free."
+    }
+  },
+  "settings": {
+    "eyebrow": "Workspace",
+    "title": "Settings",
+    "description": "Appearance is yours; provider keys and concurrency limits live on the server and are never sent to the browser.",
+    "appearance": "Appearance",
+    "appearanceHint": "Themes are defined as token sets, so new palettes drop in without touching components",
+    "searchDefaults": "Search defaults",
+    "autoSaveHigh": "Auto-save high matches",
+    "autoSaveHighHint": "Candidates scoring 90 or above land in Saved leads automatically",
+    "notifyDone": "Notify me when a search finishes",
+    "notifyDoneHint": "A toast while the app is open; email once accounts exist",
+    "dataSource": "Data source",
+    "dataSourceMock": "The app is running on in-browser fixtures. No search API, scraper or model is called. Switch by setting NEXT_PUBLIC_DATA_SOURCE=api once the backend is live.",
+    "dataSourceUnreachable": "No answer from <url></url>. Start it with <command></command>.",
+    "dataSourceDegraded": "{service} is up but its database is not answering. Check it with <command></command>.",
+    "dataSourceConnected": "Connected to {service} v{version} (phase {phase}), storing the workspace in {storage}.",
+    "dataSourcePipelineFixture": "No external service is called: searches run over the seeded catalogue.",
+    "dataSourcePipelinePartial": "New searches query the live web; the stages below say what is real and what is still a stand-in.",
+    "dataSourcePipelineLive": "Every pipeline stage is running against a real provider.",
+    "dataSourceConnecting": "Connecting to the backend…",
+    "backendIntegrations": "Backend integrations",
+    "configured": "configured",
+    "addKey": "add {key}",
+    "phase": "Phase {number}",
+    "providerRole": {
+      "brave": "Primary web search provider",
+      "scrapegraph": "Structured extraction from candidate pages",
+      "openai": "Signal detection on extracted profiles",
+      "postgres": "Where searches, leads and notes live",
+      "redis": "Distributed job queue for the workers"
+    },
+    "pipelineStages": "Pipeline stages",
+    "stage": {
+      "search": "Web search",
+      "extraction": "Page extraction",
+      "signals": "Signal detection"
+    },
+    "adapter": {
+      "brave": "Live public web results",
+      "scrapegraph": "Opens each candidate page and extracts the profile it states",
+      "llm": "Judges each signal on the profile",
+      "snippet": "Profiles built from result metadata, not from the page — add SCRAPEGRAPH_API_KEY",
+      "fixture": "The seeded catalogue of 24 candidates",
+      "unknown": "Unknown adapter"
+    },
+    "live": "live",
+    "standIn": "stand-in",
+    "concurrencyLimits": "Concurrency limits (server-side)",
+    "readingSources": "Reading the sources",
+    "readingSourcesHint": "Measured from the pages this workspace has opened — not an assumption about the platforms",
+    "readingSourcesText": "{fallback} A page is read once and reused for {hours, number} hours, so the same profile is never paid for twice.",
+    "readingSourcesFailed": "The backend did not answer this one.",
+    "readingSourcesLoading": "Loading the reading record…",
+    "whatOneSearchMaySpend": "What one search may spend",
+    "unlimited": "unlimited",
+    "noTarget": "no target",
+    "unknown": "?",
+    "budgetNote": "The wizard sets the target per search and turns it into the budget: <mono>leads × PAGES_PER_LEAD</mono>, capped by the ceiling above. Pages past the budget still become leads — from their search result, at snippet confidence. The credit price is what the plan charges: the API does not report it, so set it from the dashboard.",
+    "usableShare": "{share, number}% usable",
+    "pages": "{count, number} pages",
+    "outcome": {
+      "usable": "read",
+      "notAPerson": "not a person",
+      "blocked": "blocked",
+      "empty": "empty",
+      "failed": "failed"
+    },
+    "platform": {
+      "instagram": "Instagram",
+      "linkedin": "LinkedIn",
+      "facebook": "Facebook",
+      "threads": "Threads",
+      "website": "Personal sites",
+      "blog": "Blogs"
+    },
+    "noPageRead": "No page has been read yet.",
+    "noPageReadLive": "Run a search and this fills in per platform.",
+    "noPageReadFixture": "Reading starts once SCRAPEGRAPH_API_KEY is set.",
+    "resetTitle": "Reset demo data",
+    "resetHint": "Clears searches you created, saved flags, statuses and notes",
+    "resetButton": "Reset demo data",
+    "resetModalTitle": "Reset demo data?",
+    "resetModalDescription": "Searches you started, saved leads, statuses and notes are removed. Fixture leads come back unchanged.",
+    "resetBodyMock": "This only touches browser storage — nothing is stored on a server in mock mode.",
+    "resetBodyApi": "This empties the workspace tables in PostgreSQL and re-applies the seed. Nothing outside this demo is affected.",
+    "resetToastTitle": "Demo data reset",
+    "resetToastBody": "Fixtures are back to their original state.",
+    "resetFailedTitle": "Reset failed",
+    "resetFailedBody": "The data source did not respond."
+  }
+}

@@ -1,4 +1,5 @@
-import { SCORE_TIER_LABELS, scoreTier, scoreTierTone } from "@/lib/domain";
+import { useTranslations } from "next-intl";
+import { scoreTier, scoreTierTone } from "@/lib/domain";
 import { cn } from "@/lib/utils";
 import { Badge } from "./badge";
 
@@ -90,5 +91,6 @@ export function ScoreDial({ score, size = 132 }: { score: number; size?: number 
 }
 
 export function ScoreTierBadge({ score }: { score: number }) {
-  return <Badge tone={scoreTierTone(score)}>{SCORE_TIER_LABELS[scoreTier(score)]}</Badge>;
+  const t = useTranslations("domain.scoreTier");
+  return <Badge tone={scoreTierTone(score)}>{t(scoreTier(score))}</Badge>;
 }

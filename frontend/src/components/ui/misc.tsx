@@ -1,4 +1,5 @@
 import { Globe, Rss } from "lucide-react";
+import { useTranslations } from "next-intl";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 import type { Platform } from "@/services/types";
 import { cn } from "@/lib/utils";
@@ -114,9 +115,10 @@ export function Eyebrow({ children, className }: { children: ReactNode; classNam
 }
 
 export function ConfidenceMeter({ value }: { value: number }) {
+  const t = useTranslations("leadsTable");
   const percent = Math.round(value * 100);
   return (
-    <span className="inline-flex items-center gap-2" title={`Confidence ${percent}%`}>
+    <span className="inline-flex items-center gap-2" title={t("confidence", { percent })}>
       <span className="flex items-center gap-0.5" aria-hidden>
         {[0, 1, 2, 3, 4].map((index) => (
           <span

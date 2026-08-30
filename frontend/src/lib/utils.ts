@@ -30,43 +30,6 @@ export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-export function formatCurrencyEur(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-export function formatRelativeTime(iso: string, now = Date.now()) {
-  const diff = now - new Date(iso).getTime();
-  const minute = 60_000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
-
-  if (diff < minute) return "just now";
-  if (diff < hour) return `${Math.floor(diff / minute)}m ago`;
-  if (diff < day) return `${Math.floor(diff / hour)}h ago`;
-  if (diff < 7 * day) return `${Math.floor(diff / day)}d ago`;
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-export function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export function initials(name: string) {
   return name
     .split(/\s+/)
@@ -75,6 +38,5 @@ export function initials(name: string) {
     .join("");
 }
 
-export function pluralize(count: number, singular: string, plural = `${singular}s`) {
-  return `${formatNumber(count)} ${count === 1 ? singular : plural}`;
-}
+/* Number, currency and date formatting are locale-dependent and live in
+   src/lib/format.ts as hooks — see `useNumbers`, `useTimeAgo`, `useDateTime`. */

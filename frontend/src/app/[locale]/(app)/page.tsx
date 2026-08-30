@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowRight, Plus, Search } from "lucide-react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
@@ -12,19 +13,21 @@ import { SearchRow } from "@/components/search/search-row";
 import { useDashboard } from "@/services/hooks";
 
 export default function DashboardPage() {
+  const t = useTranslations("dashboard");
+  const nav = useTranslations("nav");
   const { data, isPending } = useDashboard();
 
   return (
     <>
       <PageHeader
-        eyebrow="Workspace"
-        title="Dashboard"
-        description="Candidates discovered from public web sources, scored against your criteria."
+        eyebrow={t("eyebrow")}
+        title={t("title")}
+        description={t("description")}
         actions={
           <Button asChild variant="primary">
             <Link href="/search/new">
               <Plus />
-              New search
+              {nav("newSearch")}
             </Link>
           </Button>
         }
@@ -35,21 +38,23 @@ export default function DashboardPage() {
       ) : (
         <div className="flex flex-col gap-5">
           <Card className="grid grid-cols-1 divide-y divide-line sm:grid-cols-2 sm:divide-x lg:grid-cols-4 lg:divide-y-0">
-            <StatTile stat={data.stats.totalLeads} emphasis />
-            <StatTile stat={data.stats.highQuality} />
-            <StatTile stat={data.stats.searches} />
-            <StatTile stat={data.stats.savedLeads} />
+            {/* The data source returns one label per stat; the tile is told which
+                stat it is showing, so the heading follows the interface. */}
+            <StatTile stat={data.stats.totalLeads} label={t("stats.totalLeads")} emphasis />
+            <StatTile stat={data.stats.highQuality} label={t("stats.highQuality")} />
+            <StatTile stat={data.stats.searches} label={t("stats.searches")} />
+            <StatTile stat={data.stats.savedLeads} label={t("stats.savedLeads")} />
           </Card>
 
           <div className="grid gap-5 lg:grid-cols-[1.55fr_1fr]">
             <Card>
               <CardHeader
-                title="Recent searches"
-                hint="Open a completed search to review its candidates"
+                title={t("recentSearches")}
+                hint={t("recentSearchesHint")}
                 action={
                   <Button asChild variant="ghost" size="sm">
                     <Link href="/searches">
-                      All searches
+                      {t("allSearches")}
                       <ArrowRight />
                     </Link>
                   </Button>
@@ -66,11 +71,11 @@ export default function DashboardPage() {
               ) : (
                 <EmptyState
                   icon={<Search className="size-4" />}
-                  title="No searches yet"
-                  body="Define who you are looking for and the AI pipeline takes it from there."
+                  title={t("emptyTitle")}
+                  body={t("emptyBody")}
                   action={
                     <Button asChild variant="primary" size="sm">
-                      <Link href="/search/new">Create the first search</Link>
+                      <Link href="/search/new">{t("emptyAction")}</Link>
                     </Button>
                   }
                 />
@@ -78,7 +83,7 @@ export default function DashboardPage() {
             </Card>
 
             <Card>
-              <CardHeader title="Top sources" hint="Share of discovered candidates" />
+              <CardHeader title={t("topSources")} hint={t("topSourcesHint")} />
               <CardBody>
                 <SourceShareBars items={data.sourceBreakdown} />
               </CardBody>
@@ -87,14 +92,14 @@ export default function DashboardPage() {
 
           <div className="grid gap-5 lg:grid-cols-2">
             <Card>
-              <CardHeader title="Score distribution" hint="All leads in the workspace" />
+              <CardHeader title={t("scoreDistribution")} hint={t("scoreDistributionHint")} />
               <CardBody>
                 <ScoreHistogram buckets={data.scoreDistribution} />
               </CardBody>
             </Card>
 
             <Card>
-              <CardHeader title="Leads discovered" hint="Last 7 days" />
+              <CardHeader title={t("leadsDiscovered")} hint={t("leadsDiscoveredHint")} />
               <CardBody>
                 <WeeklyLeadsChart data={data.weeklyLeads} />
               </CardBody>

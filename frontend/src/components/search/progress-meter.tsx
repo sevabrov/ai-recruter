@@ -1,6 +1,7 @@
 "use client";
 
 import { Progress } from "radix-ui";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 const SEGMENTS = 36;
@@ -18,6 +19,7 @@ export function ProgressMeter({
   label?: string;
   tone?: "accent" | "good";
 }) {
+  const t = useTranslations("progress");
   const filled = Math.round((percent / 100) * SEGMENTS);
 
   return (
@@ -31,7 +33,7 @@ export function ProgressMeter({
         value={percent}
         max={100}
         className="flex h-3 gap-[3px] overflow-hidden"
-        aria-label={label ?? "Search progress"}
+        aria-label={label ?? t("meterAria")}
       >
         {Array.from({ length: SEGMENTS }, (_, index) => {
           const isFilled = index < filled;

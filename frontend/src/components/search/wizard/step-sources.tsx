@@ -1,12 +1,15 @@
 "use client";
 
 import { ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { SOURCE_KINDS } from "@/lib/domain";
 import { CheckboxField } from "@/components/ui/controls";
 import { PlatformIcon } from "@/components/ui/misc";
 import { useWizardStore } from "@/store/wizard-store";
 
 export function StepSources() {
+  const t = useTranslations("wizard.sources");
+  const sources = useTranslations("domain.source");
   const { criteria, toggleSource } = useWizardStore();
 
   return (
@@ -22,10 +25,10 @@ export function StepSources() {
                 {source.platform ? (
                   <PlatformIcon platform={source.platform} className="text-fg-faint" />
                 ) : null}
-                {source.label}
+                {sources(`${source.id}.label`)}
               </span>
             }
-            hint={source.hint}
+            hint={sources(`${source.id}.hint`)}
           />
         ))}
       </div>
@@ -33,18 +36,13 @@ export function StepSources() {
       <div className="flex gap-3 rounded-card border border-line bg-surface-2 px-4 py-3.5">
         <ShieldCheck className="mt-0.5 size-4 shrink-0 text-good" />
         <div className="text-xs leading-relaxed text-fg-muted">
-          <p className="mb-1 font-medium text-fg">These are search targets, not logins.</p>
-          <p>
-            AI Recruiter reads publicly indexed pages only. It never asks for social
-            network passwords, never stores platform cookies and never automates a
-            personal account. Selecting Instagram means &ldquo;look at public
-            Instagram pages the search engine already indexes&rdquo;.
-          </p>
+          <p className="mb-1 font-medium text-fg">{t("privacyTitle")}</p>
+          <p>{t("privacyBody")}</p>
         </div>
       </div>
 
       {!criteria.sources.length ? (
-        <p className="text-xs text-warn">Select at least one source to continue.</p>
+        <p className="text-xs text-warn">{t("selectOne")}</p>
       ) : null}
     </div>
   );

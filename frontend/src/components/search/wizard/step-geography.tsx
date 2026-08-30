@@ -1,13 +1,20 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { ChipInput } from "@/components/ui/chip-input";
 import { SelectField, SwitchField } from "@/components/ui/controls";
 import { Field, Input } from "@/components/ui/field";
 import { Eyebrow } from "@/components/ui/misc";
-import type { SourceKind } from "@/services/types";
+import { WEB_SOURCES } from "@/lib/domain";
 import { useWizardStore } from "@/store/wizard-store";
 
+/**
+ * Country and language names are query tokens, not interface copy: the backend
+ * appends them to the generated queries verbatim and picks the market index
+ * from them. They stay in one spelling across all three interface languages, or
+ * the same search would ask a different question depending on who opened it.
+ */
 const COUNTRIES = [
   "Spain",
   "Germany",
@@ -35,10 +42,8 @@ const LANGUAGE_SUGGESTIONS = [
   "French",
 ];
 
-/** Sources that mean "anywhere on the indexed web", where a page usually opens. */
-const WEB_SOURCES: SourceKind[] = ["public_web", "company_websites", "blogs"];
-
 export function StepGeography() {
+  const t = useTranslations("wizard.geography");
   const { criteria, setLocation, patchCriteria } = useWizardStore();
 
   const socialOnly =
@@ -51,60 +56,56 @@ export function StepGeography() {
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-6 md:grid-cols-3">
-        <Field label="Country" optional hint="Appended to every generated query.">
+        <Field label={t("countryLabel")} optional hint={t("countryHint")}>
           <SelectField
-            ariaLabel="Country"
+            ariaLabel={t("countryLabel")}
             value={criteria.location.country || undefined}
             onValueChange={(country) => setLocation({ country })}
-            placeholder="Any country"
+            placeholder={t("anyCountry")}
             options={COUNTRIES.map((country) => ({ value: country, label: country }))}
             className="w-full"
           />
         </Field>
 
-        <Field label="Region" optional htmlFor="region">
+        <Field label={t("regionLabel")} optional htmlFor="region">
           <Input
             id="region"
             value={criteria.location.region ?? ""}
             onChange={(event) => setLocation({ region: event.target.value })}
-            placeholder="Catalonia"
+            placeholder={t("regionPlaceholder")}
           />
         </Field>
 
-        <Field label="City" optional htmlFor="city">
+        <Field label={t("cityLabel")} optional htmlFor="city">
           <Input
             id="city"
             value={criteria.location.city ?? ""}
             onChange={(event) => setLocation({ city: event.target.value })}
-            placeholder="Barcelona"
+            placeholder={t("cityPlaceholder")}
           />
         </Field>
       </div>
 
-      <Field
-        label="Languages"
-        optional
-        hint="Used for query wording and, later, for the language of outreach drafts. Migrant communities are often the strongest match — Russian and Ukrainian speakers in Spain, for example."
-      >
+      <Field label={t("languagesLabel")} optional hint={t("languagesHint")}>
         <ChipInput
           values={criteria.languages}
           onChange={(languages) => patchCriteria({ languages })}
-          placeholder="Spanish, English…"
+          placeholder={t("languagesPlaceholder")}
           suggestions={LANGUAGE_SUGGESTIONS}
         />
       </Field>
 
       <section className="rounded-card border border-line bg-surface-2 px-4 py-3">
-        <Eyebrow className="mb-1">Requirements, not preferences</Eyebrow>
+        <Eyebrow className="mb-1">{t("requirementsTitle")}</Eyebrow>
         <SwitchField
           checked={criteria.requireLocation ?? true}
           onCheckedChange={(requireLocation) => patchCriteria({ requireLocation })}
           label={
             criteria.location.country
-              ? `Nobody from outside ${criteria.location.country}`
-              : "Nobody from outside the chosen country"
+              ? t("noOutsideCountry", { country: criteria.location.country })
+              : t("noOutsideCountryGeneric")
           }
-          hint="A profile that places the person somewhere else is refused. Turn this off and geographic match goes back to being worth points instead."
+          hint={t("noOutsideCountryHint")}
         />
         {(criteria.requireLocation ?? true) ? (
           <SwitchField
@@ -112,8 +113,8 @@ export function StepGeography() {
             onCheckedChange={(requireConfirmedLocation) =>
               patchCriteria({ requireConfirmedLocation })
             }
-            label="…and only if it can be confirmed"
-            hint="Strict: a profile that says nothing about where the person is gets dropped too. Off, it becomes a lead that scores lower — which is usually what you want, because most social profiles never name a city and their pages will not open."
+            label={t("confirmedOnly")}
+            hint={t("confirmedLocationHint")}
           />
         ) : null}
         <SwitchField
@@ -121,10 +122,10 @@ export function StepGeography() {
           onCheckedChange={(requireLanguage) => patchCriteria({ requireLanguage })}
           label={
             criteria.languages.length
-              ? `Nobody publishing only in other languages than ${criteria.languages.join(" / ")}`
-              : "Nobody publishing only in other languages"
+              ? t("noOtherLanguages", { languages: criteria.languages.join(" / ") })
+              : t("noOtherLanguagesGeneric")
           }
-          hint="Judged on what the profile is written in."
+          hint={t("noOtherLanguagesHint")}
         />
         {(criteria.requireLanguage ?? true) ? (
           <SwitchField
@@ -132,8 +133,8 @@ export function StepGeography() {
             onCheckedChange={(requireConfirmedLanguage) =>
               patchCriteria({ requireConfirmedLanguage })
             }
-            label="…and only if it can be confirmed"
-            hint="A two-line profile description often shows no language at all. Leave this off unless you would rather have five certain people than fifty likely ones."
+            label={t("confirmedOnly")}
+            hint={t("confirmedLanguageHint")}
           />
         ) : null}
 
@@ -146,21 +147,13 @@ export function StepGeography() {
         {strictOverSocialOnly ? (
           <p className="mt-2 flex gap-2 rounded-card border border-warn/30 bg-warn-soft px-3 py-2 text-xs leading-relaxed text-fg-muted">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warn" />
-            <span>
-              Only social sources are selected. Profiles there rarely state a
-              country or a language, so “only if it can be confirmed” will drop
-              most of what this search finds. Worth turning on once you have seen
-              what it returns without it.
-            </span>
+            <span>{t("socialOnlyWarning")}</span>
           </p>
         ) : null}
       </section>
 
       <p className="rounded-card border border-line bg-surface-2 px-4 py-3 text-xs leading-relaxed text-fg-muted">
-        The country and languages also shape the questions asked: a search for
-        Ukraine in Ukrainian is run against the Ukrainian index, in Ukrainian
-        words. Leaving both empty widens the search to the whole public web, and
-        the switches above then have nothing to apply.
+        {t("footnote")}
       </p>
     </div>
   );

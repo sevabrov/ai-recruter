@@ -9,13 +9,16 @@
  * always alongside the numeric range, so the tier is never colour-alone.
  */
 
-import { PLATFORM_LABELS } from "@/lib/domain";
-import { cn, formatNumber } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+import { useNumbers } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { Hint } from "@/components/ui/controls";
 import { PlatformIcon } from "@/components/ui/misc";
 import type { ScoreBucket, SourceShare } from "@/services/types";
 
 export function SourceShareBars({ items }: { items: SourceShare[] }) {
+  const t = useTranslations("dashboard");
+  const platforms = useTranslations("domain.platform");
   const max = Math.max(...items.map((item) => item.share), 1);
 
   return (
@@ -24,10 +27,15 @@ export function SourceShareBars({ items }: { items: SourceShare[] }) {
         <li key={item.platform} className="grid grid-cols-[7.5rem_1fr_2.75rem] items-center gap-3">
           <span className="flex items-center gap-2 text-sm text-fg-muted">
             <PlatformIcon platform={item.platform} className="text-fg-faint" />
-            <span className="truncate">{PLATFORM_LABELS[item.platform]}</span>
+            <span className="truncate">{platforms(item.platform)}</span>
           </span>
 
-          <Hint label={`${formatNumber(item.leads)} leads discovered via ${PLATFORM_LABELS[item.platform]}`}>
+          <Hint
+            label={t("sourceTooltip", {
+              count: item.leads,
+              platform: platforms(item.platform),
+            })}
+          >
             <span className="block h-2 cursor-default overflow-hidden rounded-r-[4px] bg-surface-2">
               <span
                 className="block h-full rounded-r-[4px] bg-accent transition-[width] duration-500"
@@ -47,6 +55,7 @@ const BUCKET_TONE = (from: number) =>
   from >= 85 ? "bg-good" : from >= 70 ? "bg-warn" : "bg-fg-faint";
 
 export function ScoreHistogram({ buckets }: { buckets: ScoreBucket[] }) {
+  const { number } = useNumbers();
   const max = Math.max(...buckets.map((bucket) => bucket.count), 1);
 
   return (
@@ -60,7 +69,7 @@ export function ScoreHistogram({ buckets }: { buckets: ScoreBucket[] }) {
               style={{ width: `${(bucket.count / max) * 100}%` }}
             />
           </span>
-          <span className="num text-right text-sm text-fg-muted">{formatNumber(bucket.count)}</span>
+          <span className="num text-right text-sm text-fg-muted">{number(bucket.count)}</span>
         </li>
       ))}
     </ul>
@@ -68,14 +77,15 @@ export function ScoreHistogram({ buckets }: { buckets: ScoreBucket[] }) {
 }
 
 export function WeeklyLeadsChart({ data }: { data: { day: string; count: number }[] }) {
+  const t = useTranslations("dashboard");
   const max = Math.max(...data.map((point) => point.count), 1);
   const peak = data.reduce((best, point) => (point.count > best.count ? point : best), data[0]);
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex h-28 items-end gap-2" role="img" aria-label="Leads discovered per day this week">
+      <div className="flex h-28 items-end gap-2" role="img" aria-label={t("weeklyAria")}>
         {data.map((point) => (
-          <Hint key={point.day} label={`${point.day}: ${formatNumber(point.count)} leads`}>
+          <Hint key={point.day} label={t("dayTooltip", { day: point.day, count: point.count })}>
             <div className="flex h-full flex-1 cursor-default flex-col justify-end gap-1.5">
               <span
                 className={cn(

@@ -1,17 +1,20 @@
 "use client";
 
 import { ExternalLink, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/controls";
 import { EmptyState, Eyebrow, PlatformIcon, Skeleton } from "@/components/ui/misc";
 import {
+  isKnownRejectionReason,
   REJECTION_GROUPS,
   rejectionMeta,
   type RejectionGroup,
 } from "@/lib/domain";
-import { cn, formatNumber } from "@/lib/utils";
+import { useNumbers } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import type { RejectedCandidate, RejectedList, RejectionReason } from "@/services/types";
 
 /**
@@ -29,7 +32,17 @@ export function RejectedTable({
   list?: RejectedList;
   isPending?: boolean;
 }) {
+  const t = useTranslations("rejected");
+  const common = useTranslations("common");
+  const reasons = useTranslations("domain.rejectionReason");
+  const groups = useTranslations("domain.rejectionGroup");
   const [reason, setReason] = useState<RejectionReason | null>(null);
+
+  /** Unknown ids from a newer backend render raw rather than as a message path. */
+  const reasonLabel = (id: RejectionReason) =>
+    isKnownRejectionReason(id) ? reasons(`${id}.label`) : id;
+  const reasonHint = (id: RejectionReason) =>
+    isKnownRejectionReason(id) ? reasons(`${id}.hint`) : "";
 
   if (isPending) {
     return (
@@ -45,8 +58,8 @@ export function RejectedTable({
     return (
       <EmptyState
         icon={<ShieldCheck className="size-4" />}
-        title="Nothing was turned away"
-        body="Every candidate this search discovered became a lead. Searches that ran before this list existed show nothing here."
+        title={t("nothingTurnedAwayTitle")}
+        body={t("nothingTurnedAwayBody")}
       />
     );
   }
@@ -55,7 +68,7 @@ export function RejectedTable({
   const chips = REJECTION_GROUPS.flatMap((group) =>
     Object.entries(counts)
       .map(([id, count]) => ({ id: id as RejectionReason, count: count ?? 0 }))
-      .filter((entry) => entry.count > 0 && rejectionMeta(entry.id).group === group.id),
+      .filter((entry) => entry.count > 0 && rejectionMeta(entry.id).group === group),
   );
   const shown = reason ? list.items.filter((entry) => entry.reason === reason) : list.items;
 
@@ -63,24 +76,27 @@ export function RejectedTable({
     <div className="flex flex-col">
       <div className="grid grid-cols-1 gap-px border-b border-line bg-line sm:grid-cols-3">
         {REJECTION_GROUPS.map((group) => (
-          <GroupTile key={group.id} group={group.id} label={group.label} note={group.note} counts={counts} />
+          <GroupTile
+            key={group}
+            group={group}
+            label={groups(`${group}.label`)}
+            note={groups(`${group}.note`)}
+            counts={counts}
+          />
         ))}
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 border-b border-line px-4 py-3">
         <Chip active={reason === null} onClick={() => setReason(null)}>
-          All {formatNumber(list.total)}
+          {t("all", { count: list.total })}
         </Chip>
-        {chips.map((entry) => {
-          const meta = rejectionMeta(entry.id);
-          return (
-            <Hint key={entry.id} label={meta.hint}>
-              <Chip active={reason === entry.id} onClick={() => setReason(entry.id)}>
-                {meta.label} {formatNumber(entry.count)}
-              </Chip>
-            </Hint>
-          );
-        })}
+        {chips.map((entry) => (
+          <Hint key={entry.id} label={reasonHint(entry.id)}>
+            <Chip active={reason === entry.id} onClick={() => setReason(entry.id)}>
+              {t("chip", { label: reasonLabel(entry.id), count: entry.count })}
+            </Chip>
+          </Hint>
+        ))}
       </div>
 
       {shown.length ? (
@@ -88,26 +104,26 @@ export function RejectedTable({
           <table className="w-full min-w-[48rem] border-collapse text-sm">
             <thead>
               <tr className="border-b border-line">
-                <Th className="pl-5">Candidate</Th>
-                <Th className="w-24">Promise</Th>
-                <Th className="w-44">Refused because</Th>
-                <Th className="pr-5">Which is</Th>
+                <Th className="pl-5">{t("candidate")}</Th>
+                <Th className="w-24">{t("promise")}</Th>
+                <Th className="w-44">{t("refusedBecause")}</Th>
+                <Th className="pr-5">{t("whichIs")}</Th>
               </tr>
             </thead>
             <tbody>
               {shown.map((entry) => (
-                <Row key={entry.id} entry={entry} />
+                <Row key={entry.id} entry={entry} label={reasonLabel(entry.reason)} />
               ))}
             </tbody>
           </table>
         </div>
       ) : (
         <EmptyState
-          title="Nothing under this reason"
-          body="The counts above cover the whole run; this page of the list does not reach it."
+          title={t("nothingUnderReasonTitle")}
+          body={t("nothingUnderReasonBody")}
           action={
             <Button variant="secondary" size="sm" onClick={() => setReason(null)}>
-              Show all
+              {common("showAll")}
             </Button>
           }
         />
@@ -115,16 +131,18 @@ export function RejectedTable({
 
       {list.items.length < list.total ? (
         <p className="px-5 py-3 text-xs text-fg-faint">
-          Showing the {formatNumber(list.items.length)} most promising of{" "}
-          {formatNumber(list.total)}. The counts above are over the whole run.
+          {t("showingMostPromising", { shown: list.items.length, total: list.total })}
         </p>
       ) : null}
     </div>
   );
 }
 
-function Row({ entry }: { entry: RejectedCandidate }) {
+function Row({ entry, label }: { entry: RejectedCandidate; label: string }) {
+  const t = useTranslations("rejected");
+  const common = useTranslations("common");
   const meta = rejectionMeta(entry.reason);
+
   return (
     <tr className="group border-b border-line last:border-0 transition-colors hover:bg-surface-2">
       <td className="py-2.5 pl-5">
@@ -150,24 +168,25 @@ function Row({ entry }: { entry: RejectedCandidate }) {
       </td>
 
       <td className="num text-fg-muted">
-        {typeof entry.promise === "number" ? entry.promise : "—"}
+        {typeof entry.promise === "number" ? entry.promise : common("dash")}
       </td>
 
       <td>
-        <Badge tone={meta.tone}>{meta.label}</Badge>
+        <Badge tone={meta.tone}>{label}</Badge>
       </td>
 
       <td className="max-w-md pr-5 py-2.5 text-xs leading-relaxed text-fg-muted">
         <span className="flex items-start gap-1.5">
           {entry.read ? (
-            <Hint label="The page itself was opened and read.">
+            <Hint label={t("wasRead")}>
               <Eye className="mt-0.5 size-3 shrink-0 text-fg-faint" />
             </Hint>
           ) : (
-            <Hint label="Nobody opened this page — the verdict rests on the search result alone.">
+            <Hint label={t("wasNotRead")}>
               <EyeOff className="mt-0.5 size-3 shrink-0 text-warn" />
             </Hint>
           )}
+          {/* Written by the pipeline, so it arrives in the backend's language. */}
           <span>{entry.detail}</span>
         </span>
       </td>
@@ -186,11 +205,13 @@ function GroupTile({
   note: string;
   counts: RejectedList["byReason"];
 }) {
+  const { number } = useNumbers();
   const total = Object.entries(counts).reduce(
     (sum, [id, count]) =>
       rejectionMeta(id as RejectionReason).group === group ? sum + (count ?? 0) : sum,
     0,
   );
+
   return (
     <div className="bg-surface px-5 py-4">
       <Eyebrow>{label}</Eyebrow>
@@ -200,7 +221,7 @@ function GroupTile({
           group === "unseen" && total > 0 && "text-warn",
         )}
       >
-        {formatNumber(total)}
+        {number(total)}
       </p>
       <p className="mt-1.5 text-xs leading-relaxed text-fg-muted">{note}</p>
     </div>

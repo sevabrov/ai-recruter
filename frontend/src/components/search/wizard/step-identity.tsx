@@ -1,9 +1,15 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ChipInput } from "@/components/ui/chip-input";
 import { Field, Input } from "@/components/ui/field";
 import { useWizardStore } from "@/store/wizard-store";
 
+/**
+ * Suggestion chips are market vocabulary, not interface copy: they go into a
+ * search query verbatim, so they stay in the language the market uses whatever
+ * the interface is set to.
+ */
 const INDUSTRY_SUGGESTIONS = [
   "Beauty",
   "Cosmetics",
@@ -34,63 +40,54 @@ const KEYWORD_SUGGESTIONS = [
 const NEGATIVE_SUGGESTIONS = ["customer", "shop", "beauty salon", "vacancy", "wholesale"];
 
 export function StepIdentity() {
+  const t = useTranslations("wizard.identity");
   const { name, criteria, setName, patchCriteria } = useWizardStore();
 
   return (
     <div className="flex flex-col gap-6">
-      <Field
-        label="Search name"
-        htmlFor="search-name"
-        hint="Only for your workspace — it never reaches a search query."
-      >
+      <Field label={t("nameLabel")} htmlFor="search-name" hint={t("nameHint")}>
         <Input
           id="search-name"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="MIHI Beauty Leaders Spain"
+          placeholder={t("namePlaceholder")}
         />
       </Field>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <Field label="Industry" hint="Narrows the vocabulary used to build queries.">
+        <Field label={t("industryLabel")} hint={t("industryHint")}>
           <ChipInput
             values={criteria.industry}
             onChange={(industry) => patchCriteria({ industry })}
-            placeholder="Beauty, cosmetics…"
+            placeholder={t("industryPlaceholder")}
             suggestions={INDUSTRY_SUGGESTIONS}
           />
         </Field>
 
-        <Field label="Business type" hint="How these people earn — the strongest single signal.">
+        <Field label={t("businessLabel")} hint={t("businessHint")}>
           <ChipInput
             values={criteria.businessTypes}
             onChange={(businessTypes) => patchCriteria({ businessTypes })}
-            placeholder="MLM, network marketing…"
+            placeholder={t("businessPlaceholder")}
             suggestions={BUSINESS_SUGGESTIONS}
           />
         </Field>
       </div>
 
-      <Field
-        label="Keywords"
-        hint="Brand names, role titles and phrases these people use about themselves. Each keyword multiplies into several search queries."
-      >
+      <Field label={t("keywordsLabel")} hint={t("keywordsHint")}>
         <ChipInput
           values={criteria.keywords}
           onChange={(keywords) => patchCriteria({ keywords })}
-          placeholder="MIHI, team leader, distributor…"
+          placeholder={t("keywordsPlaceholder")}
           suggestions={KEYWORD_SUGGESTIONS}
         />
       </Field>
 
-      <Field
-        label="Negative keywords"
-        hint="Pages containing these are dropped before analysis — the cheapest way to keep customers and shops out of your results."
-      >
+      <Field label={t("negativeLabel")} hint={t("negativeHint")}>
         <ChipInput
           values={criteria.negativeKeywords}
           onChange={(negativeKeywords) => patchCriteria({ negativeKeywords })}
-          placeholder="customer, shop, salon…"
+          placeholder={t("negativePlaceholder")}
           suggestions={NEGATIVE_SUGGESTIONS}
           tone="negative"
         />

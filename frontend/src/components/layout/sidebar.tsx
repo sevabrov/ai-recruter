@@ -8,8 +8,8 @@ import {
   Users,
   type LucideIcon,
 } from "lucide-react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { Link, usePathname } from "@/i18n/navigation";
 import { IS_MOCK } from "@/services";
 import { API_BASE_URL } from "@/services/api/http";
 import { useBackendHealth } from "@/services/hooks";
@@ -18,6 +18,7 @@ import { Dot } from "@/components/ui/badge";
 
 type NavItem = {
   href: string;
+  /** Key under the `nav` namespace. */
   label: string;
   icon: LucideIcon;
   /** Marks the section active for any nested route. */
@@ -25,28 +26,31 @@ type NavItem = {
 };
 
 const NAV: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, match: (p) => p === "/" },
+  { href: "/", label: "dashboard", icon: LayoutDashboard, match: (p) => p === "/" },
   {
     href: "/search/new",
-    label: "New search",
+    label: "newSearch",
     icon: Plus,
     match: (p) => p.startsWith("/search/new"),
   },
-  { href: "/leads", label: "Leads", icon: Users, match: (p) => p.startsWith("/leads") },
+  { href: "/leads", label: "leads", icon: Users, match: (p) => p.startsWith("/leads") },
   {
     href: "/searches",
-    label: "Search history",
+    label: "searchHistory",
     icon: History,
     match: (p) => p.startsWith("/searches") || (p.startsWith("/search/") && !p.startsWith("/search/new")),
   },
 ];
 
 const SECONDARY: NavItem[] = [
-  { href: "/settings", label: "Settings", icon: Settings, match: (p) => p.startsWith("/settings") },
+  { href: "/settings", label: "settings", icon: Settings, match: (p) => p.startsWith("/settings") },
 ];
 
 export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+  // Locale-aware: the prefix is stripped, so the matchers above stay written
+  // against plain paths.
   const pathname = usePathname();
+  const t = useTranslations("nav");
 
   return (
     <div className="flex h-full flex-col">
@@ -54,9 +58,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         <Mark />
         <div className="min-w-0">
           <p className="font-display text-[15px] leading-tight font-semibold tracking-tight">
-            AI Recruiter
+            {t("brand")}
           </p>
-          <p className="label text-fg-faint">public web first</p>
+          <p className="label text-fg-faint">{t("tagline")}</p>
         </div>
       </div>
 
@@ -83,6 +87,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
  * workspace.
  */
 function DataSourceFooter() {
+  const t = useTranslations("backend");
   const { data, isError, isPending } = useBackendHealth();
 
   const degraded = data?.database === false;
@@ -97,27 +102,27 @@ function DataSourceFooter() {
           ? "warn"
           : "good";
   const title = IS_MOCK
-    ? "Phase 1 · mock data"
+    ? t("mockTitle")
     : isError
-      ? "Backend unreachable"
+      ? t("unreachableTitle")
       : isPending
-        ? "Connecting…"
+        ? t("connectingTitle")
         : degraded
-          ? "Database unreachable"
-          : `Live backend · v${data?.version}`;
+          ? t("databaseDownTitle")
+          : t("liveTitle", { version: data?.version ?? "" });
   const detail = IS_MOCK
-    ? "No external services are called. Every number is fixture data."
+    ? t("mockDetail")
     : isError
-      ? `No answer from ${API_BASE_URL}. Start it with: docker compose up -d backend`
+      ? t("unreachableDetail", { url: API_BASE_URL })
       : degraded
-        ? "The API is running but PostgreSQL is not answering: docker compose up -d postgres"
+        ? t("databaseDownDetail")
         : data?.pipeline === "fixture"
-          ? "Connected. Search providers are not configured yet, so results come from the seeded catalogue."
+          ? t("fixtureDetail")
           : data?.stages?.extraction === "scrapegraph"
-            ? `Connected. New searches query the live web through ${data.stages.search} and read the pages they find.`
+            ? t("readingDetail", { provider: data.stages.search })
             : data?.stages?.search && data.stages.search !== "fixture"
-              ? `Connected. New searches query the live web through ${data.stages.search}; the pages themselves are not read yet.`
-              : "Connected to the FastAPI backend.";
+              ? t("searchOnlyDetail", { provider: data.stages.search })
+              : t("connectedDetail");
 
   return (
     <div className="border-t border-line px-4 py-3">
@@ -139,6 +144,7 @@ function NavLink({
   pathname: string;
   onNavigate?: () => void;
 }) {
+  const t = useTranslations("nav");
   const active = item.match ? item.match(pathname) : pathname.startsWith(item.href);
   const Icon = item.icon;
 
@@ -158,7 +164,7 @@ function NavLink({
         )}
       />
       <Icon className="size-4 shrink-0" />
-      <span className="truncate font-medium">{item.label}</span>
+      <span className="truncate font-medium">{t(item.label)}</span>
     </Link>
   );
 }

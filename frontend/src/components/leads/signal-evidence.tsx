@@ -1,7 +1,7 @@
 "use client";
 
 import { ExternalLink, Minus } from "lucide-react";
-import { PLATFORM_LABELS, SIGNAL_LABELS } from "@/lib/domain";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { ConfidenceMeter, PlatformIcon } from "@/components/ui/misc";
 import type { LeadSignal } from "@/services/types";
@@ -11,6 +11,9 @@ import type { LeadSignal } from "@/services/types";
  * that triggered it and the page it came from travel with it (spec §16).
  */
 export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {
+  const t = useTranslations("signals");
+  const labels = useTranslations("domain.signal");
+  const platforms = useTranslations("domain.platform");
   const detected = signals.filter((signal) => signal.detected);
   const missing = signals.filter((signal) => !signal.detected);
 
@@ -23,7 +26,7 @@ export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {
               <span className="text-good" aria-hidden>
                 ✓
               </span>
-              {SIGNAL_LABELS[signal.type]}
+              {labels(signal.type)}
             </h3>
             <ConfidenceMeter value={signal.confidence} />
           </header>
@@ -46,7 +49,7 @@ export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {
               className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-fg-faint transition-colors hover:text-accent"
             >
               {signal.sourcePlatform ? <PlatformIcon platform={signal.sourcePlatform} /> : null}
-              {signal.sourcePlatform ? PLATFORM_LABELS[signal.sourcePlatform] : "Source"}
+              {signal.sourcePlatform ? platforms(signal.sourcePlatform) : t("source")}
               <ExternalLink className="size-3" />
             </a>
           ) : null}
@@ -55,11 +58,11 @@ export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {
 
       {missing.length ? (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-surface-2 px-5 py-3">
-          <span className="label text-fg-faint">Not detected</span>
+          <span className="label text-fg-faint">{t("notDetected")}</span>
           {missing.map((signal) => (
             <span key={signal.type} className="flex items-center gap-1.5 text-xs text-fg-faint">
               <Minus className="size-3" />
-              {SIGNAL_LABELS[signal.type]}
+              {labels(signal.type)}
             </span>
           ))}
         </div>

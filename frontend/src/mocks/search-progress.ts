@@ -15,16 +15,20 @@ type StageStep = {
   stage: SearchStage;
   /** Fraction of total runtime at which this stage completes. */
   until: number;
-  note: string;
 };
 
+/**
+ * What the progress screen says about each stage is `domain.stageNote.<stage>`
+ * in the message catalogue — the same wording serves the real backend, which
+ * reports a stage id and no prose.
+ */
 export const MOCK_STAGE_TIMELINE: StageStep[] = [
-  { stage: "generating_queries", until: 0.12, note: "Generating search queries from your criteria" },
-  { stage: "web_search", until: 0.34, note: "Searching the public web" },
-  { stage: "discovering_profiles", until: 0.5, note: "Identifying candidate profiles" },
-  { stage: "extracting", until: 0.78, note: "Extracting structured profiles" },
-  { stage: "scoring", until: 0.92, note: "Detecting signals and calculating AI scores" },
-  { stage: "deduplicating", until: 1, note: "Merging duplicate people across platforms" },
+  { stage: "generating_queries", until: 0.12 },
+  { stage: "web_search", until: 0.34 },
+  { stage: "discovering_profiles", until: 0.5 },
+  { stage: "extracting", until: 0.78 },
+  { stage: "scoring", until: 0.92 },
+  { stage: "deduplicating", until: 1 },
 ];
 
 /** Counter targets reached at 100%. */
@@ -64,11 +68,4 @@ export function progressAt(fraction: number, qualifiedTarget: number, highQualit
     percent: Math.round(clamped * 100),
     stage,
   };
-}
-
-export function stageNote(stage: SearchStage) {
-  return (
-    MOCK_STAGE_TIMELINE.find((step) => step.stage === stage)?.note ??
-    "Search complete"
-  );
 }

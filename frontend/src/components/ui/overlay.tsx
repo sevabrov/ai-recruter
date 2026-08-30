@@ -2,8 +2,10 @@
 
 import { Check, X } from "lucide-react";
 import { Dialog, DropdownMenu } from "radix-ui";
+import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { Hint } from "@/components/ui/controls";
 
 /* ---------------------------------------------------------------- dialog */
 
@@ -24,6 +26,8 @@ export function Modal({
   footer?: ReactNode;
   width?: string;
 }) {
+  const t = useTranslations("common");
+
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -46,7 +50,7 @@ export function Modal({
             </div>
             <Dialog.Close
               className="rounded-ctl p-1 text-fg-faint transition-colors hover:bg-surface-2 hover:text-fg"
-              aria-label="Close"
+              aria-label={t("close")}
             >
               <X className="size-4" />
             </Dialog.Close>
@@ -67,16 +71,25 @@ export function Modal({
 
 export function Menu({
   trigger,
+  hint,
   children,
   align = "end",
 }: {
   trigger: ReactNode;
+  /**
+   * Tooltip for the trigger. Pass it here rather than wrapping the trigger in
+   * `<Hint>` yourself: `asChild` needs a DOM element underneath it, so a
+   * tooltip wrapper on the outside swallows the props that open the menu.
+   */
+  hint?: ReactNode;
   children: ReactNode;
   align?: "start" | "center" | "end";
 }) {
+  const triggerNode = <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>;
+
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
+      {hint ? <Hint label={hint}>{triggerNode}</Hint> : triggerNode}
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           align={align}

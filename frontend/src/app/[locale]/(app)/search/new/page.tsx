@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowLeft, ArrowRight, RotateCcw, Sparkles, Wand2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,28 +14,33 @@ import { StepReview } from "@/components/search/wizard/step-review";
 import { StepSources } from "@/components/search/wizard/step-sources";
 import { WizardSteps } from "@/components/search/wizard/steps";
 import { useCreateSearch } from "@/services/hooks";
-import { stepIssues, WIZARD_STEPS, useWizardStore } from "@/store/wizard-store";
+import { stepIssues, useWizardStore } from "@/store/wizard-store";
 
 export default function NewSearchPage() {
+  const t = useTranslations("wizard");
+  const common = useTranslations("common");
   const router = useRouter();
   const { toast } = useToast();
   const { step, name, criteria, setStep, next, back, reset, loadExample } = useWizardStore();
   const createSearch = useCreateSearch();
 
   const issues = stepIssues({ name, criteria }, step);
-  const current = WIZARD_STEPS.find((entry) => entry.id === step)!;
   const isLast = step === 5;
 
   const start = async () => {
     const blocking = stepIssues({ name, criteria }, 1);
     if (blocking.length) {
       setStep(1);
-      toast({ title: "Almost there", description: blocking[0], tone: "warn" });
+      toast({
+        title: t("almostThere"),
+        description: t(`issues.${blocking[0]}`),
+        tone: "warn",
+      });
       return;
     }
 
     const { searchId } = await createSearch.mutateAsync({
-      name: name.trim() || "Untitled search",
+      name: name.trim() || t("untitled"),
       criteria,
     });
     router.push(`/search/${searchId}/progress`);
@@ -43,18 +49,18 @@ export default function NewSearchPage() {
   return (
     <>
       <PageHeader
-        eyebrow={`Step ${step} of 5`}
-        title={current.title}
-        description={DESCRIPTIONS[step]}
+        eyebrow={t("stepOf", { step })}
+        title={t(`steps.${step}.title`)}
+        description={t(`descriptions.${step}`)}
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={loadExample}>
               <Wand2 />
-              Fill example
+              {t("fillExample")}
             </Button>
             <Button variant="ghost" size="sm" onClick={reset}>
               <RotateCcw />
-              Clear
+              {common("clear")}
             </Button>
           </>
         }
@@ -76,12 +82,12 @@ export default function NewSearchPage() {
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface-2 px-5 py-3.5">
           <Button variant="ghost" onClick={back} disabled={step === 1}>
             <ArrowLeft />
-            Back
+            {common("back")}
           </Button>
 
           <div className="flex items-center gap-3">
             {issues.length ? (
-              <span className="text-xs text-warn">{issues[0]}</span>
+              <span className="text-xs text-warn">{t(`issues.${issues[0]}`)}</span>
             ) : null}
 
             {isLast ? (
@@ -92,11 +98,11 @@ export default function NewSearchPage() {
                 disabled={createSearch.isPending || !criteria.sources.length}
               >
                 <Sparkles />
-                {createSearch.isPending ? "Starting…" : "Start search"}
+                {createSearch.isPending ? t("starting") : t("startSearch")}
               </Button>
             ) : (
               <Button variant="primary" onClick={next} disabled={issues.length > 0}>
-                Continue
+                {common("continue")}
                 <ArrowRight />
               </Button>
             )}
@@ -106,11 +112,3 @@ export default function NewSearchPage() {
     </>
   );
 }
-
-const DESCRIPTIONS: Record<number, string> = {
-  1: "Describe the person you want to find. Keywords here become the search queries the pipeline runs.",
-  2: "Narrow by geography and language. Everything on this step is optional.",
-  3: "Define the signals that matter and how many points each one is worth.",
-  4: "Choose which public sources to look at. No account, login or cookie is ever used.",
-  5: "Review what will run, then start the search.",
-};

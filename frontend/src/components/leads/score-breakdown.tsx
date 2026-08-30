@@ -1,4 +1,4 @@
-import { SIGNAL_LABELS } from "@/lib/domain";
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { ScoreComponent } from "@/services/types";
 
@@ -10,6 +10,10 @@ export function ScoreBreakdown({
   breakdown: ScoreComponent[];
   total: number;
 }) {
+  const t = useTranslations("score");
+  const signals = useTranslations("domain.signal");
+  const common = useTranslations("common");
+
   return (
     <ul className="flex flex-col gap-2">
       {breakdown.map((component) => {
@@ -24,10 +28,10 @@ export function ScoreBreakdown({
                   empty ? "text-fg-faint" : full ? "text-good" : "text-fg",
                 )}
               >
-                {empty ? "—" : `+${component.awarded}`}
+                {empty ? common("dash") : `+${component.awarded}`}
               </span>
               <span className={cn("text-sm", empty ? "text-fg-faint" : "text-fg-muted")}>
-                {SIGNAL_LABELS[component.type]}
+                {signals(component.type)}
               </span>
             </span>
 
@@ -45,8 +49,10 @@ export function ScoreBreakdown({
       })}
 
       <li className="mt-1 flex items-baseline justify-between border-t border-line pt-2.5">
-        <span className="label text-fg-faint">Total</span>
-        <span className="num font-display text-lg font-semibold">{total} / 100</span>
+        <span className="label text-fg-faint">{t("total")}</span>
+        <span className="num font-display text-lg font-semibold">
+          {t("outOf", { score: total })}
+        </span>
       </li>
     </ul>
   );

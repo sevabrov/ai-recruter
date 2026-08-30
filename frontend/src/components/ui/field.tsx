@@ -1,6 +1,7 @@
 "use client";
 
 import { Label } from "radix-ui";
+import { useTranslations } from "next-intl";
 import { forwardRef, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from "react";
 import { cn } from "@/lib/utils";
 
@@ -42,13 +43,15 @@ export function Field({
   children: ReactNode;
   className?: string;
 }) {
+  const t = useTranslations("common");
+
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
       <div className="flex items-baseline justify-between gap-3">
         <Label.Root htmlFor={htmlFor} className="label text-fg-muted">
           {label}
         </Label.Root>
-        {optional ? <span className="text-2xs text-fg-faint">optional</span> : null}
+        {optional ? <span className="text-2xs text-fg-faint">{t("optional")}</span> : null}
       </div>
       {children}
       {hint ? <p className="text-xs leading-relaxed text-fg-faint">{hint}</p> : null}
