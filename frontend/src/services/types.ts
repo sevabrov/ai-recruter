@@ -49,6 +49,16 @@ export interface GeoLocation {
 }
 
 export interface SearchCriteria {
+  /** What the client wrote, in their own words, before it became criteria. */
+  brief?: string;
+  /** Who is searching — their brand and role. Context, never a search term. */
+  aboutMe?: string;
+  /**
+   * Brands the wanted people distribute, spelled as the market spells them. Each
+   * one is asked on every chosen platform (`site:instagram.com джерелія`).
+   */
+  brands?: string[];
+  /** Tokens from `INDUSTRIES`; shown as `domain.industry.<id>`. */
   industry: string[];
   businessTypes: string[];
   keywords: string[];
@@ -201,8 +211,33 @@ export interface SearchEstimate {
   maxCostEur: number;
   /** Whether pages are read at all right now, so the UI can say why it is free. */
   readsPages: boolean;
-  /** What these criteria are likely to do to the result, before it is paid for. */
-  warnings?: string[];
+  /**
+   * What these criteria are likely to do to the result, before it is paid for.
+   * Codes, not sentences: the wording is `wizard.review.warning.<code>`.
+   */
+  warnings?: EstimateWarning[];
+}
+
+export interface EstimateWarning {
+  code: string;
+  params?: Record<string, string>;
+}
+
+/** `POST /searches/parse` — a free-text brief read into criteria. */
+export interface ParseBriefInput {
+  text: string;
+  /** Interface language, so the suggested search name reads in it. */
+  locale: string;
+}
+
+export interface ParsedBrief {
+  name: string;
+  criteria: SearchCriteria;
+  /**
+   * "openai", or "rules" when no model answered — the rules read only countries,
+   * languages, well-known brands and a lead count, so the screen says so.
+   */
+  parser: string;
 }
 
 /* ---------------------------------------------------------------- rejected */
@@ -500,6 +535,8 @@ export interface SourcesReport {
 export interface SearchService {
   list(): Promise<SearchSummary[]>;
   get(id: string): Promise<Search>;
+  /** Read a free-text brief into criteria. Creates nothing, searches nothing. */
+  parse(input: ParseBriefInput): Promise<ParsedBrief>;
   /** Price a search and preview its queries. Creates nothing, spends nothing. */
   estimate(criteria: SearchCriteria): Promise<SearchEstimate>;
   create(input: CreateSearchInput): Promise<CreateSearchResponse>;

@@ -1,41 +1,91 @@
 "use client";
 
-import { AlertTriangle, Minus, Plus, Terminal, X } from "lucide-react";
+import { AlertTriangle, HelpCircle, Info, Minus, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useMemo, type ReactNode } from "react";
 import {
-  SCORED_SIGNALS,
-  SITE_BY_SOURCE,
-  SOURCE_KINDS,
-  WEB_SOURCES,
+  BUSINESS_TYPES,
+  COUNTRIES,
+  INDUSTRIES,
+  LANGUAGES,
+  SIGNAL_TYPES,
+  type VocabularyEntry,
 } from "@/lib/domain";
 import { useNumbers } from "@/lib/format";
-import type { SourceKind } from "@/services/types";
+import { cn } from "@/lib/utils";
+import { useVocabulary } from "@/lib/vocabulary";
+import type { EstimateWarning, SearchEstimate, SignalType } from "@/services/types";
 import { useSearchEstimate } from "@/services/hooks";
-import { useWizardStore } from "@/store/wizard-store";
-import { Badge } from "@/components/ui/badge";
+import {
+  BLOCKING_GAPS,
+  criteriaGaps,
+  importanceOf,
+  useWizardStore,
+  type SignalImportance,
+  type WizardGap,
+} from "@/store/wizard-store";
 import { Button } from "@/components/ui/button";
+import { ChipInput } from "@/components/ui/chip-input";
+import { SelectField } from "@/components/ui/controls";
 import { Input } from "@/components/ui/field";
 import { Eyebrow } from "@/components/ui/misc";
-import { useState, type ReactNode } from "react";
+import { AdvancedSettings } from "@/components/search/wizard/advanced-settings";
 
 /** What the wizard offers with one click. Any number can still be typed. */
 const TARGETS = [5, 10, 25, 50];
 
+/** The select value for "anywhere": Radix has no empty option, and none is a choice. */
+const ANYWHERE = "__anywhere__";
+
+/** Where each gap is answered, so the summary can take the client straight there. */
+const GAP_FIELD: Record<WizardGap, string> = {
+  terms: "wizard-brands",
+  brands: "wizard-brands",
+  sources: "wizard-sources",
+  country: "wizard-country",
+  languages: "wizard-languages",
+};
+
+/**
+ * Step two: what was understood, and what is still missing.
+ *
+ * Every criterion is editable here, in the interface language — tokens like
+ * "Spain" or "Cosmetics" are what the backend stores, never what the client
+ * reads. What the brief did not say is asked as a question, in place, on the
+ * field that answers it; the two questions that make a search pointless to run
+ * (nothing to search for, nowhere to look) keep the start button disabled.
+ */
 export function StepReview() {
   const t = useTranslations("wizard.review");
-  const common = useTranslations("common");
-  const signals = useTranslations("domain.signal");
-  const sources = useTranslations("domain.source");
-
-  const { name, criteria, patchCriteria } = useWizardStore();
+  const { criteria, worldwide, parser, patchCriteria } = useWizardStore();
   const estimate = useSearchEstimate(criteria);
+  const gaps = criteriaGaps({ criteria, worldwide });
   const target = criteria.targetLeads ?? 0;
+  // Said once: a warning that repeats an open question at the top is noise.
+  const asked: Record<string, WizardGap> = {
+    no_keywords: "terms",
+    languages_without_country: "country",
+  };
+  const warnings = (estimate.data?.warnings ?? []).filter(
+    (warning) => !gaps.includes(asked[warning.code]),
+  );
 
   const setTarget = (leads: number) =>
     patchCriteria({ targetLeads: Math.max(1, Math.min(1000, leads)) });
 
   return (
     <div className="flex flex-col gap-6">
+      {parser === "rules" ? (
+        <p className="flex gap-2 rounded-card border border-line bg-surface-2 px-4 py-3 text-xs leading-relaxed text-fg-muted">
+          <Info className="mt-0.5 size-3.5 shrink-0 text-fg-faint" />
+          <span>{t("parsedByRules")}</span>
+        </p>
+      ) : null}
+
+      {gaps.length ? <Gaps gaps={gaps} /> : null}
+
+      <Understood gaps={gaps} />
+
       <section className="grid gap-4 rounded-card border border-line bg-surface-2 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div>
           <Eyebrow className="mb-2">{t("howMany")}</Eyebrow>
@@ -84,316 +134,382 @@ export function StepReview() {
         <Cost estimate={estimate.data} loading={estimate.isPending} failed={estimate.isError} />
       </section>
 
-      {/* Said before the money is spent. The client's complaint was never that the
-          filters were wrong — it was that a reasonable-looking set of them returned
-          nothing, and the screen blamed the filters afterwards. The warnings
-          themselves are written by the backend. */}
-      {estimate.data?.warnings?.length ? (
-        <section className="rounded-card border border-warn/30 bg-warn-soft px-4 py-3.5">
-          <Eyebrow className="mb-2 text-warn">{t("warningsTitle")}</Eyebrow>
-          <ul className="flex flex-col gap-2">
-            {estimate.data.warnings.map((warning) => (
-              <li key={warning} className="flex gap-2 text-xs leading-relaxed text-fg-muted">
-                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warn" />
-                <span>{warning}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {warnings.length ? <Warnings warnings={warnings} /> : null}
 
-      <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
-        <Summary label={t("summarySearch")}>
-          {name || <Missing>{t("missingUnnamed")}</Missing>}
-        </Summary>
-        <Summary label={t("summaryTarget")}>
-          {[criteria.businessTypes.join(" / "), criteria.industry.join(" / ")]
-            .filter(Boolean)
-            .join(" · ") || <Missing>{t("missingTarget")}</Missing>}
-        </Summary>
-        <Summary label={t("summaryGeography")}>
-          <span className="flex flex-wrap items-center gap-1.5">
-            {[criteria.location.city, criteria.location.region, criteria.location.country]
-              .filter(Boolean)
-              .join(", ") || <Missing>{t("missingGeography")}</Missing>}
-            {criteria.location.country && (criteria.requireLocation ?? true) ? (
-              <Badge tone="accent">{common("required")}</Badge>
-            ) : null}
-          </span>
-        </Summary>
-        <Summary label={t("summaryLanguages")}>
-          <span className="flex flex-wrap items-center gap-1.5">
-            {criteria.languages.join(", ") || <Missing>{t("missingLanguages")}</Missing>}
-            {criteria.languages.length && (criteria.requireLanguage ?? true) ? (
-              <Badge tone="accent">{common("required")}</Badge>
-            ) : null}
-          </span>
-        </Summary>
-        <Summary label={t("summaryKeywords")}>
-          {criteria.keywords.length ? (
-            <span className="flex flex-wrap gap-1">
-              {criteria.keywords.map((keyword) => (
-                <Badge key={keyword} tone="accent">
-                  {keyword}
-                </Badge>
-              ))}
-            </span>
-          ) : (
-            <Missing>{t("missingNone")}</Missing>
-          )}
-        </Summary>
-        <Summary label={t("summaryExcluded")}>
-          {criteria.negativeKeywords.length ? (
-            <span className="flex flex-wrap gap-1">
-              {criteria.negativeKeywords.map((keyword) => (
-                <Badge key={keyword} tone="bad">
-                  {keyword}
-                </Badge>
-              ))}
-            </span>
-          ) : (
-            <Missing>{t("missingNone")}</Missing>
-          )}
-        </Summary>
-        <Summary label={t("summarySources")} className="sm:col-span-2 lg:col-span-3">
-          <span className="flex flex-wrap gap-1">
-            {criteria.sources.map((source) => (
-              <Badge key={source}>
-                {SOURCE_KINDS.some((entry) => entry.id === source)
-                  ? sources(`${source}.label`)
-                  : source}
-              </Badge>
-            ))}
-          </span>
-        </Summary>
-      </dl>
-
-      <Queries
-        own={criteria.customQueries ?? []}
-        sources={criteria.sources}
-        generated={estimate.data?.queries ?? []}
-        loading={estimate.isPending}
-        onChange={(customQueries) => patchCriteria({ customQueries })}
-      />
-
-      <section>
-        <Eyebrow className="mb-2">{t("scoringModel")}</Eyebrow>
-        <div className="flex flex-wrap gap-1.5">
-          {SCORED_SIGNALS.map((signal) => (
-            <Badge
-              key={signal}
-              mono
-              tone={criteria.signalWeights[signal] >= 25 ? "accent" : "neutral"}
-            >
-              {signals(signal)} +{criteria.signalWeights[signal]}
-            </Badge>
-          ))}
-        </div>
-      </section>
+      <AdvancedSettings estimate={estimate.data} estimateLoading={estimate.isPending} />
     </div>
   );
 }
 
-/**
- * The queries, with room to write your own.
- *
- * The generated ones are templates: they know the criteria, not the market. The
- * people a client is looking for label *themselves*, with a brand name nobody
- * outside that market would guess — so the panel that shows what will run is also
- * where a line of it can be written by hand. Hand-written queries run first and
- * are never dropped by the query cap.
- *
- * Where to look is a set of buttons rather than something to type. Asked to write
- * the query itself, the client wrote `джерелія` — a perfectly good question, put
- * to the whole indexed web, which answered with the brand's own site, four shops,
- * a catalogue and a hotel called Jerelia. Eighteen of those twenty results were
- * then thrown away for being off-source. Nobody should have to know that
- * `site:instagram.com` is what turns that into a question about people.
- */
-function Queries({
-  own,
-  sources,
-  generated,
-  loading,
-  onChange,
-}: {
-  own: string[];
-  sources: SourceKind[];
-  generated: { query: string; language?: string | null }[];
-  loading: boolean;
-  onChange: (queries: string[]) => void;
-}) {
+/* ------------------------------------------------------------------- gaps */
+
+function Gaps({ gaps }: { gaps: WizardGap[] }) {
   const t = useTranslations("wizard.review");
-  const common = useTranslations("common");
-  const platforms = useTranslations("domain.platform");
-  const sourceNames = useTranslations("domain.source");
 
-  const [draft, setDraft] = useState("");
-  const [picked, setPicked] = useState<string[] | null>(null);
-
-  // Only the sources this search actually looks at: a query aimed anywhere else
-  // would be answered and then discarded.
-  const places: { id: string; label: string; operator: string | null }[] = [
-    ...SOURCE_KINDS.filter(
-      (kind) => sources.includes(kind.id) && SITE_BY_SOURCE[kind.id],
-    ).map((kind) => ({
-      id: kind.id as string,
-      label: kind.platform ? platforms(kind.platform) : sourceNames(`${kind.id}.label`),
-      operator: SITE_BY_SOURCE[kind.id]!,
-    })),
-    ...(sources.some((source) => WEB_SOURCES.includes(source))
-      ? [{ id: "web", label: t("wholeWeb"), operator: null }]
-      : []),
-  ];
-
-  // Null means "none of them touched yet", which reads as all of them.
-  const chosen = places.filter(
-    (place) => picked === null || picked.includes(place.id),
-  );
-  const toggle = (id: string) => {
-    const current = chosen.map((place) => place.id);
-    setPicked(
-      current.includes(id)
-        ? current.filter((entry) => entry !== id)
-        : [...current, id],
-    );
-  };
-
-  // The backend returns the client's own queries first, so showing both lists
-  // would show them twice.
-  const templates = generated.filter((entry) => !own.includes(entry.query));
-
-  const cleaned = draft.trim().replace(/\s+/g, " ");
-  const written = /\bsite:/i.test(cleaned);
-  const composed = !cleaned
-    ? []
-    : written
-      ? [cleaned]
-      : chosen.map((place) =>
-          place.operator ? `${place.operator} ${cleaned}` : cleaned,
-        );
-  const fresh = composed.filter((query) => !own.includes(query));
-
-  const add = () => {
-    if (!fresh.length) return;
-    onChange([...own, ...fresh]);
-    setDraft("");
+  const goTo = (gap: WizardGap) => {
+    // Sources live in the folded advanced section: open it first.
+    if (gap === "sources") {
+      const details = document.getElementById("wizard-advanced");
+      if (details instanceof HTMLDetailsElement) details.open = true;
+    }
+    const field = document.getElementById(GAP_FIELD[gap]);
+    field?.scrollIntoView({ behavior: "smooth", block: "center" });
+    field?.querySelector<HTMLElement>("input, button, [role=combobox]")?.focus({ preventScroll: true });
   };
 
   return (
-    <section className="rounded-card border border-line bg-surface-2">
-      <header className="flex items-center gap-2 border-b border-line px-4 py-2.5">
-        <Terminal className="size-3.5 text-fg-faint" />
-        <Eyebrow>{t("queriesTitle")}</Eyebrow>
-        <span className="num ml-auto text-2xs text-fg-faint">
-          {loading ? "…" : t("queriesCount", { count: own.length + templates.length })}
-        </span>
-      </header>
-
-      <div className="flex flex-col gap-2.5 border-b border-line px-4 py-3">
-        {places.length ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Eyebrow className="mr-1">{t("searchIn")}</Eyebrow>
-            {places.map((place) => {
-              const on = chosen.some((entry) => entry.id === place.id);
-              return (
-                <button
-                  key={place.id}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => toggle(place.id)}
-                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                    on
-                      ? "border-accent bg-accent-soft text-accent"
-                      : "border-line text-fg-faint hover:text-fg"
-                  }`}
-                >
-                  {place.label}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-
-        <div className="flex gap-2">
-          <Input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                add();
-              }
-            }}
-            placeholder={t("queryPlaceholder")}
-            aria-label={t("queryAria")}
-            className="text-xs"
-          />
-          <Button variant="secondary" onClick={add} disabled={!fresh.length}>
-            <Plus />
-            {common("add")}
-          </Button>
-        </div>
-
-        {/* What the buttons and the words add up to, before it is added. */}
-        {composed.length ? (
-          <ul className="flex flex-col gap-1">
-            {composed.map((query) => (
-              <li
-                key={query}
-                className={`font-mono text-2xs break-all ${
-                  own.includes(query) ? "text-fg-faint line-through" : "text-fg-muted"
-                }`}
-              >
-                {query}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-xs leading-relaxed text-fg-muted">
-            {chosen.length ? t("queryHint") : t("queryPickPlace")}
-          </p>
-        )}
-        {written ? (
-          <p className="text-xs text-fg-muted">
-            {t.rich("queryOwnSite", {
-              code: (chunks) => <code className="font-mono">{chunks}</code>,
-            })}
-          </p>
-        ) : null}
-      </div>
-
-      <ul className="divide-y divide-line/60">
-        {own.map((query) => (
-          <li key={query} className="flex items-start gap-2 px-4 py-2 text-xs">
-            <span className="min-w-0 flex-1 font-mono break-all">{query}</span>
-            <Badge tone="accent">{t("queryYours")}</Badge>
+    <section className="rounded-card border border-warn/30 bg-warn-soft px-4 py-3.5">
+      <Eyebrow className="mb-2 text-warn">{t("gapsTitle")}</Eyebrow>
+      <ul className="flex flex-col gap-1.5">
+        {gaps.map((gap) => (
+          <li key={gap}>
             <button
               type="button"
-              aria-label={t("queryRemove", { query })}
-              onClick={() => onChange(own.filter((entry) => entry !== query))}
-              className="text-fg-faint transition-colors hover:text-bad"
+              onClick={() => goTo(gap)}
+              className="flex w-full items-start gap-2 text-left text-sm leading-relaxed text-fg transition-colors hover:text-accent"
             >
-              <X className="size-3.5" />
+              <HelpCircle className="mt-1 size-3.5 shrink-0 text-warn" />
+              <span>
+                {t(`gap.${gap}.question`)}{" "}
+                <span className="text-2xs text-fg-faint uppercase">
+                  {BLOCKING_GAPS.includes(gap) ? t("gapRequired") : t("gapRecommended")}
+                </span>
+              </span>
             </button>
           </li>
         ))}
-        {templates.map(({ query, language }) => (
-          <li
-            key={`${language ?? "any"}:${query}`}
-            className="flex items-start gap-2 px-4 py-2 font-mono text-xs break-all text-fg-muted"
-          >
-            <span className="min-w-0 flex-1">{query}</span>
-            {language ? <Badge mono>{language}</Badge> : null}
-          </li>
-        ))}
-        {loading ? (
-          <li className="px-4 py-2 text-xs text-fg-faint">{t("queryLoading")}</li>
-        ) : null}
       </ul>
     </section>
   );
 }
+
+/* -------------------------------------------------------------- understood */
+
+function Understood({ gaps }: { gaps: WizardGap[] }) {
+  const t = useTranslations("wizard.review");
+  const vocabulary = useVocabulary();
+  const { name, setName, criteria, patchCriteria, setLocation, worldwide, setWorldwide } =
+    useWizardStore();
+
+  const countryOptions = useMemo(
+    () => [
+      { value: ANYWHERE, label: t("anywhere") },
+      ...COUNTRIES.map((entry) => ({ value: entry.token, label: vocabulary.country(entry.token) }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    ],
+    [t, vocabulary],
+  );
+
+  const toggleToken = (list: string[], token: string) =>
+    list.some((entry) => entry.toLowerCase() === token.toLowerCase())
+      ? list.filter((entry) => entry.toLowerCase() !== token.toLowerCase())
+      : [...list, token];
+
+  return (
+    <section className="flex flex-col gap-5">
+      <Eyebrow>{t("understoodTitle")}</Eyebrow>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <ReviewField id="wizard-name" label={t("fieldName")}>
+          <Input value={name} onChange={(event) => setName(event.target.value)} />
+        </ReviewField>
+        <ReviewField id="wizard-about" label={t("fieldAboutMe")} hint={t("fieldAboutMeHint")}>
+          <Input
+            value={criteria.aboutMe ?? ""}
+            onChange={(event) => patchCriteria({ aboutMe: event.target.value })}
+            placeholder={t("fieldAboutMePlaceholder")}
+          />
+        </ReviewField>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <ReviewField
+          id="wizard-brands"
+          label={t("fieldBrands")}
+          hint={t("fieldBrandsHint")}
+          question={
+            gaps.includes("terms")
+              ? t("gap.terms.question")
+              : gaps.includes("brands")
+                ? t("gap.brands.question")
+                : undefined
+          }
+        >
+          <ChipInput
+            values={criteria.brands ?? []}
+            onChange={(brands) => patchCriteria({ brands })}
+            placeholder={t("fieldBrandsPlaceholder")}
+          />
+        </ReviewField>
+        <ReviewField
+          id="wizard-keywords"
+          label={t("fieldKeywords")}
+          hint={t("fieldKeywordsHint")}
+          question={gaps.includes("terms") ? t("gap.terms.question") : undefined}
+        >
+          <ChipInput
+            values={criteria.keywords}
+            onChange={(keywords) => patchCriteria({ keywords })}
+            placeholder={t("fieldKeywordsPlaceholder")}
+          />
+        </ReviewField>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <ReviewField
+          id="wizard-country"
+          label={t("fieldCountry")}
+          hint={t("fieldCountryHint")}
+          question={gaps.includes("country") ? t("gap.country.question") : undefined}
+        >
+          <SelectField
+            ariaLabel={t("fieldCountry")}
+            value={criteria.location.country || (worldwide ? ANYWHERE : undefined)}
+            onValueChange={(value) => {
+              if (value === ANYWHERE) {
+                setLocation({ country: undefined, city: undefined });
+                setWorldwide(true);
+              } else {
+                setLocation({ country: value });
+              }
+            }}
+            placeholder={t("fieldCountryPlaceholder")}
+            options={countryOptions}
+            className="w-full"
+          />
+        </ReviewField>
+        <ReviewField id="wizard-city" label={t("fieldCity")} hint={t("fieldCityHint")}>
+          <Input
+            value={criteria.location.city ?? ""}
+            onChange={(event) => setLocation({ city: event.target.value || undefined })}
+            placeholder={t("fieldCityPlaceholder")}
+            disabled={worldwide && !criteria.location.country}
+          />
+        </ReviewField>
+      </div>
+
+      <ReviewField
+        id="wizard-languages"
+        label={t("fieldLanguages")}
+        hint={t("fieldLanguagesHint")}
+        question={gaps.includes("languages") ? t("gap.languages.question") : undefined}
+      >
+        <ToggleChips
+          entries={LANGUAGES}
+          selected={criteria.languages}
+          label={vocabulary.language}
+          onToggle={(token) => patchCriteria({ languages: toggleToken(criteria.languages, token) })}
+        />
+      </ReviewField>
+
+      <ReviewField id="wizard-negatives" label={t("fieldNegatives")} hint={t("fieldNegativesHint")}>
+        <ChipInput
+          values={criteria.negativeKeywords}
+          onChange={(negativeKeywords) => patchCriteria({ negativeKeywords })}
+          placeholder={t("fieldNegativesPlaceholder")}
+          tone="negative"
+        />
+      </ReviewField>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <ReviewField id="wizard-industry" label={t("fieldIndustry")}>
+          <ToggleChips
+            entries={INDUSTRIES}
+            selected={criteria.industry}
+            label={vocabulary.industry}
+            onToggle={(token) => patchCriteria({ industry: toggleToken(criteria.industry, token) })}
+          />
+        </ReviewField>
+        <ReviewField id="wizard-business" label={t("fieldBusiness")}>
+          <ToggleChips
+            entries={BUSINESS_TYPES}
+            selected={criteria.businessTypes}
+            label={vocabulary.businessType}
+            onToggle={(token) =>
+              patchCriteria({ businessTypes: toggleToken(criteria.businessTypes, token) })
+            }
+          />
+        </ReviewField>
+      </div>
+
+      <Signals />
+    </section>
+  );
+}
+
+function ReviewField({
+  id,
+  label,
+  hint,
+  question,
+  children,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  /** Set when this field answers an open question: the field is then highlighted. */
+  question?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      id={id}
+      className={cn(
+        "flex scroll-mt-24 flex-col gap-1.5",
+        question && "rounded-card border border-warn/40 bg-warn-soft/40 p-3",
+      )}
+    >
+      <span className="label text-fg-muted">{label}</span>
+      {question ? (
+        <p className="flex gap-1.5 text-xs font-medium text-warn">
+          <HelpCircle className="mt-0.5 size-3.5 shrink-0" />
+          {question}
+        </p>
+      ) : null}
+      {children}
+      {hint ? <p className="text-xs leading-relaxed text-fg-faint">{hint}</p> : null}
+    </div>
+  );
+}
+
+/** A closed list as buttons: the client picks, and never sees a stored token. */
+function ToggleChips({
+  entries,
+  selected,
+  label,
+  onToggle,
+}: {
+  entries: VocabularyEntry[];
+  selected: string[];
+  label: (token: string) => string;
+  onToggle: (token: string) => void;
+}) {
+  const chosen = new Set(selected.map((token) => token.toLowerCase()));
+  // A value from an older search that is not in the list is still shown, so it
+  // can be seen and removed rather than silently kept.
+  const unknown = selected.filter(
+    (token) => !entries.some((entry) => entry.token.toLowerCase() === token.toLowerCase()),
+  );
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {[...entries.map((entry) => entry.token), ...unknown].map((token) => {
+        const on = chosen.has(token.toLowerCase());
+        return (
+          <button
+            key={token}
+            type="button"
+            aria-pressed={on}
+            onClick={() => onToggle(token)}
+            className={cn(
+              "rounded-pill border px-2.5 py-1 text-[13px] transition-colors",
+              on
+                ? "border-accent-line bg-accent-soft text-accent"
+                : "border-line text-fg-muted hover:border-line-strong hover:text-fg",
+            )}
+          >
+            {label(token)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+const IMPORTANCE: SignalImportance[] = ["required", "preferred", "ignored"];
+
+/**
+ * What matters in a candidate, one choice per signal. The old wizard had two
+ * checkbox lists for this — "must have" and "nice to have" — side by side, with
+ * the same seven names in each.
+ */
+function Signals() {
+  const t = useTranslations("wizard.review");
+  const signals = useTranslations("domain.signal");
+  const hints = useTranslations("domain.signalHint");
+  const { criteria, setImportance } = useWizardStore();
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="label text-fg-muted">{t("fieldSignals")}</span>
+      <p className="text-xs leading-relaxed text-fg-faint">{t("fieldSignalsHint")}</p>
+      <ul className="divide-y divide-line rounded-card border border-line">
+        {SIGNAL_TYPES.map((signal: SignalType) => {
+          const current = importanceOf(criteria, signal);
+          return (
+            <li
+              key={signal}
+              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5"
+            >
+              <div className="min-w-0">
+                <p className="text-sm">{signals(signal)}</p>
+                <p className="text-xs text-fg-faint">{hints(signal)}</p>
+              </div>
+              <div role="radiogroup" aria-label={signals(signal)} className="flex rounded-pill border border-line p-0.5">
+                {IMPORTANCE.map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    role="radio"
+                    aria-checked={current === level}
+                    onClick={() => setImportance(signal, level)}
+                    className={cn(
+                      "rounded-pill px-2.5 py-0.5 text-xs transition-colors",
+                      current === level
+                        ? level === "required"
+                          ? "bg-accent text-accent-on"
+                          : level === "preferred"
+                            ? "bg-accent-soft text-accent"
+                            : "bg-surface-2 text-fg-muted"
+                        : "text-fg-faint hover:text-fg",
+                    )}
+                  >
+                    {t(`importance.${level}`)}
+                  </button>
+                ))}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- warnings */
+
+/**
+ * Said before the money is spent. The backend decides *what* is likely to go
+ * wrong and sends a code; the words are the interface's. It used to send English
+ * sentences, which then sat in the middle of a Ukrainian screen.
+ */
+function Warnings({ warnings }: { warnings: EstimateWarning[] }) {
+  const t = useTranslations("wizard.review");
+  const vocabulary = useVocabulary();
+
+  return (
+    <section className="rounded-card border border-warn/30 bg-warn-soft px-4 py-3.5">
+      <Eyebrow className="mb-2 text-warn">{t("warningsTitle")}</Eyebrow>
+      <ul className="flex flex-col gap-2">
+        {warnings.map((warning) => {
+          const key = `warning.${warning.code}`;
+          const params = {
+            ...warning.params,
+            country: vocabulary.country(warning.params?.country),
+          };
+          return (
+            <li key={warning.code} className="flex gap-2 text-xs leading-relaxed text-fg-muted">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warn" />
+              <span>{t.has(key) ? t(key, params) : warning.code}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------- cost */
 
 /**
  * The price, as a ceiling rather than a forecast.
@@ -407,14 +523,7 @@ function Cost({
   loading,
   failed,
 }: {
-  estimate?: {
-    searchCalls: number;
-    maxPages: number;
-    credits: number;
-    maxCostEur: number;
-    pagesPerLead: number;
-    readsPages: boolean;
-  };
+  estimate?: SearchEstimate;
   loading: boolean;
   failed: boolean;
 }) {
@@ -471,25 +580,4 @@ function Line({ label, value }: { label: string; value: string }) {
       <dd className="num text-fg">{value}</dd>
     </div>
   );
-}
-
-function Summary({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={className}>
-      <dt className="label mb-1 text-fg-faint">{label}</dt>
-      <dd className="text-sm">{children}</dd>
-    </div>
-  );
-}
-
-function Missing({ children }: { children: ReactNode }) {
-  return <span className="text-fg-faint italic">{children}</span>;
 }

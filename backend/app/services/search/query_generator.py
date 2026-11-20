@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from itertools import zip_longest
 from typing import Protocol
 
-from app.models.common import SourceKind
+from app.models.common import SignalType, SourceKind
 from app.models.search import SearchCriteria
 from app.services.extraction.language import detect_codes
 from app.services.search import phrasebook
@@ -123,7 +123,11 @@ class TemplateQueryGenerator(QueryGenerator):
 
         plans: list[QueryPlan] = []
         seen: set[str] = set()
-        for raw in criteria.custom_queries[:limit]:
+        # A brand is asked exactly like a query the client wrote: bare, on each
+        # chosen platform. Measured: `site:instagram.com джерелія` came back with a
+        # page of the brand's distributors, where `"network marketing"` had come
+        # back with the niche's famous accounts.
+        for raw in [*criteria.brands, *criteria.custom_queries][:limit]:
             query = " ".join((raw or "").split())
             if not query:
                 continue
@@ -151,6 +155,10 @@ class TemplateQueryGenerator(QueryGenerator):
             # No way to name the place in this language: the query would be the
             # English one with a foreign index attached, which is not a question
             # anybody asks. The market parameter alone already covers that case.
+            return
+
+        if not is_network_marketing(criteria):
+            self._for_any_role(criteria, language, place, push)
             return
 
         keywords = self._keywords(criteria, language)
@@ -209,6 +217,48 @@ class TemplateQueryGenerator(QueryGenerator):
             push(f'"{keywords[0]}"', distributor, place, "-shop", "-tienda")
         if SourceKind.BLOGS in criteria.sources:
             push(f'"{industries[0]}"', f'"{business[0]}"', "blog", place)
+
+    def _for_any_role(
+        self,
+        criteria: SearchCriteria,
+        language: str | None,
+        place: str | None,
+        push: Callable[..., None],
+    ) -> None:
+        """
+        Templates for a search that is not about network marketing.
+
+        Built only from what the client gave — their role words and, if they named
+        one, an industry. Nothing from the network-marketing niche is added: a
+        search for developers that appended "distributor" to every query, or fell
+        back to "network marketing" when it had no keyword, would be asking for
+        somebody else entirely. With no words of the client's own there is nothing
+        to template; the brands (asked first, as written queries) carry the search.
+        """
+        keywords = self._words(criteria.keywords, language, "")
+        if not keywords:
+            return
+        industries = self._words(criteria.industry, language, "")
+        industry = industries[0] if industries else None
+        second = keywords[1] if len(keywords) > 1 else None
+
+        for source in criteria.sources:
+            site = SITE_BY_SOURCE.get(source)
+            if not site:
+                continue
+            push(site, f'"{keywords[0]}"', place)
+            if second:
+                push(site, f'"{second}"', industry, place)
+            elif industry:
+                push(site, f'"{keywords[0]}"', industry, place)
+
+        if not _WEB_SOURCES & set(criteria.sources):
+            return
+        push(f'"{keywords[0]}"', place)
+        if second:
+            push(f'"{second}"', industry, place)
+        if SourceKind.BLOGS in criteria.sources:
+            push(f'"{keywords[0]}"', "blog", place)
 
     # ------------------------------------------------------------------- ingredients
     @staticmethod
@@ -281,6 +331,40 @@ class TemplateQueryGenerator(QueryGenerator):
             fallback_term = phrasebook.term(language, fallback)
             return [fallback_term] if fallback_term else []
         return translated
+
+
+#: How a search says it is about network marketing, in the words a brief or the
+#: old wizard put into it. Business types are tokens; keywords are the client's.
+_MLM_BUSINESS = {"mlm", "network marketing", "direct sales"}
+_MLM_WORDS = (
+    "network marketing",
+    "mlm",
+    "млм",
+    "мережев",
+    "сетев",
+    "marketing multinivel",
+    "netzwerkmarketing",
+    "marketing sieciowy",
+)
+
+
+def is_network_marketing(criteria: SearchCriteria) -> bool:
+    """
+    Whether the network-marketing templates apply to this search.
+
+    The product recruits for any role. The niche's vocabulary — "distributor",
+    "team leader", a fallback to "network marketing" — is right for a search for
+    distributors and wrong for everything else, so it is used only when the
+    search itself says that is what it is: by business type, by the MLM signal,
+    or in the client's own keywords.
+    """
+    if any(kind.casefold() in _MLM_BUSINESS for kind in criteria.business_types):
+        return True
+    if SignalType.MLM in criteria.must_have or SignalType.MLM in criteria.nice_to_have:
+        return True
+    return any(
+        marker in keyword.casefold() for keyword in criteria.keywords for marker in _MLM_WORDS
+    )
 
 
 def _deduplicated(parts: tuple[str | None, ...]) -> list[str]:

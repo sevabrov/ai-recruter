@@ -101,7 +101,9 @@ def _with_client_terms(profile: ExtractedProfile, criteria: SearchCriteria) -> l
     detection without a quote is not a detection (spec §16, §36).
     """
     wanted = {
-        SignalType.MLM: [*criteria.keywords, *criteria.business_types],
+        # A distributor names the brand they sell; that is the MLM signal, in
+        # whatever language the rest of the profile is written.
+        SignalType.MLM: [*criteria.brands, *criteria.keywords, *criteria.business_types],
         SignalType.BEAUTY: list(criteria.industry),
     }
     detected = {observation.type for observation in profile.observations if observation.detected}

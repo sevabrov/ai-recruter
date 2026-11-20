@@ -16,6 +16,7 @@ import { EmptyState, Eyebrow, Skeleton } from "@/components/ui/misc";
 import { HIGH_QUALITY_THRESHOLD, isSearchRunning, searchStatusTone } from "@/lib/domain";
 import { useNumbers } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useVocabulary } from "@/lib/vocabulary";
 import { useSearch, useSearchLeads, useSearchRejected } from "@/services/hooks";
 import { useFiltersStore } from "@/store/filters-store";
 import { useWizardStore } from "@/store/wizard-store";
@@ -35,6 +36,7 @@ type TabId = "selected" | "rejected";
 export default function SearchResultsPage() {
   const t = useTranslations("results");
   const common = useTranslations("common");
+  const vocabulary = useVocabulary();
   const statuses = useTranslations("domain.searchStatus");
   const { number, eur } = useNumbers();
 
@@ -47,15 +49,13 @@ export default function SearchResultsPage() {
   const { data: page, isPending } = useSearchLeads(id, filters);
   const { data: rejected, isPending: rejectedPending } = useSearchRejected(id);
 
-  const patchCriteria = useWizardStore((state) => state.patchCriteria);
-  const setName = useWizardStore((state) => state.setName);
-  const setStep = useWizardStore((state) => state.setStep);
+  const loadSearch = useWizardStore((state) => state.loadSearch);
 
+  // Straight to the review: the criteria are already there to check, and the
+  // description they came from is one click back.
   const rerun = () => {
     if (!search) return;
-    setName(`${search.name} ${t("rerunSuffix")}`);
-    patchCriteria(search.criteria);
-    setStep(1);
+    loadSearch(`${search.name} ${t("rerunSuffix")}`, search.criteria);
     router.push("/search/new");
   };
 
@@ -80,7 +80,7 @@ export default function SearchResultsPage() {
       <PageHeader
         eyebrow={t("eyebrow")}
         title={search.name}
-        description={`${search.target}${search.country ? ` · ${search.country}` : ""}`}
+        description={`${vocabulary.target(search.target)}${search.country ? ` · ${vocabulary.country(search.country)}` : ""}`}
         actions={
           <>
             <Badge tone={tone}>
@@ -207,8 +207,9 @@ function Tab({
 function NothingFound({ search, onInspect }: { search: Search; onInspect: () => void }) {
   const t = useTranslations("results");
   const { number } = useNumbers();
+  const vocabulary = useVocabulary();
   const progress = search.progress;
-  const country = search.criteria.location.country;
+  const country = vocabulary.country(search.criteria.location.country);
 
   const reasons = [
     {

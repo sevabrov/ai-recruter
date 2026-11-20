@@ -14,6 +14,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Eyebrow, Skeleton } from "@/components/ui/misc";
 import { isSearchRunning, searchStatusTone } from "@/lib/domain";
 import { useNumbers } from "@/lib/format";
+import { useVocabulary } from "@/lib/vocabulary";
 import { useCancelSearch, useSearch } from "@/services/hooks";
 import type { SearchProgress } from "@/services/types";
 
@@ -29,6 +30,7 @@ const NARRATED_STAGES: string[] = [
 
 export default function SearchProgressPage() {
   const t = useTranslations("progress");
+  const vocabulary = useVocabulary();
   const statuses = useTranslations("domain.searchStatus");
   const stageNotes = useTranslations("domain.stageNote");
   const { number, eur } = useNumbers();
@@ -79,7 +81,7 @@ export default function SearchProgressPage() {
       <PageHeader
         eyebrow={t("eyebrow")}
         title={search.name}
-        description={`${search.target}${search.country ? ` · ${search.country}` : ""}`}
+        description={`${vocabulary.target(search.target)}${search.country ? ` · ${vocabulary.country(search.country)}` : ""}`}
         actions={
           <>
             <Badge tone={tone}>
@@ -163,7 +165,7 @@ export default function SearchProgressPage() {
                   <Row
                     label={
                       search.criteria.location.country
-                        ? t("reasonCountry", { country: search.criteria.location.country })
+                        ? t("reasonCountry", { country: vocabulary.country(search.criteria.location.country) })
                         : t("reasonCountryGeneric")
                     }
                     value={number(progress.rejectedCountry ?? 0)}

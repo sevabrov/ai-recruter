@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     brave_search_api_key: str = ""
     scrapegraph_api_key: str = ""
     openai_api_key: str = ""
+    #: Reads the client's free-text brief into criteria (one call per brief).
+    #: gpt-4.1 because it was the one of four compared on the same Ukrainian brief
+    #: that kept brand spellings in both scripts and one must-have, at under 2 s.
+    openai_model: str = "gpt-4.1"
+    openai_endpoint: str = "https://api.openai.com/v1/chat/completions"
+    openai_timeout_seconds: float = 30.0
+    #: Judge signals with the model too (Phase 6). Separate from the key on purpose:
+    #: the key arrived for reading briefs, and the LLM detector is still a stub that
+    #: raises — keyed to the key alone, it would have failed every search.
+    llm_signals: bool = False
     google_cse_api_key: str = ""
     google_cse_engine_id: str = ""
     #: "brave" — live as soon as the key is there; "fixture" — never, whatever keys

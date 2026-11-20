@@ -23,6 +23,8 @@ import type {
   RejectionReason,
   Search,
   SearchCriteria,
+  ParseBriefInput,
+  ParsedBrief,
   SearchEstimate,
   SearchService,
   SearchSummary,
@@ -58,6 +60,10 @@ export class ApiSearchService implements SearchService {
 
   get(id: string) {
     return request<Search>(`/searches/${id}`);
+  }
+
+  parse(input: ParseBriefInput) {
+    return request<ParsedBrief>("/searches/parse", { method: "POST", body: input });
   }
 
   estimate(criteria: SearchCriteria) {

@@ -6,6 +6,8 @@ import type {
   Lead,
   LeadFilters,
   Paginated,
+  ParseBriefInput,
+  ParsedBrief,
   RejectedList,
   RejectionReason,
   Search,
@@ -23,6 +25,7 @@ import {
   latency,
   projectSearch,
 } from "./mock-db";
+import { parseBriefOffline } from "./mock-brief-parser";
 import { filterLeads, paginate } from "./mock-lead-service";
 
 /** The backend's defaults, mirrored so the demo quotes the same shape of number. */
@@ -44,6 +47,12 @@ export class MockSearchService implements SearchService {
     const search = findSearch(id);
     if (!search) throw new Error(`Search ${id} not found`);
     return search;
+  }
+
+  /** The offline twin of `POST /searches/parse`: the rule reader, no model. */
+  async parse(input: ParseBriefInput): Promise<ParsedBrief> {
+    await latency(400);
+    return parseBriefOffline(input.text);
   }
 
   /**

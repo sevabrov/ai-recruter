@@ -7,21 +7,25 @@ import { WIZARD_STEPS, type WizardStepId } from "@/store/wizard-store";
 
 /**
  * The wizard is a genuine sequence, so the markers are numbered. Completed
- * steps stay clickable — the client can jump back without losing input.
+ * steps stay clickable — the client can jump back without losing input — and so
+ * does the review once a description has been read into criteria.
  */
 export function WizardSteps({
   current,
   onSelect,
+  reachable = [],
 }: {
   current: WizardStepId;
   onSelect: (step: WizardStepId) => void;
+  /** Steps ahead of the current one that may be jumped to. */
+  reachable?: WizardStepId[];
 }) {
   const t = useTranslations("wizard.steps");
 
   return (
     <ol className="flex flex-wrap items-center gap-x-1 gap-y-2">
       {WIZARD_STEPS.map((step, index) => {
-        const done = step < current;
+        const done = step < current || reachable.includes(step);
         const active = step === current;
 
         return (
