@@ -69,7 +69,8 @@ export function generateQueryPreview(criteria: SearchCriteria, limit = 8): strin
     .filter((site): site is string => Boolean(site));
   const scopeToSites =
     sites.length > 0 && !criteria.sources.some((source) => WEB_SOURCES.includes(source));
-  const own = (criteria.customQueries ?? [])
+  // Brands are asked exactly like hand-written queries, ahead of them.
+  const own = [...(criteria.brands ?? []), ...(criteria.customQueries ?? [])]
     .map((query) => query.trim())
     .filter(Boolean)
     .flatMap((query) =>

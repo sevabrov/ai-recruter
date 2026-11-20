@@ -28,6 +28,16 @@ RUNNING_STATUSES = (
 
 
 class SearchCriteria(BaseModel):
+    #: What the client wrote, in their own words, before it became criteria. Kept
+    #: so a re-run starts from the description rather than from fields nobody typed.
+    brief: str = Field(default="", max_length=4000)
+    #: Who is searching: their brand and role ("лідерка MIHI в Іспанії"). Context
+    #: for outreach drafts — never a search term, or the search finds their own team.
+    about_me: str = Field(default="", max_length=500)
+    #: Brands the wanted people distribute, spelled the way the market spells them.
+    #: The single best search term there is: a brand name is what a distributor puts
+    #: in a bio and what nobody else does. Each one is asked on every chosen platform.
+    brands: list[str] = Field(default_factory=list, max_length=10)
     industry: list[str] = Field(default_factory=list)
     business_types: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)

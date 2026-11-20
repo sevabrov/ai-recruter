@@ -141,7 +141,7 @@ npx eslint .                                             # lint
 
 # backend (nothing installed on the host)
 docker compose logs -f backend                           # structured JSON logs
-docker compose run --rm backend pytest -q                # 306 tests (needs postgres)
+docker compose run --rm backend pytest -q                # 320 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .   # lint
 docker compose run --rm backend alembic current          # schema revision
 docker compose build backend                             # after a dependency change
@@ -316,7 +316,7 @@ stand-in until Phase 6. Details and the phase-by-phase swap table are in
 | Route | What it does |
 |---|---|
 | `/` | Dashboard: stat tiles, recent searches, source share, score distribution, weekly discovery |
-| `/search/new` | 5-step wizard: who → where → signals & weights → sources → preview |
+| `/search/new` | 2 steps: describe the search in your own words (any language) → review what was understood, answer what is missing (brands, country, languages), price it, start. Sources, strictness, weights and queries sit under *Advanced settings* |
 | `/search/:id/progress` | Live pipeline (~3 s on fixtures, longer live), measured counters, generated queries, pages read vs. cached, usage & cost, cancel |
 | `/search/:id/results` | Two lists — **Selected** (filters by score/country/platform/signals/email/social, sorting, re-run) and **Filtered out** (every refused candidate with its address, reason and whether the page was ever read) |
 | `/leads` | All / Saved / Archived across searches |
@@ -324,8 +324,10 @@ stand-in until Phase 6. Details and the phase-by-phase swap table are in
 | `/searches` | Search history, running searches separated |
 | `/settings` | Theme picker, search defaults, live backend status, which adapter each pipeline stage runs, which sources can be read, concurrency limits, reset demo data |
 
-The wizard's **Fill example** button loads the MIHI / Spain scenario from the
-spec, which is the fastest way to walk the whole flow.
+The description is read into criteria by `POST /searches/parse` — OpenAI
+(`OPENAI_API_KEY`, `OPENAI_MODEL`, default `gpt-4.1`) when a key is set, a rule reader
+otherwise or whenever the model fails. The **Use an example** button fills in the
+MIHI / Spain brief from the spec, which is the fastest way to walk the whole flow.
 
 ---
 

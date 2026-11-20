@@ -28,7 +28,24 @@ from dataclasses import dataclass, field
 from app.core.config import Settings
 from app.models.common import SignalType, SourceKind
 from app.models.search import SearchCriteria
+from app.services.search.markets import language_code
 from app.services.search.query_generator import QueryGenerator, QueryPlan
+
+
+@dataclass(frozen=True)
+class EstimateWarning:
+    """
+    One thing likely to go wrong, as a code and the values it mentions.
+
+    A code rather than a sentence: the sentence belongs to the interface language.
+    The first version sent English prose, which then sat in the middle of a
+    Ukrainian screen — the client could read neither the warning nor why it was
+    in English. The wording lives in the frontend's catalogue under
+    `wizard.review.warning.<code>`.
+    """
+
+    code: str
+    params: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -48,7 +65,7 @@ class SearchEstimate:
     #: What is likely to go wrong with *these* criteria, in words the client can act
     #: on. Written here rather than discovered afterwards: a search that returns
     #: nothing has already been paid for.
-    warnings: list[str] = field(default_factory=list)
+    warnings: list[EstimateWarning] = field(default_factory=list)
 
     @property
     def unlimited_pages(self) -> bool:
@@ -111,7 +128,7 @@ def estimate(
     )
 
 
-def warnings_for(criteria: SearchCriteria) -> list[str]:
+def warnings_for(criteria: SearchCriteria) -> list[EstimateWarning]:
     """
     What these criteria are likely to do to the result, said before the search runs.
 
@@ -119,50 +136,39 @@ def warnings_for(criteria: SearchCriteria) -> list[str]:
     complaint was not that the filters were wrong — it was that a reasonable-looking
     set of criteria returned nothing and the screen blamed the filters afterwards.
     """
-    notes: list[str] = []
+    notes: list[EstimateWarning] = []
     social_only = bool(criteria.sources) and not (
         {SourceKind.PUBLIC_WEB, SourceKind.COMPANY_WEBSITES, SourceKind.BLOGS}
         & set(criteria.sources)
     )
+    country = criteria.location.country or ""
 
-    if criteria.location.country and criteria.require_confirmed_location and social_only:
-        notes.append(
-            f"Only social sources are selected, and “confirmed {criteria.location.country} "
-            "only” is on. Social profiles rarely state a location and their pages often "
-            "will not open, so most candidates will be dropped as unconfirmed."
-        )
+    # Social profiles rarely state a location and their pages often will not open,
+    # so most candidates would be dropped as unconfirmed.
+    if country and criteria.require_confirmed_location and social_only:
+        notes.append(EstimateWarning("confirmed_location_social", {"country": country}))
+    # A two-line profile description often shows no language at all.
     if criteria.languages and criteria.require_confirmed_language and social_only:
-        notes.append(
-            "“Confirmed languages only” over social sources is strict: a two-line "
-            "profile description often shows no language at all."
-        )
+        notes.append(EstimateWarning("confirmed_language_social"))
+    # All of them at once, each proven by a quote from the profile.
     if len(criteria.must_have) > 1:
-        notes.append(
-            f"{len(criteria.must_have)} must-have signals means all of them at once, "
-            "each proven by a quote from the profile. Two are already hard to find "
-            "together on a profile that could not be opened."
-        )
+        notes.append(EstimateWarning("many_must_have", {"count": str(len(criteria.must_have))}))
+    # Gates hard and is worth no points: it needs a date the page states.
     if SignalType.ACTIVITY in criteria.must_have:
-        notes.append(
-            "“Recent activity” as a must-have gates hard and is worth no points: it "
-            "needs a date the page states, which a search result usually omits."
-        )
-    if not criteria.keywords:
-        notes.append(
-            "No keywords of your own: the queries fall back to the niche's generic "
-            "name, which is what the niche's famous brand accounts are called. Add "
-            "the brand people actually distribute (jerelia, farmasi) and the "
-            "queries start describing a person."
-        )
+        notes.append(EstimateWarning("activity_must_have"))
+    # Without a term of their own the queries fall back to the niche's generic
+    # name — which is what the niche's famous brand accounts are called.
+    if not criteria.keywords and not criteria.brands:
+        notes.append(EstimateWarning("no_keywords"))
+    # A query in another language carries the place in that language, so without
+    # a country only the English pass runs: Ukrainian and Russian were chosen in a
+    # measured run and not a single query was written in either.
+    foreign = [name for name in criteria.languages if language_code(name) not in (None, "en")]
+    if foreign and not country:
+        notes.append(EstimateWarning("languages_without_country"))
+    # Zero results for every query in every measured run, each one still billed.
     if SourceKind.THREADS_PUBLIC in criteria.sources:
-        notes.append(
-            "Threads has returned zero results for every query in every measured "
-            "run. Each one still costs a search call — unselect it unless you know "
-            "it works for your market."
-        )
+        notes.append(EstimateWarning("threads_empty"))
     if criteria.location.city and criteria.require_confirmed_location:
-        notes.append(
-            f"A city narrows the queries sharply. If {criteria.location.city} returns "
-            "little, the country alone usually returns much more."
-        )
+        notes.append(EstimateWarning("city_narrow", {"city": criteria.location.city}))
     return notes

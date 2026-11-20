@@ -24,6 +24,12 @@ class GeoLocationSchema(CamelModel):
 
 
 class SearchCriteriaSchema(CamelModel):
+    #: The client's own description of the search, as typed.
+    brief: str = Field(default="", max_length=4000)
+    #: Who is searching. Context for outreach, never a search term.
+    about_me: str = Field(default="", max_length=500)
+    #: Brands the wanted people distribute. Each is asked on every chosen platform.
+    brands: list[str] = Field(default_factory=list, max_length=10)
     industry: list[str] = Field(default_factory=list)
     business_types: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
@@ -205,10 +211,33 @@ class CreateSearchResponse(CamelModel):
     status: SearchStatus
 
 
+class ParseBriefIn(CamelModel):
+    """`POST /searches/parse` — the client's description of a search, in their words."""
+
+    text: str = Field(min_length=1, max_length=4000)
+    #: The interface language, so the suggested search name reads in it.
+    locale: str = Field(default="uk", max_length=8)
+
+
+class ParseBriefOut(CamelModel):
+    name: str
+    criteria: SearchCriteriaSchema
+    #: "openai" or "rules". The rules read only countries, languages, known brands
+    #: and a lead count, so the screen says when they were the ones that answered.
+    parser: str
+
+
 class EstimateIn(CamelModel):
     """`POST /searches/estimate` — the wizard asking what this would cost."""
 
     criteria: SearchCriteriaSchema
+
+
+class EstimateWarningOut(CamelModel):
+    """One likely problem: `wizard.review.warning.<code>` in the frontend catalogue."""
+
+    code: str
+    params: dict[str, str] = Field(default_factory=dict)
 
 
 class QueryPreviewOut(CamelModel):
@@ -240,4 +269,5 @@ class EstimateOut(CamelModel):
     #: Whether pages are read at all right now, so the UI can say why it is free.
     reads_pages: bool
     #: What these criteria are likely to do to the result, before it is paid for.
-    warnings: list[str] = Field(default_factory=list)
+    #: Codes, not sentences: the wording belongs to the interface language.
+    warnings: list[EstimateWarningOut] = Field(default_factory=list)

@@ -2,6 +2,8 @@
 Search endpoints (spec §57).
 
     POST   /searches               create + enqueue, returns immediately (§39)
+    POST   /searches/parse         the client's free-text brief, read into criteria
+    POST   /searches/estimate      price a search and preview its queries
     GET    /searches               history
     GET    /searches/:id           status and progress — the polling target (§43)
     GET    /searches/:id/leads     results, filterable
@@ -25,13 +27,17 @@ from app.schemas.search import (
     CreateSearchResponse,
     EstimateIn,
     EstimateOut,
+    EstimateWarningOut,
+    ParseBriefIn,
+    ParseBriefOut,
     QueryPreviewOut,
     RejectedCandidateOut,
     RejectedOut,
+    SearchCriteriaSchema,
     SearchOut,
     SearchSummaryOut,
 )
-from app.services.adapters import use_page_reading
+from app.services.adapters import use_llm_signals, use_page_reading
 from app.services.search.estimate import estimate
 
 router = APIRouter(prefix="/searches", tags=["searches"])
@@ -53,6 +59,23 @@ async def create_search(
     return CreateSearchResponse(search_id=search.id, status=search.status)
 
 
+@router.post("/parse", response_model=ParseBriefOut)
+async def parse_brief(payload: ParseBriefIn, container: ContainerDep) -> ParseBriefOut:
+    """
+    The client's description of a search, read into criteria.
+
+    Nothing is created and nothing is searched: this fills in the review screen,
+    where the client sees what was understood and is asked for what was not.
+    Never fails for want of a model — the rules read what they can instead.
+    """
+    parsed = await container.brief_parser.parse(payload.text, payload.locale)
+    return ParseBriefOut(
+        name=parsed.name,
+        criteria=SearchCriteriaSchema.model_validate(parsed.criteria.model_dump()),
+        parser=parsed.parser,
+    )
+
+
 @router.post("/estimate", response_model=EstimateOut)
 async def estimate_search(payload: EstimateIn, container: ContainerDep) -> EstimateOut:
     """
@@ -72,7 +95,7 @@ async def estimate_search(payload: EstimateIn, container: ContainerDep) -> Estim
         settings,
         generator=container.query_generator,
         reads_pages=reads_pages,
-        paid_detector=bool(settings.openai_api_key),
+        paid_detector=use_llm_signals(settings),
     )
     return EstimateOut(
         queries=[
@@ -85,7 +108,9 @@ async def estimate_search(payload: EstimateIn, container: ContainerDep) -> Estim
         pages_per_lead=quote.pages_per_lead,
         max_cost_eur=quote.max_cost_eur,
         reads_pages=reads_pages,
-        warnings=quote.warnings,
+        warnings=[
+            EstimateWarningOut(code=note.code, params=note.params) for note in quote.warnings
+        ],
     )
 
 

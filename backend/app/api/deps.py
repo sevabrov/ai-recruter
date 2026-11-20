@@ -25,12 +25,14 @@ from app.db.repository import Repository
 from app.db.seed import SeedData, load_seed
 from app.services.adapters import (
     ReaderResources,
+    build_brief_parser,
     build_profile_extractor,
     build_reader_resources,
     build_search_provider,
     build_signal_detector,
     use_live_search,
 )
+from app.services.brief.parser import ResilientBriefParser
 from app.services.dashboard.dashboard_service import DashboardService
 from app.services.leads.lead_service import LeadService
 from app.services.leads.outreach import OutreachService
@@ -56,6 +58,8 @@ class Container:
     query_generator: TemplateQueryGenerator
     #: None until a ScrapeGraphAI key is configured.
     reader: ReaderResources | None
+    #: Reads the client's free-text brief into criteria; rules when no model.
+    brief_parser: ResilientBriefParser
     jobs: JobService
     searches: SearchService
     leads: LeadService
@@ -117,6 +121,7 @@ def build_container(settings: Settings | None = None) -> Container:
         provider=provider,
         query_generator=query_generator,
         reader=reader,
+        brief_parser=build_brief_parser(settings),
         jobs=jobs,
         searches=searches,
         leads=leads,

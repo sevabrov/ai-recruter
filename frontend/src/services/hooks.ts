@@ -20,6 +20,7 @@ import type {
   LeadFilters,
   OutreachRequest,
   Paginated,
+  ParseBriefInput,
   RejectedList,
   RejectionReason,
   Search,
@@ -167,6 +168,13 @@ export function useSearchEstimate(criteria: SearchCriteria, enabled = true) {
     enabled,
     staleTime: 60_000,
     retry: false,
+  });
+}
+
+/** Read a free-text brief into criteria. Nothing is created or searched. */
+export function useParseBrief() {
+  return useMutation({
+    mutationFn: (input: ParseBriefInput) => services.searches.parse(input),
   });
 }
 

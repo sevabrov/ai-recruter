@@ -28,6 +28,7 @@ from app.core.limits import RateLimiter
 from app.core.logging import get_logger
 from app.db.repository import Repository
 from app.models.lead import Lead
+from app.services.brief.parser import OpenAIBriefParser, ResilientBriefParser
 from app.services.extraction.signal_detector import (
     FixtureSignalDetector,
     LlmSignalDetector,
@@ -187,10 +188,33 @@ def build_profile_extractor(
     )
 
 
+def use_llm_signals(settings: Settings) -> bool:
+    """The model judges signals only when asked to and able to — never by the key alone."""
+    return settings.llm_signals and bool(settings.openai_api_key)
+
+
 def build_signal_detector(settings: Settings) -> SignalDetector:
-    if settings.openai_api_key:
+    if use_llm_signals(settings):
         return LlmSignalDetector(settings.openai_api_key)
     return FixtureSignalDetector()
+
+
+def build_brief_parser(settings: Settings) -> ResilientBriefParser:
+    """
+    The model when there is a key, the rules otherwise — and the rules again
+    whenever the model fails, so a brief always comes back as something to review.
+    """
+    model = (
+        OpenAIBriefParser(
+            settings.openai_api_key,
+            model=settings.openai_model,
+            endpoint=settings.openai_endpoint,
+            timeout_seconds=settings.openai_timeout_seconds,
+        )
+        if settings.openai_api_key
+        else None
+    )
+    return ResilientBriefParser(model)
 
 
 def stage_modes(settings: Settings) -> dict[str, str]:
@@ -205,7 +229,7 @@ def stage_modes(settings: Settings) -> dict[str, str]:
             else FixtureProfileExtractor.name
         ),
         "signals": (
-            LlmSignalDetector.name if settings.openai_api_key else FixtureSignalDetector.name
+            LlmSignalDetector.name if use_llm_signals(settings) else FixtureSignalDetector.name
         ),
     }
 

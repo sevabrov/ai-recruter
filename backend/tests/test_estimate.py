@@ -145,11 +145,35 @@ def test_the_quote_warns_about_criteria_that_will_return_nothing(settings):
         must_have=["mlm", "beauty", "activity"],
     )
 
-    assert strict.warnings
-    assert any("confirmed" in note.lower() for note in strict.warnings)
-    assert any("must-have" in note for note in strict.warnings)
+    codes = {note.code for note in strict.warnings}
+    assert "confirmed_location_social" in codes
+    assert "many_must_have" in codes
+    assert "activity_must_have" in codes
     # And a workable set of criteria is not nagged at.
     assert quote(settings, must_have=["mlm"]).warnings == []
+
+
+def test_warnings_are_codes_not_english_sentences(settings):
+    """
+    The wording is the interface's: an English sentence in the middle of a
+    Ukrainian screen was the first thing the client asked to have removed.
+    """
+    bare = quote(settings, keywords=[], brands=[])
+    no_keywords = next(note for note in bare.warnings if note.code == "no_keywords")
+    assert no_keywords.params == {}
+
+    # A brand is a term of the client's own, so it silences the warning.
+    branded = quote(settings, keywords=[], brands=["Farmasi"])
+    assert "no_keywords" not in {note.code for note in branded.warnings}
+
+
+def test_languages_without_a_country_are_flagged(settings):
+    """Without a place to write in Ukrainian, no Ukrainian query is written at all."""
+    loose = quote(settings, languages=["Ukrainian", "Russian"], location={"country": None})
+    assert "languages_without_country" in {note.code for note in loose.warnings}
+
+    anchored = quote(settings, languages=["Ukrainian"], location={"country": "Ukraine"})
+    assert "languages_without_country" not in {note.code for note in anchored.warnings}
 
 
 # --------------------------------------------------------------- over the wire

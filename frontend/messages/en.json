@@ -254,6 +254,55 @@
         "label": "Read and refused",
         "note": "The page was opened and failed one of your requirements."
       }
+    },
+    "country": {
+      "UA": "Ukraine",
+      "ES": "Spain",
+      "PL": "Poland",
+      "DE": "Germany",
+      "IT": "Italy",
+      "PT": "Portugal",
+      "FR": "France",
+      "NL": "Netherlands",
+      "CZ": "Czechia",
+      "AT": "Austria",
+      "CH": "Switzerland",
+      "GB": "United Kingdom",
+      "RO": "Romania",
+      "BE": "Belgium",
+      "US": "United States"
+    },
+    "language": {
+      "uk": "Ukrainian",
+      "ru": "Russian",
+      "en": "English",
+      "es": "Spanish",
+      "pl": "Polish",
+      "de": "German",
+      "it": "Italian",
+      "pt": "Portuguese",
+      "fr": "French",
+      "ro": "Romanian",
+      "cs": "Czech",
+      "nl": "Dutch"
+    },
+    "industry": {
+      "beauty": "Beauty",
+      "cosmetics": "Cosmetics",
+      "skincare": "Skincare",
+      "perfume": "Perfume",
+      "wellness": "Wellness",
+      "supplements": "Supplements",
+      "hair": "Hair",
+      "nails": "Nails",
+      "household": "Household"
+    },
+    "businessType": {
+      "mlm": "MLM",
+      "networkMarketing": "Network marketing",
+      "directSales": "Direct sales",
+      "affiliate": "Affiliate",
+      "franchise": "Franchise"
     }
   },
   "dashboard": {
@@ -519,75 +568,30 @@
     "wasNotRead": "Nobody opened this page — the verdict rests on the search result alone."
   },
   "wizard": {
-    "stepOf": "Step {step} of 5",
-    "fillExample": "Fill example",
+    "stepOf": "Step {step} of {total}",
     "starting": "Starting…",
     "startSearch": "Start search",
     "untitled": "Untitled search",
     "almostThere": "Almost there",
     "steps": {
       "1": {
-        "label": "Who",
+        "label": "Describe",
         "title": "Who are we looking for?"
       },
       "2": {
-        "label": "Where",
-        "title": "Geography"
-      },
-      "3": {
-        "label": "Signals",
-        "title": "Candidate criteria"
-      },
-      "4": {
-        "label": "Sources",
-        "title": "Where to look"
-      },
-      "5": {
         "label": "Review",
-        "title": "Search preview"
+        "title": "Check what we understood"
       }
     },
     "descriptions": {
-      "1": "Describe the person you want to find. Keywords here become the search queries the pipeline runs.",
-      "2": "Narrow by geography and language. Everything on this step is optional.",
-      "3": "Define the signals that matter and how many points each one is worth.",
-      "4": "Choose which public sources to look at. No account, login or cookie is ever used.",
-      "5": "Review what will run, then start the search."
+      "1": "Describe in your own words who you are and who you are looking for. We will turn it into search criteria.",
+      "2": "Fix anything that is off and answer what is missing. Nothing runs until you press the button."
     },
     "issues": {
-      "name": "Give the search a name",
-      "keywords": "Add at least one keyword or industry",
-      "sources": "Select at least one source"
-    },
-    "identity": {
-      "nameLabel": "Search name",
-      "nameHint": "Only for your workspace — it never reaches a search query.",
-      "namePlaceholder": "MIHI Beauty Leaders Spain",
-      "industryLabel": "Industry",
-      "industryHint": "Narrows the vocabulary used to build queries.",
-      "industryPlaceholder": "Beauty, cosmetics…",
-      "businessLabel": "Business type",
-      "businessHint": "How these people earn — the strongest single signal.",
-      "businessPlaceholder": "MLM, network marketing…",
-      "keywordsLabel": "Keywords",
-      "keywordsHint": "Brand names, role titles and phrases these people use about themselves. Each keyword multiplies into several search queries.",
-      "keywordsPlaceholder": "MIHI, team leader, distributor…",
-      "negativeLabel": "Negative keywords",
-      "negativeHint": "Pages containing these are dropped before analysis — the cheapest way to keep customers and shops out of your results.",
-      "negativePlaceholder": "customer, shop, salon…"
+      "terms": "Add a job title, a skill or a brand — how these people describe themselves",
+      "sources": "Choose at least one source in the advanced settings"
     },
     "geography": {
-      "countryLabel": "Country",
-      "countryHint": "Appended to every generated query.",
-      "anyCountry": "Any country",
-      "regionLabel": "Region",
-      "regionPlaceholder": "Catalonia",
-      "cityLabel": "City",
-      "cityPlaceholder": "Barcelona",
-      "languagesLabel": "Languages",
-      "languagesHint": "Used for query wording and, later, for the language of outreach drafts. Migrant communities are often the strongest match — Russian and Ukrainian speakers in Spain, for example.",
-      "languagesPlaceholder": "Spanish, English…",
-      "requirementsTitle": "Requirements, not preferences",
       "noOutsideCountry": "Nobody from outside {country}",
       "noOutsideCountryGeneric": "Nobody from outside the chosen country",
       "noOutsideCountryHint": "A profile that places the person somewhere else is refused. Turn this off and geographic match goes back to being worth points instead.",
@@ -597,14 +601,9 @@
       "noOtherLanguagesGeneric": "Nobody publishing only in other languages",
       "noOtherLanguagesHint": "Judged on what the profile is written in.",
       "confirmedLanguageHint": "A two-line profile description often shows no language at all. Leave this off unless you would rather have five certain people than fifty likely ones.",
-      "socialOnlyWarning": "Only social sources are selected. Profiles there rarely state a country or a language, so “only if it can be confirmed” will drop most of what this search finds. Worth turning on once you have seen what it returns without it.",
-      "footnote": "The country and languages also shape the questions asked: a search for Ukraine in Ukrainian is run against the Ukrainian index, in Ukrainian words. Leaving both empty widens the search to the whole public web, and the switches above then have nothing to apply."
+      "socialOnlyWarning": "Only social sources are selected. Profiles there rarely state a country or a language, so “only if it can be confirmed” will drop most of what this search finds. Worth turning on once you have seen what it returns without it."
     },
     "criteria": {
-      "mustHave": "Must have",
-      "mustHaveHint": "A candidate missing any of these is dropped before scoring.",
-      "niceToHave": "Nice to have",
-      "niceToHaveHint": "Not required, but each one detected adds points.",
       "weights": "Signal weights",
       "weightsHint": "Points a fully-confident signal contributes. The score is the weighted sum — no model invents the total.",
       "points": "{total} / 100 pts",
@@ -613,8 +612,7 @@
     },
     "sources": {
       "privacyTitle": "These are search targets, not logins.",
-      "privacyBody": "AI Recruiter reads publicly indexed pages only. It never asks for social network passwords, never stores platform cookies and never automates a personal account. Selecting Instagram means “look at public Instagram pages the search engine already indexes”.",
-      "selectOne": "Select at least one source to continue."
+      "privacyBody": "AI Recruiter reads publicly indexed pages only. It never asks for social network passwords, never stores platform cookies and never automates a personal account. Selecting Instagram means “look at public Instagram pages the search engine already indexes”."
     },
     "review": {
       "howMany": "How many leads do you want?",
@@ -623,19 +621,6 @@
       "leadsToFind": "Leads to find",
       "targetHint": "The search stops once it has this many leads that pass every requirement. Candidates are read best first, so what a limit drops is the weakest tail — and the pages it never pays for still become leads from their search result.",
       "warningsTitle": "Worth knowing before you start",
-      "summarySearch": "Search",
-      "summaryTarget": "Target",
-      "summaryGeography": "Geography",
-      "summaryLanguages": "Languages",
-      "summaryKeywords": "Keywords",
-      "summaryExcluded": "Excluded",
-      "summarySources": "Sources",
-      "missingUnnamed": "unnamed search",
-      "missingTarget": "not specified",
-      "missingGeography": "worldwide",
-      "missingLanguages": "any",
-      "missingNone": "none",
-      "scoringModel": "Scoring model",
       "queriesTitle": "Queries the search will run",
       "queriesCount": "{count, number} queries",
       "searchIn": "Search in",
@@ -656,7 +641,97 @@
       "costNoReader": "none — no page reader configured",
       "costUpTo": "up to {pages, number} ({credits, number} credits)",
       "costUnlimited": "unlimited",
-      "costPerLead": "{pages, number} pages per lead, measured from earlier runs. A page already read this week is free."
+      "costPerLead": "{pages, number} pages per lead, measured from earlier runs. A page already read this week is free.",
+      "parsedByRules": "The AI is unavailable right now, so the description was read in a simplified way: only the country, languages, well-known brands and the number of leads. Check and complete the fields below.",
+      "gapsTitle": "Needs an answer",
+      "gapRequired": "required",
+      "gapRecommended": "recommended",
+      "gap": {
+        "terms": {
+          "question": "What do these people do, or which companies or brands are they linked to?"
+        },
+        "sources": {
+          "question": "Where should we look? No source is selected."
+        },
+        "country": {
+          "question": "Which country should we search in? Without one, queries are written in English only."
+        },
+        "languages": {
+          "question": "Which languages do these people write in?"
+        },
+        "brands": {
+          "question": "Which companies or brands are these people linked to? It is the strongest query — it finds them most precisely."
+        }
+      },
+      "understoodTitle": "What we understood",
+      "fieldName": "Search name",
+      "fieldAboutMe": "Who you are",
+      "fieldAboutMeHint": "Used for outreach drafts. Never part of the search, so it does not find your own team.",
+      "fieldAboutMePlaceholder": "HR at an IT company, Warsaw",
+      "fieldBrands": "Companies and brands",
+      "fieldBrandsHint": "Where they work or what they represent. The strongest query: each name is searched on every selected platform. Spell them as profiles do — farmasi and фармасі find different people.",
+      "fieldBrandsPlaceholder": "SoftServe, Farmasi…",
+      "fieldKeywords": "How they describe themselves",
+      "fieldKeywordsHint": "Words from their profiles: job title, skills, niche. In the language they write in.",
+      "fieldKeywordsPlaceholder": "Python developer, nurse…",
+      "fieldCountry": "Country",
+      "fieldCountryHint": "Added to the queries, and decides which languages they are written in.",
+      "fieldCountryPlaceholder": "Choose a country",
+      "anywhere": "Anywhere",
+      "fieldCity": "City",
+      "fieldCityHint": "Optional. Narrows the search sharply.",
+      "fieldCityPlaceholder": "Barcelona",
+      "fieldLanguages": "Languages they write in",
+      "fieldLanguagesHint": "Queries are written in each of these. For a diaspora it is the people's language, not the country's: Ukrainians in Spain write in Ukrainian and Russian.",
+      "fieldNegatives": "Don't show",
+      "fieldNegativesHint": "Pages with these words are dropped before anything is analysed.",
+      "fieldNegativesPlaceholder": "agency, shop…",
+      "fieldIndustry": "Industry",
+      "fieldBusiness": "Business type",
+      "fieldSignals": "What matters in a candidate",
+      "fieldSignalsHint": "“Required” drops everyone who does not show it — each one is another condition. “Preferred” adds points. If none of these apply to your search, leave them at “Doesn't matter”.",
+      "importance": {
+        "required": "Required",
+        "preferred": "Preferred",
+        "ignored": "Doesn't matter"
+      },
+      "advanced": "Advanced settings",
+      "advancedHint": "sources, strictness, weights, queries",
+      "sourcesTitle": "Where to look",
+      "strictnessTitle": "Filter strictness",
+      "warning": {
+        "confirmed_location_social": "Only social sources are selected, and “confirmed only” is on for {country}. Social profiles rarely state a location and their pages often will not open, so most candidates will be dropped as unconfirmed.",
+        "confirmed_language_social": "“Confirmed languages only” over social sources is strict: a two-line profile description often shows no language at all.",
+        "many_must_have": "{count} required signals means all of them at once, each proven by a quote from the profile. Two are already hard to find together on a profile that could not be opened.",
+        "activity_must_have": "“Recent activity” as a requirement gates hard and is worth no points: it needs a date the page states, which a search result usually omits.",
+        "no_keywords": "No companies or brands, and no words these people use about themselves. Add a job title, a skill or a brand — the way people write it in their profiles.",
+        "languages_without_country": "Languages are chosen but no country. Queries in languages other than English are written with the place in that language, so without a country none of them will run.",
+        "threads_empty": "Threads has returned zero results for every query in every measured run, and each one still costs a search call. Unselect it unless you know it works for your market.",
+        "city_narrow": "A city narrows the queries sharply. If {city} returns little, the country alone usually returns much more."
+      }
+    },
+    "editBrief": "Edit description",
+    "brief": {
+      "label": "Describe the search in your own words",
+      "placeholder": "For example: I'm an HR at an IT company in Warsaw. I'm looking for middle or senior Python developers with Django experience who live in Poland…",
+      "hint": "Write in any language. Brands and the words people use about themselves are kept exactly as you wrote them — those are the search queries.",
+      "chars": "{count, number} / {max, number}",
+      "useExample": "Use an example",
+      "example": "I'm a MIHI leader in Spain. I'm looking for women already working in network marketing in cosmetics — Farmasi, Jerelia — who have their own team or actively invite people. Ukrainian and Russian speakers, in Spain. No shops and no beauty salons. I need 25 leads.",
+      "tipsTitle": "Worth mentioning",
+      "tips": {
+        "who": "Who you are: your brand and role",
+        "whom": "Who you are looking for: role, skills, what they do",
+        "brands": "Companies or brands they work with",
+        "where": "Country or city",
+        "languages": "Which languages they write in",
+        "exclude": "Who should not be shown",
+        "count": "How many leads you need"
+      },
+      "parse": "Read description",
+      "parsing": "Reading…",
+      "tooShort": "Describe it in a bit more detail — at least one sentence.",
+      "failed": "Could not read the description. Please try again."
     }
   },
   "settings": {

@@ -90,6 +90,89 @@ export const SITE_BY_SOURCE: Partial<Record<SourceKind, string>> = {
 /** Sources that mean "anywhere on the indexed web", where a bare query belongs. */
 export const WEB_SOURCES: SourceKind[] = ["public_web", "company_websites", "blogs"];
 
+/**
+ * Closed vocabularies, as `{ id, token }`.
+ *
+ * The *token* is what the criteria store and the backend keys on — the country
+ * name the markets map knows, the English industry word the phrasebook
+ * translates into each query language. The *id* names its translation:
+ * `domain.country.<id>`, `domain.language.<id>`, `domain.industry.<id>`,
+ * `domain.businessType.<id>`. The client never sees a token: the old wizard
+ * showed them raw, which is how "Cosmetics / Beauty" ended up on a Ukrainian
+ * screen. Mirrors `backend/app/services/brief/vocabulary.py`.
+ */
+export type VocabularyEntry = { id: string; token: string };
+
+export const COUNTRIES: VocabularyEntry[] = [
+  { id: "UA", token: "Ukraine" },
+  { id: "ES", token: "Spain" },
+  { id: "PL", token: "Poland" },
+  { id: "DE", token: "Germany" },
+  { id: "IT", token: "Italy" },
+  { id: "PT", token: "Portugal" },
+  { id: "FR", token: "France" },
+  { id: "NL", token: "Netherlands" },
+  { id: "CZ", token: "Czechia" },
+  { id: "AT", token: "Austria" },
+  { id: "CH", token: "Switzerland" },
+  { id: "GB", token: "United Kingdom" },
+  { id: "RO", token: "Romania" },
+  { id: "BE", token: "Belgium" },
+  { id: "US", token: "United States" },
+];
+
+export const LANGUAGES: VocabularyEntry[] = [
+  { id: "uk", token: "Ukrainian" },
+  { id: "ru", token: "Russian" },
+  { id: "en", token: "English" },
+  { id: "es", token: "Spanish" },
+  { id: "pl", token: "Polish" },
+  { id: "de", token: "German" },
+  { id: "it", token: "Italian" },
+  { id: "pt", token: "Portuguese" },
+  { id: "fr", token: "French" },
+  { id: "ro", token: "Romanian" },
+  { id: "cs", token: "Czech" },
+  { id: "nl", token: "Dutch" },
+];
+
+export const INDUSTRIES: VocabularyEntry[] = [
+  { id: "beauty", token: "Beauty" },
+  { id: "cosmetics", token: "Cosmetics" },
+  { id: "skincare", token: "Skincare" },
+  { id: "perfume", token: "Perfume" },
+  { id: "wellness", token: "Wellness" },
+  { id: "supplements", token: "Supplements" },
+  { id: "hair", token: "Hair" },
+  { id: "nails", token: "Nails" },
+  { id: "household", token: "Household" },
+];
+
+export const BUSINESS_TYPES: VocabularyEntry[] = [
+  { id: "mlm", token: "MLM" },
+  { id: "networkMarketing", token: "Network marketing" },
+  { id: "directSales", token: "Direct sales" },
+  { id: "affiliate", token: "Affiliate" },
+  { id: "franchise", token: "Franchise" },
+];
+
+/** The entry a stored token belongs to, case-insensitively; undefined if none. */
+export function vocabularyEntry(list: VocabularyEntry[], token?: string | null) {
+  const key = (token ?? "").trim().toLowerCase();
+  return key ? list.find((entry) => entry.token.toLowerCase() === key) : undefined;
+}
+
+/**
+ * Where a new search looks when the brief names no platform: the three that
+ * return people. The open web is left out — with no `site:` it spent a third of
+ * a run's calls on directories and articles.
+ */
+export const DEFAULT_SOURCES: SourceKind[] = [
+  "instagram_public",
+  "facebook_public",
+  "linkedin_public",
+];
+
 export const LEAD_STATUSES: { id: LeadStatus; tone: Tone }[] = [
   { id: "new", tone: "neutral" },
   { id: "reviewed", tone: "info" },
@@ -225,6 +308,9 @@ export function criteriaTarget(criteria: SearchCriteria) {
 
 export function emptyCriteria(): SearchCriteria {
   return {
+    brief: "",
+    aboutMe: "",
+    brands: [],
     industry: [],
     businessTypes: [],
     keywords: [],
@@ -242,7 +328,7 @@ export function emptyCriteria(): SearchCriteria {
     mustHave: [],
     niceToHave: [],
     signalWeights: { ...DEFAULT_SIGNAL_WEIGHTS },
-    sources: ["public_web", "instagram_public", "linkedin_public"],
+    sources: [...DEFAULT_SOURCES],
     customQueries: [],
     targetLeads: DEFAULT_TARGET_LEADS,
   };

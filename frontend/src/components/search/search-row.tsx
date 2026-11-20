@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { isSearchRunning, searchStatusTone } from "@/lib/domain";
 import { useTimeAgo } from "@/lib/format";
+import { useVocabulary } from "@/lib/vocabulary";
 import { Badge, Dot } from "@/components/ui/badge";
 import type { SearchSummary } from "@/services/types";
 
@@ -18,6 +19,7 @@ export function SearchRow({ search }: { search: SearchSummary }) {
   const t = useTranslations("searchRow");
   const statuses = useTranslations("domain.searchStatus");
   const timeAgo = useTimeAgo();
+  const vocabulary = useVocabulary();
   const running = isSearchRunning(search.status);
   const tone = searchStatusTone(search.status);
 
@@ -29,8 +31,8 @@ export function SearchRow({ search }: { search: SearchSummary }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{search.name}</p>
         <p className="mt-0.5 truncate text-xs text-fg-muted">
-          {search.target}
-          {search.country ? ` · ${search.country}` : ""}
+          {vocabulary.target(search.target)}
+          {search.country ? ` · ${vocabulary.country(search.country)}` : ""}
         </p>
       </div>
 
