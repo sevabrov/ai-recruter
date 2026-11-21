@@ -7,7 +7,7 @@
  * demo survives a refresh; entirely disposable once the FastAPI services land.
  */
 
-import { criteriaTarget } from "@/lib/domain";
+import { criteriaTarget, effectiveRequirements } from "@/lib/domain";
 import { generateQueryPreview } from "@/lib/query-preview";
 import { computeScore } from "@/lib/scoring";
 import { hashString, seededRandom } from "@/lib/utils";
@@ -235,7 +235,7 @@ export function createSearch(input: CreateSearchInput): Search {
 
   const leads: Lead[] = shuffled.slice(0, take).map((source, index) => {
     const signals = retargetSignals(source.signals, source.location?.country, input.criteria.location.country);
-    const { score, breakdown } = computeScore(signals, input.criteria.signalWeights);
+    const { score, breakdown } = computeScore(signals, effectiveRequirements(input.criteria));
     return {
       ...source,
       id: `${id}__${source.id}`,

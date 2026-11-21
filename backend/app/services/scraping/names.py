@@ -11,6 +11,7 @@ person costs one lead, an invented one costs the user's credibility (spec §32, 
 """
 
 import re
+import unicodedata
 
 #: Words that mean the text is not a person, whatever else it looks like.
 NOT_A_PERSON = {
@@ -70,8 +71,30 @@ BRAND_MARKERS = {
 PARTICLES = {"de", "del", "della", "di", "da", "dos", "la", "le", "van", "von", "der", "den", "bin"}
 
 
+#: Pictographs and marks that decorate a name without being part of it.
+_DECORATION = {"So", "Sk", "Mn", "Me", "Cs"}
+
+
 def clean(value: str) -> str:
-    return re.sub(r"\s+", " ", value or "").strip(" \t\n\r-–—|·•,")
+    """
+    The text with invisible formatting removed and decorations trimmed off the ends.
+
+    LinkedIn titles arrive as "‏Piotr Orlik‏ - …" (right-to-left marks around the
+    name) and "🐍 Dawid Kosinski - …": both read as no name at all, and six Python
+    developers were refused as "not a person" in one run.
+    """
+    text = "".join(ch for ch in value or "" if unicodedata.category(ch) != "Cf")
+    text = re.sub(r"\s+", " ", text).strip(" \t\n\r-–—|·•,")
+    start, end = 0, len(text)
+    while start < end and _decoration(text[start]):
+        start += 1
+    while end > start and _decoration(text[end - 1]):
+        end -= 1
+    return text[start:end].strip(" \t\n\r-–—|·•,")
+
+
+def _decoration(character: str) -> bool:
+    return character == " " or unicodedata.category(character) in _DECORATION
 
 
 def commercial(text: str) -> bool:

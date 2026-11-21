@@ -9,7 +9,6 @@ from app.models.common import (
     OutreachChannel,
     OutreachTone,
     Platform,
-    SignalType,
 )
 from app.schemas.common import CamelModel
 from app.schemas.search import GeoLocationSchema
@@ -25,7 +24,10 @@ class LeadPlatformSchema(CamelModel):
 class LeadSignalSchema(CamelModel):
     """Evidence travels with the signal (spec §16) so the UI can show the quote."""
 
-    type: SignalType
+    #: A built-in signal or a requirement of the search's own.
+    type: str
+    #: The requirement's name as the client wrote it; absent for a built-in signal.
+    label: str | None = None
     detected: bool
     confidence: float
     evidence: str | None = None
@@ -43,7 +45,8 @@ class LeadSourceSchema(CamelModel):
 
 
 class ScoreComponentSchema(CamelModel):
-    type: SignalType
+    type: str
+    label: str | None = None
     awarded: int
     max: int
 

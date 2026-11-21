@@ -15,6 +15,7 @@ import {
   BUSINESS_TYPES,
   COUNTRIES,
   INDUSTRIES,
+  isPresetSignal,
   LANGUAGES,
   vocabularyEntry,
   type VocabularyEntry,
@@ -47,7 +48,18 @@ export function useVocabulary() {
           ? businessType(token)
           : token;
 
+    /**
+     * A requirement's name: the client's own words if it has them, the built-in
+     * signal's translation otherwise, the bare id as a last resort.
+     */
+    const requirement = (entry: { type?: string; id?: string; label?: string | null }) => {
+      const id = entry.id ?? entry.type ?? "";
+      if (entry.label) return entry.label;
+      return isPresetSignal(id) ? t(`signal.${id}`) : id;
+    };
+
     return {
+      requirement,
       country,
       language,
       industry,
@@ -70,5 +82,5 @@ export function useVocabulary() {
           .filter(Boolean)
           .join(" · "),
     };
-  }, [label]);
+  }, [label, t]);
 }

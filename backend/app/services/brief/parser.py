@@ -35,7 +35,14 @@ import httpx
 from app.core.errors import ProviderAuthError, ProviderError, ProviderUnavailableError
 from app.core.logging import get_logger
 from app.models.common import SignalType, SourceKind
-from app.models.search import SearchCriteria
+from app.models.search import (
+    MAX_FOCUS_COUNTRIES,
+    REGIONS,
+    Importance,
+    Requirement,
+    SearchCriteria,
+    balanced,
+)
 from app.services.brief.vocabulary import (
     BUSINESS_TYPES,
     COUNTRIES,
@@ -85,23 +92,19 @@ def build_criteria(raw: dict[str, Any], brief: str) -> SearchCriteria:
     does not exist or a forty-word "keyword" would otherwise travel straight into
     a billed query.
     """
-    country = COUNTRIES.get(str(raw.get("country") or "").upper())
+    # "Ukraine or Poland", "Ukraine or anywhere in Europe": several countries and a
+    # region. One country alone stays the single-country search it always was.
+    codes = [*_strings(raw.get("countries")), *_strings([raw.get("country")])]
+    named = _unique(COUNTRIES[code.upper()] for code in codes if code.upper() in COUNTRIES)
+    region = str(raw.get("region") or "")
+    region = region if region in REGIONS else ""
+    country = named[0] if len(named) == 1 and not region else None
+    several = [] if country else named[:MAX_FOCUS_COUNTRIES]
     languages = _unique(
         LANGUAGES[code] for code in _codes(raw.get("languages")) if code in LANGUAGES
     )
     industries = _pick(raw.get("industries"), INDUSTRIES)
     business = _pick(raw.get("business_types"), BUSINESS_TYPES)
-
-    # Taken as the brief says, with nothing assumed: the product recruits for any
-    # role, and a network-marketing requirement nobody asked for would refuse every
-    # candidate of a search for, say, developers.
-    signals = {signal.value: signal for signal in SignalType}
-    must = _unique(signals[s] for s in _strings(raw.get("must_have")) if s in signals)
-    nice = _unique(
-        signals[s]
-        for s in _strings(raw.get("nice_to_have"))
-        if s in signals and signals[s] not in must
-    )
 
     kinds = {kind.value: kind for kind in SourceKind}
     sources = _unique(kinds[s] for s in _strings(raw.get("sources")) if s in kinds)
@@ -111,21 +114,213 @@ def build_criteria(raw: dict[str, Any], brief: str) -> SearchCriteria:
     except (TypeError, ValueError):
         target = 0
 
+    about_me = _text(raw.get("about_me"), 500)
+    # The client's own company is who they are, not whom they are looking for:
+    # searching for it finds their own team. Models put it in both places.
+    brands = [
+        brand
+        for brand in _with_latin_names(_terms(raw.get("brands"), 6))
+        if brand.casefold() not in about_me.casefold()
+    ]
+    # …and not as part of a phrase either: "дистриб'ютор MIHI" written by the
+    # client from MIHI is a search for their own distributors.
+    own = {word for word in re.findall(r"[\w'’]+", about_me.casefold()) if len(word) >= 3}
+    keywords = [
+        term
+        for term in _terms(raw.get("keywords"), 8)
+        if not _too_generic(term)
+        and not (
+            {word for word in re.findall(r"[\w'’]+", term.casefold())} & own & _brand_words(raw)
+        )
+    ]
+    # A network-marketing search left with one or two words after the filters asks
+    # too few questions: one keyword found fourteen addresses and no lead. The
+    # niche's own names in the two languages its people write in fill it up.
+    if _about_network_marketing(raw) and len(keywords) < 3:
+        keywords = _unique([*keywords, *NETWORK_MARKETING_PHRASES])[:5]
     return SearchCriteria(
         brief=brief[:MAX_BRIEF],
-        about_me=_text(raw.get("about_me"), 500),
-        brands=_with_latin_names(_terms(raw.get("brands"), 6)),
-        keywords=_terms(raw.get("keywords"), 8),
+        about_me=about_me,
+        brands=brands,
+        keywords=keywords,
         negative_keywords=_terms(raw.get("negative_keywords"), 8),
         industry=industries,
         business_types=business,
-        location={"country": country, "city": _text(raw.get("city"), 80) or None},
+        location={
+            "country": country,
+            # A city belongs to one country; with several it would be a guess.
+            "city": (_text(raw.get("city"), 80) or None) if country else None,
+        },
+        countries=several,
+        region=region,
         languages=languages,
-        must_have=must,
-        nice_to_have=nice,
+        # Languages steer the queries; as a filter they are only what the client
+        # asked for in so many words. "From Ukraine" turned into "writes Ukrainian"
+        # threw away 13 of 30 sales managers — Ukrainians write LinkedIn in English.
+        require_language=bool(raw.get("language_required")) and bool(languages),
+        requirements=build_requirements(
+            raw.get("requirements"),
+            keywords,
+            brands,
+            bool(country or several or region),
+            place_gate=SourceKind.LINKEDIN_PUBLIC in (sources or DEFAULT_SOURCES),
+        ),
         sources=sources or list(DEFAULT_SOURCES),
         target_leads=max(0, min(1000, target)),
     )
+
+
+#: Requirement kinds a parser may name: a built-in signal, or one of the search's own.
+REQUIREMENT_KINDS: tuple[str, ...] = (
+    "custom",
+    SignalType.LOCATION.value,
+    SignalType.MLM.value,
+    SignalType.BEAUTY.value,
+    SignalType.RECRUITING.value,
+    SignalType.LEADERSHIP.value,
+    SignalType.PERSONAL_BRAND.value,
+    SignalType.ACTIVITY.value,
+)
+MAX_REQUIREMENTS = 8
+#: Requirements a candidate must visibly meet, apart from the place.
+MAX_REQUIRED = 2
+
+
+def build_requirements(
+    value: Any,
+    keywords: list[str],
+    brands: list[str],
+    place: bool,
+    *,
+    place_gate: bool = True,
+) -> list[Requirement]:
+    """
+    What makes a candidate right for this search, as the brief describes it.
+
+    Nothing is assumed about the niche: a requirement is either one the brief
+    implies or, when a parser named none, one built from the client's own words
+    ("matches the description": their keywords and brands).
+
+    The client asked for every lead to match, so a search always has at least one
+    requirement a candidate must visibly meet: if none was marked required, the
+    most important one is, and no more than `MAX_REQUIRED` are. A place the brief
+    restricts the search to is required where profiles state it (`place_gate`)
+    and a strong preference elsewhere. Points are shared out by importance, 100
+    in all.
+    """
+    requirements: list[Requirement] = []
+    seen: set[str] = set()
+    custom = 0
+    for item in value if isinstance(value, list) else []:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or "custom")
+        if kind not in REQUIREMENT_KINDS:
+            continue
+        label = _text(item.get("label"), 80)
+        if kind == SignalType.LOCATION.value and not place:
+            continue  # a place requirement with no place to compare against
+        if kind == "custom":
+            if not label:
+                continue
+            custom += 1
+            identifier = f"r{custom}"
+        else:
+            identifier = kind
+        if identifier in seen or label.casefold() in seen:
+            continue
+        seen.update({identifier, label.casefold()})
+        importance = str(item.get("importance") or "normal")
+        requirements.append(
+            Requirement(
+                id=identifier,
+                label=label,
+                description=_text(item.get("description"), 300),
+                terms=_terms(item.get("terms"), 6),
+                importance=importance if importance in Importance._value2member_map_ else "normal",
+            )
+        )
+        if len(requirements) >= MAX_REQUIREMENTS - 1:
+            break
+
+    if not requirements and (keywords or brands):
+        requirements.append(
+            Requirement(
+                id="r1",
+                label=(keywords or brands)[0],
+                terms=[*keywords, *brands][:10],
+                importance=Importance.HIGH,
+            )
+        )
+    if place and SignalType.LOCATION.value not in seen:
+        requirements.append(Requirement(id=SignalType.LOCATION.value))
+    # The place is a gate where profiles state it — LinkedIn always does. An
+    # Instagram bio rarely names a country, so there the place earns points and
+    # only a profile that names somewhere else is turned away (`eligibility`).
+    place_importance = Importance.REQUIRED if place_gate else Importance.HIGH
+    requirements = [
+        r.model_copy(update={"importance": place_importance}) if r.id == SignalType.LOCATION else r
+        for r in requirements
+    ]
+    judged = [r for r in requirements if r.id != SignalType.LOCATION]
+    # A required requirement is a gate, and a short profile rarely shows more than
+    # the role: five gates ("Python", "middle", "Django", "English", the place)
+    # turned away 220 of 251 developers. The first ones stay — the role comes
+    # first — and the rest still count, as strong preferences.
+    kept = [r.id for r in judged if r.required][:MAX_REQUIRED]
+    requirements = [
+        r.model_copy(update={"importance": Importance.HIGH})
+        if r.required and r.id != SignalType.LOCATION and r.id not in kept
+        else r
+        for r in requirements
+    ]
+    judged = [r for r in requirements if r.id != SignalType.LOCATION]
+    if judged and not any(r.required for r in judged):
+        core = next((r for r in judged if r.importance is Importance.HIGH), judged[0])
+        requirements = [
+            r.model_copy(update={"importance": Importance.REQUIRED}) if r is core else r
+            for r in requirements
+        ]
+    return balanced(requirements)
+
+
+#: Words that describe anyone when they stand alone. As a query each one returned
+#: mostly organisations: "консультант" found legal marketplaces and tax advisers,
+#: "дистриб'ютор" found wholesalers of toys, cars and hearing aids.
+GENERIC_ALONE = frozenset(
+    {
+        "консультант", "консультантка", "дистриб'ютор", "дистрибьютор", "дистриб’ютор",
+        "партнер", "партнёр", "бізнес-партнер", "бизнес-партнер", "лідер", "лидер",
+        "команда", "бізнес", "бизнес", "менеджер", "рекрутер", "consultant",
+        "distributor", "partner", "leader", "team", "business", "manager", "recruiter",
+        # Platform names: on site:instagram.com every page says "Instagram".
+        "instagram", "інстаграм", "инстаграм", "facebook", "фейсбук", "linkedin",
+        "tiktok", "тікток", "тикток", "smm", "смм",
+    }
+)  # fmt: skip
+
+
+#: What network marketing is called by the people in it, Ukrainian and Russian.
+NETWORK_MARKETING_PHRASES = ("мережевий маркетинг", "млм", "сетевой маркетинг", "сетевой бизнес")
+
+
+def _about_network_marketing(raw: dict[str, Any]) -> bool:
+    kinds = {
+        str(item.get("kind")) for item in raw.get("requirements") or [] if isinstance(item, dict)
+    }
+    business = {value.casefold() for value in _strings(raw.get("business_types"))}
+    return SignalType.MLM.value in kinds or bool(business & {"mlm", "network marketing"})
+
+
+def _brand_words(raw: dict[str, Any]) -> set[str]:
+    """The words of the brands a model named, the client's own included."""
+    names = [*_strings(raw.get("brands")), *KNOWN_BRANDS]
+    words = {word for name in names for word in re.findall(r"[\w'’]+", name.casefold())}
+    return {word for word in words if len(word) >= 3}
+
+
+def _too_generic(term: str) -> bool:
+    return term.casefold().replace("’", "'") in GENERIC_ALONE
 
 
 def _with_latin_names(brands: list[str]) -> list[str]:
@@ -217,29 +412,65 @@ unless they explicitly want people who already work there.
 distribute, as named in the text. Write each the way people spell it in their \
 profiles; if a brand is commonly written both in Latin and Cyrillic (e.g. Farmasi / \
 Фармасі), include both spellings. Max 6.
-- keywords: short phrases (1-3 words) the wanted people would write about themselves \
-in their own profile: job titles, roles, skills, niche words — e.g. "Python developer", \
-"Django", "медсестра", "менеджер з продажу", "консультант", "мережевий маркетинг". \
-Only what the text implies. No brands, no places. Max 6.
+- keywords: short phrases (1-4 words) the wanted people would write about themselves \
+in their own profile: job titles, roles, skills, niche words. Never a generic word \
+that fits anything on its own ("лідер", "команда", "менеджер", "бізнес", "leader"). \
+When a level or seniority is asked, write it together with the title, one phrase \
+per level ("junior frontend developer", "middle frontend developer"). For network \
+marketing use only phrases that mean network marketing on their own: "мережевий \
+маркетинг", "млм", "сетевой маркетинг", "сетевой бизнес", "network marketing". A \
+role word ("консультант", "дистриб'ютор", "партнер") only together with a brand or \
+"млм" ("консультант Farmasi", "дистриб'ютор млм") — alone it finds lawyers, tax \
+advisers and wholesalers. Never the recruiter's own company or brand (from \
+about_me), alone or in a phrase: that finds their own team. No places. Max 6.
 - negative_keywords: kinds of pages or people to exclude, as words that appear on \
 them ("агенція", "магазин", "вакансія"). Max 5.
-- country: ISO 3166-1 alpha-2 code of the ONE country to search in, only if stated \
-or unambiguous; otherwise "".
-- city: a city only if stated, in the text's language; otherwise "".
+- countries: ISO 3166-1 alpha-2 codes of the countries to search in, most important \
+first, max 4, only if stated or unambiguous; otherwise []. If the text accepts a \
+whole region ("anywhere in Europe", "Ukraine or Europe"), set region and list in \
+countries only the countries it names ("Ukraine or Europe" → countries ["UA"], region \
+"europe"). Never leave a stated place out: "it does not matter which" means any of \
+them, not anywhere in the world.
+- region: "europe" when the text accepts any European country, else "".
+- city: a city only if stated and only with a single country, in the text's \
+language; otherwise "".
 - languages: ISO 639-1 codes of the languages the wanted people write in. Include \
 languages that are stated, and the country's main language when a country is given. \
-Diaspora matters: "Ukrainians in Spain" means uk and ru, and es.
+Diaspora matters: "Ukrainians in Spain" means uk and ru, and es. For professional \
+roles whose profiles are usually written in English (IT, engineering, finance, \
+sales, management on LinkedIn), include en.
+- language_required: true ONLY if the text explicitly demands that the people \
+write, publish or speak with clients in a given language ("публікує українською", \
+"speaks Spanish with customers"). A country, a nationality or a required language \
+SKILL ("English B2", "англійська на робочому рівні") is not that — false. When true, \
+profiles written in other languages are thrown away; Ukrainians, for example, write \
+LinkedIn in English.
 - industries / business_types: only from the allowed values, and only if the text \
 implies one of them; most searches will have none.
-- must_have / nice_to_have: only signals the text actually asks for. mlm = works in \
-network marketing (only for network-marketing searches); beauty = works in \
-beauty/cosmetics; recruiting = actively invites people into a team; leadership = \
-leads a team or people; location = is in the target place; personalBrand = has a \
-visible personal brand; activity = posted recently. must_have only for what the text \
-states as a hard requirement — every must_have is one more condition each candidate \
-must visibly meet, so most searches need zero or one. Alternatives ("has a team OR \
-recruits") are nice_to_have, not must_have. Never put location in must_have: the \
-country is already enforced by a separate filter. Leave both empty if nothing applies.
+- requirements: 2-6 things that make a candidate right for THIS search, each \
+checkable on a public profile. For a network-marketing search use the built-in \
+kinds that fit (mlm = works in network marketing; beauty = beauty/cosmetics; \
+recruiting = invites people into a team; leadership = leads a team; personalBrand \
+= visible personal brand). For any other search write your own (kind "custom"): \
+"Python", "Django", "Рівень middle або senior", "Досвід у приватній клініці". \
+label: short, in the language of the interface locale. description: one sentence \
+on what counts. terms: 1-5 words or phrases that appear on such a profile, written \
+the way those people write them ("Python", "Django"; "медсестра", "Krankenschwester"). \
+importance — "required" is a gate: a candidate whose short public profile does not \
+visibly show it is thrown away. So "required" only for what DEFINES the person asked \
+for and what such a profile always says: the role or profession itself ("Python \
+backend developer", "SMM manager", "B2B sales manager"), and for a network-marketing \
+team: works in network marketing, plus brings in people if the text asks for that. \
+At most 2 required (the place is separate). Everything that qualifies the role is \
+"high", never "required": seniority or level (junior / middle / senior), years of \
+experience, a specific tool or framework next to the role (Django, FastAPI), language \
+skills (English level), a portfolio, a niche (beauty salons), a city. Profiles rarely \
+state these, and a gate on them empties the search. "normal": nice to have. \
+Alternatives ("has a team OR recruits") are one requirement covering both, never \
+two required ones. If the text restricts the place, add one requirement of kind \
+"location" whose label names the place ("Україна або Європа"), importance \
+"required". Do not add activity unless asked. Never a requirement that a public \
+profile cannot show (salary, availability, age).
 - sources: the platforms named in the text. If none are named, choose where such \
 people most likely have public profiles: linkedin_public for professional and office \
 roles (IT, finance, engineering, management, HR, sales B2B); instagram_public and \
@@ -267,11 +498,26 @@ def response_schema() -> dict[str, Any]:
         "negative_keywords": strings(),
         "industries": strings(list(INDUSTRIES)),
         "business_types": strings(list(BUSINESS_TYPES)),
-        "country": {"type": "string", "enum": ["", *COUNTRIES]},
+        "countries": strings(list(COUNTRIES)),
+        "region": {"type": "string", "enum": ["", *REGIONS]},
         "city": {"type": "string"},
         "languages": strings(list(LANGUAGES)),
-        "must_have": strings([signal.value for signal in SignalType]),
-        "nice_to_have": strings([signal.value for signal in SignalType]),
+        "language_required": {"type": "boolean"},
+        "requirements": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "kind": {"type": "string", "enum": list(REQUIREMENT_KINDS)},
+                    "label": {"type": "string"},
+                    "description": {"type": "string"},
+                    "terms": strings(),
+                    "importance": {"type": "string", "enum": [i.value for i in Importance]},
+                },
+                "required": ["kind", "label", "description", "terms", "importance"],
+                "additionalProperties": False,
+            },
+        },
         "sources": strings([kind.value for kind in SourceKind]),
         "target_leads": {"type": "integer"},
     }

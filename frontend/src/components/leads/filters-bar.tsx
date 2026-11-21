@@ -11,9 +11,8 @@ import { Input } from "@/components/ui/field";
 import { Menu, MenuCheckboxItem, MenuLabel } from "@/components/ui/overlay";
 import { activeFilterCount, SORT_OPTIONS, useFiltersStore, type FilterScope } from "@/store/filters-store";
 import { useLeadFacets } from "@/services/hooks";
-import type { LeadSort, Platform, SignalType } from "@/services/types";
-
-const SIGNAL_FILTERS: SignalType[] = ["mlm", "beauty", "leadership", "recruiting", "personalBrand"];
+import { useVocabulary } from "@/lib/vocabulary";
+import type { LeadSort, Platform, Requirement } from "@/services/types";
 
 const SCORE_THRESHOLDS = [0, 70, 85, 90];
 
@@ -21,14 +20,21 @@ const SCORE_THRESHOLDS = [0, 70, 85, 90];
 export function FiltersBar({
   scope,
   showStatus = true,
+  requirements,
 }: {
   scope: FilterScope;
   showStatus?: boolean;
+  /**
+   * The search's requirements, when the list is one search's results. Across
+   * searches each one has requirements of its own, so there is nothing common to
+   * filter by and the control is not shown.
+   */
+  requirements?: Requirement[];
 }) {
   const t = useTranslations("filters");
   const common = useTranslations("common");
   const platforms = useTranslations("domain.platform");
-  const signals = useTranslations("domain.signal");
+  const vocabulary = useVocabulary();
   const statuses = useTranslations("domain.leadStatus");
   const sorts = useTranslations("domain.sort");
 
@@ -80,12 +86,17 @@ export function FiltersBar({
         onToggle={(value) => toggleIn(scope, "platforms", value as Platform)}
       />
 
-      <MultiFilter
-        label={t("signals")}
-        selected={filters.signals ?? []}
-        options={SIGNAL_FILTERS.map((signal) => ({ value: signal, label: signals(signal) }))}
-        onToggle={(value) => toggleIn(scope, "signals", value as SignalType)}
-      />
+      {requirements?.length ? (
+        <MultiFilter
+          label={t("signals")}
+          selected={filters.signals ?? []}
+          options={requirements.map((requirement) => ({
+            value: requirement.id,
+            label: vocabulary.requirement(requirement),
+          }))}
+          onToggle={(value) => toggleIn(scope, "signals", value)}
+        />
+      ) : null}
 
       {showStatus ? (
         <MultiFilter

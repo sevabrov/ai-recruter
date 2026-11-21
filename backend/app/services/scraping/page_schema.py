@@ -53,7 +53,7 @@ MAX_EVIDENCE_CHARS = 300
 
 EXTRACTION_PROMPT = """
 You are reading one public web page to decide whether it belongs to a specific
-person who could be recruited into a beauty / network-marketing business.
+person a recruiter might contact, and to record what the page says about them.
 
 Fill the provided schema and nothing else. Rules:
 - Use only what this page states. Never guess, infer or complete from knowledge.
@@ -129,7 +129,11 @@ class PageExtraction(BaseModel):
     name: str | None = Field(default=None, description="The person's display name")
     headline: str | None = Field(default=None, description="Their own one-line description")
     company: str | None = Field(default=None, description="Company or brand they work with")
-    summary: str | None = Field(default=None, description="Two sentences, from the page only")
+    summary: str | None = Field(
+        default=None,
+        description="What the page says about their work: role, skills, experience, "
+        "employer or brand — up to four sentences, from the page only",
+    )
     location: PageLocation = Field(default_factory=PageLocation)
     languages: list[str] = Field(
         default_factory=list, description="Languages the page is written in, in English"

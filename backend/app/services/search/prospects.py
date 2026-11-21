@@ -35,6 +35,7 @@ from app.models.common import Platform
 from app.models.profile import ExtractedProfile
 from app.models.search import SearchCriteria
 from app.models.source import DiscoveredUrl
+from app.services.extraction.signal_detector import keyword_signals
 from app.services.scoring.scoring_service import ScoringService
 from app.services.scraping.base import ProfileExtractor
 
@@ -122,11 +123,18 @@ def _promise(
     if profile is None:
         return prior
 
-    score, _ = scoring.score(profile.observations, criteria.signal_weights)
-    required = set(criteria.must_have)
+    if criteria.requirements is None:
+        # Recorded before requirements existed: ranked exactly as it was then.
+        score, _ = scoring.score(profile.observations, criteria.signal_weights)
+        required = {str(signal) for signal in criteria.must_have}
+        sightings = profile.observations
+    else:
+        # A search's own requirements are matched by their words — free, and the
+        # same judgement the keyword judge would make once the page is read.
+        sightings = keyword_signals(profile, criteria)
+        score, _ = scoring.score(sightings, criteria.requirements)
+        required = {r.id for r in criteria.requirements if r.required}
     visible = sum(
-        1
-        for observation in profile.observations
-        if observation.detected and observation.type in required
+        1 for sighting in sightings if sighting.detected and str(sighting.type) in required
     )
     return prior + score + MUST_HAVE_BONUS * visible

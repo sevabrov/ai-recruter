@@ -30,11 +30,17 @@ from app.db.repository import Repository
 from app.models.lead import Lead
 from app.services.brief.parser import OpenAIBriefParser, ResilientBriefParser
 from app.services.extraction.signal_detector import (
+    BudgetedSignalDetector,
     FixtureSignalDetector,
     LlmSignalDetector,
     SignalDetector,
 )
-from app.services.scraping.base import ExtractionCost, ProfileExtractor
+from app.services.scraping.base import ExtractionCost, PageReader, ProfileExtractor
+from app.services.scraping.browser_reader import (
+    BrowserPageReader,
+    BrowserPool,
+    RoutingPageReader,
+)
 from app.services.scraping.budget import PageBudget
 from app.services.scraping.cache import CachedPageReader
 from app.services.scraping.fallback import FallbackProfileExtractor
@@ -91,28 +97,41 @@ def use_page_reading(settings: Settings) -> bool:
     return bool(settings.scrapegraph_api_key)
 
 
+def use_browser_reading(settings: Settings) -> bool:
+    """Our own browser reads real pages only: the demo's addresses do not exist."""
+    return settings.browser_reader and use_live_search(settings)
+
+
 @dataclass
 class ReaderResources:
     """
-    What the page reader must *not* duplicate per search: the connection pool and
-    the rate limiter. The limit is a property of the API key (spec §52), so every
-    concurrent search has to queue behind the same one — while the cost counters
-    stay per search, which is why the extractor itself is still built per job.
+    What the page readers must *not* duplicate per search: the connection pool, the
+    rate limiter and the browser. The limit is a property of the API key (spec §52),
+    so every concurrent search has to queue behind the same one — while the cost
+    counters stay per search, which is why the extractor itself is built per job.
     """
 
     client: httpx.AsyncClient
     limiter: RateLimiter
+    browser: BrowserPool | None = None
 
     async def aclose(self) -> None:
         await self.client.aclose()
+        if self.browser is not None:
+            await self.browser.aclose()
 
 
 def build_reader_resources(settings: Settings) -> ReaderResources | None:
-    if not use_page_reading(settings):
+    if not (use_page_reading(settings) or use_browser_reading(settings)):
         return None
     return ReaderResources(
         client=httpx.AsyncClient(timeout=httpx.Timeout(settings.scrapegraph_timeout_seconds)),
         limiter=RateLimiter(settings.scrapegraph_rate_limit_per_second),
+        browser=(
+            BrowserPool(concurrency=settings.browser_concurrency)
+            if use_browser_reading(settings)
+            else None
+        ),
     )
 
 
@@ -125,43 +144,68 @@ def build_profile_extractor(
     """
     Built once per job, because the cost counters belong to one search.
 
-    With a ScrapeGraphAI key the stage becomes a chain — read, cached, with a
-    stand-in behind it — assembled here so the pipeline still sees one extractor:
+    With a reader the stage becomes a chain — read, cached, with a stand-in behind
+    it — assembled here so the pipeline still sees one extractor:
 
-        FallbackProfileExtractor(          the page would not open → snippet
-            CachedPageReader(              read it once (spec §53)
-                ScrapeGraphProfileExtractor(…)))
+        FallbackProfileExtractor(            the page would not open → snippet
+            RoutingPageReader(               Instagram, Facebook → our browser
+                CachedPageReader(BrowserPageReader),
+                CachedPageReader(            read it once (spec §53)
+                    ScrapeGraphProfileExtractor(…))))   everything else
 
-    The cache needs a repository. Without one (a unit test, a script) the reader is
-    used directly: correct, just not free the second time.
+    Either reader may be missing (no ScrapeGraphAI key, browser switched off); the
+    router then sends its platforms to the other or to the snippet. The cache needs
+    a repository. Without one (a unit test, a script) the readers are used
+    directly: correct, just not free the second time.
     """
-    if not use_page_reading(settings):
+    browser_pool = resources.browser if resources else None
+    if not use_page_reading(settings) and browser_pool is None:
         if use_live_search(settings):
             # The catalogue is useless here: none of its URLs exist on the open web.
             return SnippetProfileExtractor()
         return FixtureProfileExtractor(catalogue)
 
     cost = ExtractionCost()
-    reader = ScrapeGraphProfileExtractor(
-        settings.scrapegraph_api_key,
-        endpoint=settings.scrapegraph_endpoint,
-        timeout_seconds=settings.scrapegraph_timeout_seconds,
-        rate_limit_per_second=settings.scrapegraph_rate_limit_per_second,
-        credits_per_page=settings.scrapegraph_credits_per_page,
-        stealth_credits=settings.scrapegraph_stealth_credits,
-        stealth=settings.scrapegraph_stealth,
-        page_wait_ms=settings.scrapegraph_page_wait_ms,
-        cost=cost,
-        # Per search, like the counters: a ceiling shared between searches would
-        # mean the second one of the day silently gets nothing.
-        budget=PageBudget(settings.max_pages_per_search),
-        client=resources.client if resources else None,
-        limiter=resources.limiter if resources else None,
-    )
+
+    def cached(reader: PageReader) -> PageReader:
+        if repository is None:
+            return reader
+        return CachedPageReader(
+            reader, repository, ttl_hours=settings.scrape_cache_ttl_hours, cost=cost
+        )
+
+    scrapegraph: PageReader | None = None
+    if use_page_reading(settings):
+        reader = ScrapeGraphProfileExtractor(
+            settings.scrapegraph_api_key,
+            endpoint=settings.scrapegraph_endpoint,
+            timeout_seconds=settings.scrapegraph_timeout_seconds,
+            rate_limit_per_second=settings.scrapegraph_rate_limit_per_second,
+            credits_per_page=settings.scrapegraph_credits_per_page,
+            stealth_credits=settings.scrapegraph_stealth_credits,
+            stealth=settings.scrapegraph_stealth,
+            page_wait_ms=settings.scrapegraph_page_wait_ms,
+            cost=cost,
+            # Per search, like the counters: a ceiling shared between searches would
+            # mean the second one of the day silently gets nothing.
+            budget=PageBudget(settings.max_pages_per_search),
+            client=resources.client if resources else None,
+            limiter=resources.limiter if resources else None,
+        )
+        scrapegraph = cached(reader)
+
+    chain: PageReader = scrapegraph  # type: ignore[assignment]
+    if browser_pool is not None:
+        browser = BrowserPageReader(
+            browser_pool, timeout_seconds=settings.browser_timeout_seconds, cost=cost
+        )
+        chain = RoutingPageReader(cached(browser), scrapegraph, cost=cost)
+
     log.info(
         "page_reading_enabled",
         extra={
-            "reader": reader.name,
+            "reader": chain.name,
+            "browser": browser_pool is not None,
             "cache_ttl_hours": settings.scrape_cache_ttl_hours,
             "fallback": settings.scrapegraph_fallback_to_snippets,
             "max_pages_per_search": settings.max_pages_per_search or "unlimited",
@@ -169,16 +213,10 @@ def build_profile_extractor(
             "stealth": settings.scrapegraph_stealth,
         },
     )
-
-    cached: ScrapeGraphProfileExtractor | CachedPageReader = reader
-    if repository is not None:
-        cached = CachedPageReader(
-            reader, repository, ttl_hours=settings.scrape_cache_ttl_hours, cost=cost
-        )
     if not settings.scrapegraph_fallback_to_snippets:
-        return cached
+        return chain
     return FallbackProfileExtractor(
-        cached,
+        chain,
         SnippetProfileExtractor(),
         # Not MAX_RETRIES: that limit is for calls that cost nothing to repeat. The
         # service bills a request it served, and our timeout does not un-bill it, so
@@ -195,7 +233,15 @@ def use_llm_signals(settings: Settings) -> bool:
 
 def build_signal_detector(settings: Settings) -> SignalDetector:
     if use_llm_signals(settings):
-        return LlmSignalDetector(settings.openai_api_key)
+        return BudgetedSignalDetector(
+            LlmSignalDetector(
+                settings.openai_api_key,
+                settings.openai_judge_model,
+                endpoint=settings.openai_endpoint,
+                timeout_seconds=settings.openai_timeout_seconds,
+            ),
+            settings.max_judgements_per_search,
+        )
     return FixtureSignalDetector()
 
 

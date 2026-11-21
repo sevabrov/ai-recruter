@@ -13,7 +13,12 @@ import { Badge, Dot } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
 import { EmptyState, Eyebrow, Skeleton } from "@/components/ui/misc";
-import { HIGH_QUALITY_THRESHOLD, isSearchRunning, searchStatusTone } from "@/lib/domain";
+import {
+  effectiveRequirements,
+  HIGH_QUALITY_THRESHOLD,
+  isSearchRunning,
+  searchStatusTone,
+} from "@/lib/domain";
 import { useNumbers } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useVocabulary } from "@/lib/vocabulary";
@@ -69,6 +74,7 @@ export default function SearchResultsPage() {
   }
 
   const leads = page?.items ?? [];
+  const requirements = effectiveRequirements(search.criteria);
   const tone = searchStatusTone(search.status);
   const averageScore = leads.length
     ? Math.round(leads.reduce((total, lead) => total + lead.score, 0) / leads.length)
@@ -122,14 +128,14 @@ export default function SearchResultsPage() {
             {t("tabFilteredOut", { count: rejected?.total ?? 0 })}
           </Tab>
         </div>
-        {tab === "selected" ? <FiltersBar scope="results" showStatus={false} /> : null}
+        {tab === "selected" ? <FiltersBar scope="results" showStatus={false} requirements={requirements} /> : null}
       </div>
 
       {tab === "selected" ? (
         <>
           <Card>
             {leads.length ? (
-              <LeadsTable leads={leads} isPending={isPending} />
+              <LeadsTable leads={leads} isPending={isPending} requirements={requirements} />
             ) : isPending ? (
               <LeadsTable leads={[]} isPending />
             ) : search.leadCount === 0 ? (

@@ -117,6 +117,8 @@ def classify(url: str, platform: Platform) -> UrlKind:
         if segments and segments[0].lower() in blocked:
             first = segments[0].lower()
             return UrlKind.COMPANY if first in {"company", "school"} else UrlKind.ARTICLE
+        if platform is Platform.FACEBOOK and _facebook_profile(segments, parsed.query):
+            return UrlKind.CANDIDATE
         if platform is Platform.LINKEDIN:
             # Only /in/<slug> is a person on LinkedIn.
             is_person = segments[:1] == ["in"] and len(segments) > 1
@@ -136,6 +138,21 @@ def classify(url: str, platform: Platform) -> UrlKind:
     if _is_article(segments) or platform is Platform.BLOG:
         return UrlKind.ARTICLE
     return UrlKind.UNKNOWN
+
+
+def _facebook_profile(segments: list[str], query: str) -> bool:
+    """
+    Facebook's other profile shapes, all of them somebody's (or some page's) own:
+    `/p/Ім'я-1000…` (the newer address for pages and professional profiles),
+    `/people/Ім'я/1000…`, and `/profile.php?id=1000…`. Each of these used to be
+    refused as "not the shape of a profile", which threw the person away unread.
+    """
+    first = segments[0].lower() if segments else ""
+    if first == "p" and len(segments) == 2:
+        return True
+    if first == "people" and len(segments) >= 2:
+        return True
+    return first == "profile.php" and "id=" in query
 
 
 def _is_article(segments: list[str]) -> bool:
@@ -188,7 +205,18 @@ HANDLE_BEFORE_PLATFORM = re.compile(
 #: `instagram.com/p/Cxyz` puts it first — there is no author in that address at all.
 #: `instagram.com/marina.mlm/reel/Cxyz` puts it *second*, and then the segment
 #: before it is the author's handle, spelled out by the platform itself.
-POST_SEGMENTS = {"p", "reel", "reels", "tv", "post", "posts", "videos", "video", "photos"}
+POST_SEGMENTS = {
+    "p",
+    "reel",
+    "reels",
+    "tv",
+    "post",
+    "posts",
+    "videos",
+    "video",
+    "photos",
+    "mentions",
+}
 
 #: Handles a platform uses for its own pages. Reading one as a person would send a
 #: paid request to a login form.
@@ -305,6 +333,10 @@ def _author(url: DiscoveredUrl) -> str | None:
 
     # `{handle}/reel/…`, `{handle}/videos/…`: the platform wrote the author down.
     if len(segments) > 1 and segments[1].lower() in POST_SEGMENTS:
+        # A Facebook page may be addressed by its number: `/100066734753457/photos/…`
+        # is that page's photo, and `/100066734753457` is the page.
+        if url.platform is Platform.FACEBOOK and segments[0].isdigit():
+            return segments[0]
         return _handle(segments[0])
 
     # `/p/Cxyz`, `/reel/Cxyz`: one piece of content and no author in the address.

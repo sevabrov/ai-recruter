@@ -1,23 +1,18 @@
 "use client";
 
-import { AlertTriangle, ChevronRight, RotateCcw, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ChevronRight, ShieldCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { SCORED_SIGNALS, SOURCE_KINDS, WEB_SOURCES, weightLevel } from "@/lib/domain";
-import { totalWeight } from "@/lib/scoring";
-import { cn } from "@/lib/utils";
+import { SOURCE_KINDS, WEB_SOURCES } from "@/lib/domain";
 import { useVocabulary } from "@/lib/vocabulary";
 import type { SearchEstimate } from "@/services/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { CheckboxField, SwitchField, WeightSlider } from "@/components/ui/controls";
+import { CheckboxField, SwitchField } from "@/components/ui/controls";
 import { PlatformIcon } from "@/components/ui/misc";
 import { QueriesPanel } from "@/components/search/wizard/queries-panel";
 import { useWizardStore } from "@/store/wizard-store";
 
 /**
  * Everything the old five-step wizard asked up front that a brief does not need
- * to answer: where to look, how strict the gates are, how many points a signal
- * is worth, and the exact queries. Defaults that work, folded away — open for the
+ * to answer: where to look, how strict the gates are, and the exact queries. Defaults that work, folded away — open for the
  * client who wants to tune, out of the way of the one who does not.
  */
 export function AdvancedSettings({
@@ -41,7 +36,6 @@ export function AdvancedSettings({
       <div className="flex flex-col gap-7 border-t border-line px-4 py-5">
         <Sources />
         <Requirements />
-        <Weights />
         <QueriesPanel
           own={criteria.customQueries ?? []}
           sources={criteria.sources}
@@ -104,7 +98,14 @@ function Requirements() {
   const strictOverSocialOnly =
     socialOnly &&
     Boolean(criteria.requireConfirmedLocation || criteria.requireConfirmedLanguage);
-  const country = criteria.location.country;
+  // One country, several, or a region: named as the client chose them.
+  const places = [
+    ...(criteria.location.country ? [criteria.location.country] : (criteria.countries ?? [])).map(
+      vocabulary.country,
+    ),
+    ...(criteria.region === "europe" ? [review("regionEurope")] : []),
+  ];
+  const country = places.join(" / ");
 
   return (
     <section className="flex flex-col gap-1">
@@ -114,7 +115,7 @@ function Requirements() {
         onCheckedChange={(requireLocation) => patchCriteria({ requireLocation })}
         label={
           country
-            ? t("noOutsideCountry", { country: vocabulary.country(country) })
+            ? t("noOutsideCountry", { country })
             : t("noOutsideCountryGeneric")
         }
         hint={t("noOutsideCountryHint")}
@@ -160,71 +161,6 @@ function Requirements() {
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warn" />
           <span>{t("socialOnlyWarning")}</span>
         </p>
-      ) : null}
-    </section>
-  );
-}
-
-function Weights() {
-  const t = useTranslations("wizard.criteria");
-  const common = useTranslations("common");
-  const signals = useTranslations("domain.signal");
-  const levels = useTranslations("domain.weightLevel");
-  const { criteria, setWeight, resetWeights } = useWizardStore();
-  const total = totalWeight(criteria.signalWeights);
-
-  return (
-    <section>
-      <header className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3">
-        <div>
-          <h3 className="text-sm font-semibold">{t("weights")}</h3>
-          <p className="mt-1 text-xs text-fg-muted">{t("weightsHint")}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge tone={total === 100 ? "good" : "warn"} mono>
-            {t("points", { total })}
-          </Badge>
-          <Button variant="ghost" size="sm" onClick={resetWeights}>
-            <RotateCcw />
-            {common("reset")}
-          </Button>
-        </div>
-      </header>
-
-      <ul className="divide-y divide-line">
-        {SCORED_SIGNALS.map((signal) => {
-          const points = criteria.signalWeights[signal];
-          return (
-            <li
-              key={signal}
-              className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[13rem_1fr_5.5rem]"
-            >
-              <span className="text-sm">{signals(signal)}</span>
-              <div className="col-span-2 sm:col-span-1">
-                <WeightSlider
-                  value={points}
-                  onValueChange={(next) => setWeight(signal, next)}
-                  ariaLabel={t("weightAria", { signal: signals(signal) })}
-                />
-              </div>
-              <span className="flex items-center justify-end gap-2">
-                <span className="num text-sm">{points}</span>
-                <span
-                  className={cn(
-                    "label w-16 text-right",
-                    points >= 25 ? "text-accent" : points >= 12 ? "text-fg-muted" : "text-fg-faint",
-                  )}
-                >
-                  {levels(weightLevel(points))}
-                </span>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-
-      {total !== 100 ? (
-        <p className="mt-3 text-xs text-warn">{t("totalWarning", { total })}</p>
       ) : null}
     </section>
   );

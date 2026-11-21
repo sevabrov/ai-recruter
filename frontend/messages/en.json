@@ -353,7 +353,9 @@
     "save": "Save",
     "saveLead": "Save {name}",
     "unsaveLead": "Unsave {name}",
-    "confidence": "confidence {percent}%"
+    "confidence": "confidence {percent}%",
+    "requirementsMet": "Requirements",
+    "metOf": "{met} of {total}"
   },
   "filters": {
     "searchPlaceholder": "Search name, company, city…",
@@ -603,13 +605,6 @@
       "confirmedLanguageHint": "A two-line profile description often shows no language at all. Leave this off unless you would rather have five certain people than fifty likely ones.",
       "socialOnlyWarning": "Only social sources are selected. Profiles there rarely state a country or a language, so “only if it can be confirmed” will drop most of what this search finds. Worth turning on once you have seen what it returns without it."
     },
-    "criteria": {
-      "weights": "Signal weights",
-      "weightsHint": "Points a fully-confident signal contributes. The score is the weighted sum — no model invents the total.",
-      "points": "{total} / 100 pts",
-      "weightAria": "{signal} weight",
-      "totalWarning": "Weights total {total}. Scores stay comparable inside this search, but a 100-point scale keeps them comparable across searches."
-    },
     "sources": {
       "privacyTitle": "These are search targets, not logins.",
       "privacyBody": "AI Recruiter reads publicly indexed pages only. It never asks for social network passwords, never stores platform cookies and never automates a personal account. Selecting Instagram means “look at public Instagram pages the search engine already indexes”."
@@ -654,13 +649,16 @@
           "question": "Where should we look? No source is selected."
         },
         "country": {
-          "question": "Which country should we search in? Without one, queries are written in English only."
+          "question": "Where should we look? Pick one or more countries, all of Europe, or anywhere. Without a place, queries are written in English only."
         },
         "languages": {
           "question": "Which languages do these people write in?"
         },
         "brands": {
           "question": "Which companies or brands are these people linked to? It is the strongest query — it finds them most precisely."
+        },
+        "requirements": {
+          "question": "What makes a candidate right? Add at least one requirement, or every candidate gets the same score."
         }
       },
       "understoodTitle": "What we understood",
@@ -674,12 +672,11 @@
       "fieldKeywords": "How they describe themselves",
       "fieldKeywordsHint": "Words from their profiles: job title, skills, niche. In the language they write in.",
       "fieldKeywordsPlaceholder": "Python developer, nurse…",
-      "fieldCountry": "Country",
-      "fieldCountryHint": "Added to the queries, and decides which languages they are written in.",
-      "fieldCountryPlaceholder": "Choose a country",
+      "fieldCountry": "Where to look",
+      "fieldCountryHint": "Pick several countries or all of Europe. Queries are written for each country, and only people from the chosen places become leads.",
       "anywhere": "Anywhere",
       "fieldCity": "City",
-      "fieldCityHint": "Optional. Narrows the search sharply.",
+      "fieldCityHint": "Only with a single country. Narrows the search sharply.",
       "fieldCityPlaceholder": "Barcelona",
       "fieldLanguages": "Languages they write in",
       "fieldLanguagesHint": "Queries are written in each of these. For a diaspora it is the people's language, not the country's: Ukrainians in Spain write in Ukrainian and Russian.",
@@ -688,13 +685,6 @@
       "fieldNegativesPlaceholder": "agency, shop…",
       "fieldIndustry": "Industry",
       "fieldBusiness": "Business type",
-      "fieldSignals": "What matters in a candidate",
-      "fieldSignalsHint": "“Required” drops everyone who does not show it — each one is another condition. “Preferred” adds points. If none of these apply to your search, leave them at “Doesn't matter”.",
-      "importance": {
-        "required": "Required",
-        "preferred": "Preferred",
-        "ignored": "Doesn't matter"
-      },
       "advanced": "Advanced settings",
       "advancedHint": "sources, strictness, weights, queries",
       "sourcesTitle": "Where to look",
@@ -708,7 +698,23 @@
         "languages_without_country": "Languages are chosen but no country. Queries in languages other than English are written with the place in that language, so without a country none of them will run.",
         "threads_empty": "Threads has returned zero results for every query in every measured run, and each one still costs a search call. Unselect it unless you know it works for your market.",
         "city_narrow": "A city narrows the queries sharply. If {city} returns little, the country alone usually returns much more."
-      }
+      },
+      "fieldRequirements": "What makes a candidate right",
+      "fieldRequirementsHint": "Each requirement is checked on the candidate's profile and backed by a quote. You choose how much it matters; the points follow. “Required” drops everyone who does not show it, so one such requirement is best, or none.",
+      "requirementName": "Requirement name",
+      "requirementRemove": "Remove requirement “{name}”",
+      "requirementsEmpty": "No requirements yet: every candidate would get the same score.",
+      "requirementPlaceholder": "For example: AWS experience, Speaks Polish…",
+      "requirementAdd": "Add",
+      "points": "{points} pts",
+      "importance": {
+        "required": "Required",
+        "high": "Important",
+        "normal": "Nice to have"
+      },
+      "costJudging": "AI candidate judging",
+      "costJudgingUpTo": "up to {count, number} candidates",
+      "regionEurope": "Any European country"
     },
     "editBrief": "Edit description",
     "brief": {

@@ -10,21 +10,34 @@ import { Hint } from "@/components/ui/controls";
 import { PlatformIcon, Skeleton } from "@/components/ui/misc";
 import { ScoreBar } from "@/components/ui/score";
 import { useUpdateLead } from "@/services/hooks";
-import type { Lead, SignalType } from "@/services/types";
+import { useVocabulary } from "@/lib/vocabulary";
+import type { Lead, Requirement } from "@/services/types";
 
-const SIGNAL_COLUMNS: SignalType[] = ["mlm", "beauty", "leadership"];
+/** How many of a search's requirements get a column of their own. */
+const REQUIREMENT_COLUMNS = 3;
 
 export function LeadsTable({
   leads,
   isPending,
   showStatus = true,
+  requirements,
 }: {
   leads: Lead[];
   isPending?: boolean;
   showStatus?: boolean;
+  /**
+   * The search's requirements, when the list is one search's results: its
+   * weightiest ones become columns. Across searches every lead was judged by
+   * requirements of its own, so one column says how many of them it met.
+   */
+  requirements?: Requirement[];
 }) {
   const t = useTranslations("leadsTable");
-  const short = useTranslations("domain.signalShort");
+  const vocabulary = useVocabulary();
+  const columns = (requirements ?? [])
+    .filter((requirement) => requirement.id !== "location" && requirement.weight > 0)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, REQUIREMENT_COLUMNS);
   const statuses = useTranslations("domain.leadStatus");
   const common = useTranslations("common");
   const updateLead = useUpdateLead();
@@ -48,11 +61,17 @@ export function LeadsTable({
             <Th className="w-28">{t("score")}</Th>
             <Th className="w-28">{t("platforms")}</Th>
             <Th className="w-36">{t("location")}</Th>
-            {SIGNAL_COLUMNS.map((signal) => (
-              <Th key={signal} className="w-20 text-center">
-                {short(signal)}
-              </Th>
-            ))}
+            {columns.length ? (
+              columns.map((requirement) => (
+                <Th key={requirement.id} className="w-24 text-center">
+                  <span className="block truncate" title={vocabulary.requirement(requirement)}>
+                    {vocabulary.requirement(requirement)}
+                  </span>
+                </Th>
+              ))
+            ) : (
+              <Th className="w-24 text-center">{t("requirementsMet")}</Th>
+            )}
             {showStatus ? <Th className="w-32">{t("status")}</Th> : null}
             <Th className="w-12 pr-5 text-right">
               <span className="sr-only">{t("save")}</span>
@@ -118,10 +137,15 @@ export function LeadsTable({
                   </span>
                 </td>
 
-                {SIGNAL_COLUMNS.map((signalType) => {
-                  const signal = lead.signals.find((entry) => entry.type === signalType);
+                {!columns.length ? (
+                  <td className="text-center">
+                    <RequirementsMet lead={lead} />
+                  </td>
+                ) : null}
+                {columns.map((requirement) => {
+                  const signal = lead.signals.find((entry) => entry.type === requirement.id);
                   return (
-                    <td key={signalType} className="text-center">
+                    <td key={requirement.id} className="text-center">
                       {signal?.detected ? (
                         <Hint
                           label={
@@ -180,6 +204,32 @@ export function LeadsTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** "3 / 4": how many of the requirements this lead was judged by it visibly met. */
+function RequirementsMet({ lead }: { lead: Lead }) {
+  const t = useTranslations("leadsTable");
+  const vocabulary = useVocabulary();
+  const judged = lead.scoreBreakdown.filter((row) => row.max > 0);
+  const met = judged.filter((row) => row.awarded > 0);
+  if (!judged.length) return <Minus className="mx-auto size-3 text-fg-faint" />;
+  return (
+    <Hint
+      label={
+        <span className="flex flex-col gap-0.5">
+          {judged.map((row) => (
+            <span key={row.type} className={row.awarded > 0 ? "" : "text-fg-faint"}>
+              {row.awarded > 0 ? "✓" : "—"} {vocabulary.requirement(row)}
+            </span>
+          ))}
+        </span>
+      }
+    >
+      <span className="num cursor-help text-xs text-fg-muted">
+        {t("metOf", { met: met.length, total: judged.length })}
+      </span>
+    </Hint>
   );
 }
 

@@ -14,6 +14,7 @@ from app.models.common import (
     SourceKind,
 )
 from app.models.rejection import RejectionReason
+from app.models.search import Importance
 from app.schemas.common import CamelModel
 
 
@@ -21,6 +22,17 @@ class GeoLocationSchema(CamelModel):
     country: str | None = None
     region: str | None = None
     city: str | None = None
+
+
+class RequirementSchema(CamelModel):
+    """One thing that makes a candidate right for this search (see `Requirement`)."""
+
+    id: str = Field(min_length=1, max_length=40)
+    label: str = Field(default="", max_length=80)
+    description: str = Field(default="", max_length=300)
+    terms: list[str] = Field(default_factory=list, max_length=10)
+    importance: Importance = Importance.NORMAL
+    weight: int = Field(default=0, ge=0, le=100)
 
 
 class SearchCriteriaSchema(CamelModel):
@@ -52,6 +64,13 @@ class SearchCriteriaSchema(CamelModel):
     #: Queries the client wrote themselves. Run first and never dropped by the
     #: query cap; 380 characters is what the search provider accepts.
     custom_queries: list[str] = Field(default_factory=list, max_length=20)
+    #: Several countries, most important first; `location.country` is then empty.
+    countries: list[str] = Field(default_factory=list, max_length=12)
+    #: A region accepted as a whole ("europe").
+    region: str = Field(default="", max_length=20)
+    #: What makes a candidate right for this search. Absent for a search recorded
+    #: before requirements existed; those are read from the signal fields.
+    requirements: list[RequirementSchema] | None = Field(default=None, max_length=12)
     #: How many leads to look for. It buys the page budget, so it is also what the
     #: wizard prices. 0 means "whatever the server allows".
     target_leads: int = Field(default=0, ge=0, le=1000)
@@ -115,6 +134,8 @@ class GeneratedQuerySchema(CamelModel):
     result_count: int
     #: Which language's index this query was put to, if not the default market.
     language: str | None = None
+    #: Which country it was written for, when the search asks for several.
+    country: str | None = None
 
 
 class SearchUsageSchema(CamelModel):
@@ -243,6 +264,7 @@ class EstimateWarningOut(CamelModel):
 class QueryPreviewOut(CamelModel):
     query: str
     language: str | None = None
+    country: str | None = None
 
 
 class EstimateOut(CamelModel):
@@ -268,6 +290,8 @@ class EstimateOut(CamelModel):
     max_cost_eur: float
     #: Whether pages are read at all right now, so the UI can say why it is free.
     reads_pages: bool
+    #: The most candidates a model may judge against the requirements (0 = free).
+    max_judgements: int = 0
     #: What these criteria are likely to do to the result, before it is paid for.
     #: Codes, not sentences: the wording belongs to the interface language.
     warnings: list[EstimateWarningOut] = Field(default_factory=list)

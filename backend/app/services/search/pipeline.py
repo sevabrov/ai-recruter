@@ -28,20 +28,25 @@ from app.core.config import Settings
 from app.core.logging import bind, get_logger
 from app.core.retry import retry_async
 from app.db.repository import Repository
-from app.models.common import HIGH_QUALITY_THRESHOLD, SearchStage, SearchStatus
+from app.models.common import HIGH_QUALITY_THRESHOLD, SearchStage, SearchStatus, SignalType
 from app.models.lead import Lead, LeadSignal, ScoreComponent
 from app.models.profile import ExtractedProfile
 from app.models.rejection import RejectedCandidate, RejectionReason
 from app.models.search import GeneratedQuery, Search, SearchProgress, SearchUsage
 from app.models.source import DiscoveredUrl, ProviderResult, UrlKind
-from app.services.extraction.signal_detector import SignalDetector
+from app.services.extraction.signal_detector import (
+    Judgement,
+    SignalDetector,
+    assess_many,
+    placed_by_judge,
+)
 from app.services.scoring.scoring_service import ScoringService
 from app.services.scraping.base import ProfileExtractor, budget_of, cost_of, fetch_from
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
 from app.services.search.deduplicator import deduplicate
 from app.services.search.eligibility import Refusal, admit
-from app.services.search.estimate import page_budget_for
-from app.services.search.markets import iso_code
+from app.services.search.estimate import judging_budget_for, page_budget_for
+from app.services.search.markets import country_code, iso_code
 from app.services.search.prospects import Prospect, rank
 from app.services.search.providers.base import SearchMarket, SearchProvider
 from app.services.search.query_generator import QueryGenerator
@@ -204,6 +209,10 @@ class SearchPipeline:
         wizard and the budget the run is actually given cannot drift apart.
         """
         self._target = search.criteria.target_leads or self.settings.target_leads
+        # The judging budget follows the leads asked for — the same figure the
+        # wizard quoted (see `estimate.judging_budget_for`).
+        if hasattr(self.detector, "limit"):
+            self.detector.limit = judging_budget_for(search.criteria, self.settings)
         # Fetch the pages through the country being searched: a social platform
         # then serves the page a local visitor sees, which is also the version
         # that names the city the geographic filter needs (spec §33).
@@ -228,6 +237,7 @@ class SearchPipeline:
                 query=plan.query,
                 provider=self.provider.name,
                 language=plan.language,
+                country=plan.country,
             )
             for index, plan in enumerate(generated)
         ]
@@ -259,7 +269,13 @@ class SearchPipeline:
 
         async def run_one(entry: GeneratedQuery) -> None:
             nonlocal done
-            aimed = market.model_copy(update={"language": entry.language or market.language})
+            aimed = market.model_copy(
+                update={
+                    "language": entry.language or market.language,
+                    # A search over several countries aims each query at its own.
+                    "country": country_code(entry.country) if entry.country else market.country,
+                }
+            )
             async with semaphore:
                 await self._tick()
                 results = await retry_async(
@@ -427,7 +443,10 @@ class SearchPipeline:
             self._tally(harvest)
             await self._save(search.id, SearchStage.EXTRACTING, processed / max(1, len(ranked)))
 
-            if target > 0 and len(harvest.leads) >= target:
+            # Counted as the client will see them: the same person reached at two
+            # addresses is one lead. Counting before merging stopped a search at
+            # eleven candidates that became nine leads.
+            if target > 0 and len(deduplicate(harvest.leads)[0]) >= target:
                 harvest.stopped_early = True
                 log.info(
                     "lead_target_reached",
@@ -509,7 +528,12 @@ class SearchPipeline:
 
             # `None` here is the reader settling the question — a shop it opened
             # and read. A profile without a name is whatever the chain fell back to.
-            read = profile is None or profile.extractor not in SNIPPET_ONLY
+            # Unless the chain says it never got the page: then `None` is the
+            # search result naming nobody, and "was read" would be untrue.
+            unread = getattr(self.extractor, "unread", ())
+            read = (profile is None and prospect.url.canonical_url not in unread) or (
+                profile is not None and profile.extractor not in SNIPPET_ONLY
+            )
             harvest.refusals[Refusal.NOT_A_PERSON] += 1
             self._refuse(
                 search,
@@ -591,7 +615,7 @@ class SearchPipeline:
         * it is not a person (`services/extraction/personhood.py`);
         * it is not in the country the client asked for;
         * it does not publish in a language the client asked for;
-        * it is missing one of the `must_have` signals.
+        * it does not visibly meet one of the search's required requirements.
 
         The first three are `services/search/eligibility.py` and are checked before
         the detector runs, which also means a filtered-out candidate is never paid
@@ -609,44 +633,93 @@ class SearchPipeline:
             return
 
         semaphore = asyncio.Semaphore(self.settings.llm_concurrency)
-        weights = search.criteria.signal_weights
-        required = set(search.criteria.must_have)
+        requirements = search.criteria.effective_requirements()
+        required = [requirement for requirement in requirements if requirement.required]
         done = 0
 
-        async def judge_one(profile: ExtractedProfile) -> None:
-            nonlocal done
+        # The cheap gates first, for every profile: a candidate refused for the
+        # country is never sent to the (paid) judge.
+        admitted: list[ExtractedProfile] = []
+        for profile in profiles:
             harvest.judged_urls.add(profile.canonical_url)
-            done += 1
-
             eligible = admit(profile, search.criteria)
-            if not eligible.admitted:
-                harvest.refusals[eligible.refusal] += 1
+            if eligible.admitted:
+                admitted.append(profile)
+                continue
+            harvest.refusals[eligible.refusal] += 1
+            self._refuse_profile(
+                search,
+                profile,
+                RejectionReason(str(eligible.refusal)),
+                eligible.detail,
+                harvest.promise.get(profile.canonical_url),
+            )
+            log.info(
+                "candidate_refused",
+                extra={
+                    "url": profile.canonical_url,
+                    "reason": str(eligible.refusal),
+                    "detail": eligible.detail,
+                },
+            )
+
+        def finish(profile: ExtractedProfile, judgement: Judgement) -> None:
+            signals = judgement.signals
+            # Read by the judge as a company, shop or school: the cheap personhood
+            # heuristics let it through, the page's own words did not.
+            if judgement.is_person is False:
+                harvest.refusals[Refusal.NOT_A_PERSON] += 1
                 self._refuse_profile(
                     search,
                     profile,
-                    RejectionReason(str(eligible.refusal)),
-                    eligible.detail,
+                    RejectionReason.NOT_A_PERSON,
+                    judgement.reason or "This page belongs to an organisation, not a person.",
                     harvest.promise.get(profile.canonical_url),
-                )
-                log.info(
-                    "candidate_refused",
-                    extra={
-                        "url": profile.canonical_url,
-                        "reason": str(eligible.refusal),
-                        "detail": eligible.detail,
-                    },
                 )
                 return
 
-            async with semaphore:
-                await self._tick()
-                signals = await self.detector.detect(profile, search.criteria)
-            self._usage.llm_calls += 1
+            # Where the judge read the person is, when code could not tell.
+            profile, signals = placed_by_judge(profile, search.criteria, judgement)
+            if (
+                judgement.country
+                and search.criteria.allowed_countries()
+                and search.criteria.in_allowed_place(profile.location.country) is False
+            ):
+                harvest.refusals[Refusal.WRONG_COUNTRY] += 1
+                self._refuse_profile(
+                    search,
+                    profile,
+                    RejectionReason.WRONG_COUNTRY,
+                    f"“{judgement.country_evidence}” places this profile in "
+                    f"{profile.location.country}, not {search.criteria.place_label()}.",
+                    harvest.promise.get(profile.canonical_url),
+                )
+                return
 
-            detected = {signal.type for signal in signals if signal.detected}
-            if not required.issubset(detected):
+            detected = {str(signal.type) for signal in signals if signal.detected}
+            missing = [
+                requirement.label or requirement.id
+                for requirement in required
+                if requirement.id not in detected
+            ]
+            # A search's own requirements, none of them marked required: a lead must
+            # still meet at least one of them besides the place. Without this, a
+            # candidate who matched nothing at all took a place in the list.
+            judged = [
+                requirement
+                for requirement in requirements
+                if requirement.id != SignalType.LOCATION and requirement.weight > 0
+            ]
+            if (
+                not missing
+                and not required
+                and search.criteria.requirements is not None
+                and judged
+                and not any(requirement.id in detected for requirement in judged)
+            ):
+                missing = ["any of the search's requirements"]
+            if missing:
                 harvest.refusals[Refusal.MISSING_SIGNALS] += 1
-                missing = sorted(signal.value for signal in required - detected)
                 self._refuse_profile(
                     search,
                     profile,
@@ -656,7 +729,7 @@ class SearchPipeline:
                 )
                 return
 
-            score, breakdown = self.scoring.score(signals, weights)
+            score, breakdown = self.scoring.score(signals, requirements)
             harvest.leads.append(
                 _build_lead(search, profile, signals, score, breakdown, len(harvest.leads))
             )
@@ -664,10 +737,31 @@ class SearchPipeline:
             self._progress.high_quality = sum(
                 1 for lead in harvest.leads if lead.score >= HIGH_QUALITY_THRESHOLD
             )
-            if stage is not None:
-                await self._save(search.id, stage, done / len(profiles))
 
-        await asyncio.gather(*(judge_one(profile) for profile in profiles))
+        # Several candidates per call: the instructions and the requirements are
+        # sent once for the batch instead of once per person, which is most of a
+        # judging call's tokens.
+        size = max(1, self.settings.judge_batch_size)
+        batches = [admitted[index : index + size] for index in range(0, len(admitted), size)]
+
+        async def judge_batch(batch: list[ExtractedProfile]) -> None:
+            nonlocal done
+            async with semaphore:
+                await self._tick()
+                judgements = await assess_many(self.detector, batch, search.criteria)
+            # A judge with a budget counts the candidates it was paid for; the free
+            # ones count every judgement, as before.
+            paid_calls = getattr(self.detector, "paid_calls", None)
+            self._usage.llm_calls = (
+                paid_calls if paid_calls is not None else self._usage.llm_calls + len(batch)
+            )
+            for profile, judgement in zip(batch, judgements, strict=True):
+                finish(profile, judgement)
+            done += len(batch)
+            if stage is not None:
+                await self._save(search.id, stage, done / max(1, len(admitted)))
+
+        await asyncio.gather(*(judge_batch(batch) for batch in batches))
         self._tally(harvest)
 
     def _refuse(

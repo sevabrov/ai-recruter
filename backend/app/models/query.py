@@ -9,7 +9,7 @@ stops `app/db/` from importing `app/services/`.
 
 from pydantic import BaseModel, Field
 
-from app.models.common import LeadSort, LeadStatus, Platform, SignalType
+from app.models.common import LeadSort, LeadStatus, Platform
 from app.models.lead import Lead
 
 
@@ -21,7 +21,8 @@ class LeadQuery(BaseModel):
     min_score: int | None = None
     countries: list[str] = Field(default_factory=list)
     platforms: list[Platform] = Field(default_factory=list)
-    signals: list[SignalType] = Field(default_factory=list)
+    #: Requirement ids — built-in signals or a search's own ("r1").
+    signals: list[str] = Field(default_factory=list)
     statuses: list[LeadStatus] = Field(default_factory=list)
     has_email: bool = False
     has_social: bool = False

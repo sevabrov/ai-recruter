@@ -3,6 +3,7 @@
 import { ExternalLink, Minus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { useVocabulary } from "@/lib/vocabulary";
 import { ConfidenceMeter, PlatformIcon } from "@/components/ui/misc";
 import type { LeadSignal } from "@/services/types";
 
@@ -12,7 +13,7 @@ import type { LeadSignal } from "@/services/types";
  */
 export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {
   const t = useTranslations("signals");
-  const labels = useTranslations("domain.signal");
+  const vocabulary = useVocabulary();
   const platforms = useTranslations("domain.platform");
   const detected = signals.filter((signal) => signal.detected);
   const missing = signals.filter((signal) => !signal.detected);
@@ -26,7 +27,7 @@ export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {
               <span className="text-good" aria-hidden>
                 ✓
               </span>
-              {labels(signal.type)}
+              {vocabulary.requirement(signal)}
             </h3>
             <ConfidenceMeter value={signal.confidence} />
           </header>
@@ -62,7 +63,7 @@ export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {
           {missing.map((signal) => (
             <span key={signal.type} className="flex items-center gap-1.5 text-xs text-fg-faint">
               <Minus className="size-3" />
-              {labels(signal.type)}
+              {vocabulary.requirement(signal)}
             </span>
           ))}
         </div>
