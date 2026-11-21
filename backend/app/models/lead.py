@@ -16,7 +16,6 @@ from app.models.common import (
     OutreachChannel,
     OutreachTone,
     Platform,
-    SignalType,
 )
 from app.models.source import LeadSource
 
@@ -34,7 +33,12 @@ class LeadSignal(BaseModel):
     that convinced us and where that quote came from.
     """
 
-    type: SignalType
+    #: The requirement this answers: a built-in signal ("mlm", "location") or a
+    #: requirement written for the search ("r1"). Plain text, so searches with
+    #: requirements of their own and the leads recorded before both read.
+    type: str
+    #: The requirement's name as the client wrote it; empty for a built-in signal.
+    label: str | None = None
     detected: bool
     confidence: float = Field(ge=0, le=1)
     evidence: str | None = None
@@ -45,7 +49,8 @@ class LeadSignal(BaseModel):
 class ScoreComponent(BaseModel):
     """One row of the explainable breakdown (spec §38): `+18 of 20 Recruiting`."""
 
-    type: SignalType
+    type: str
+    label: str | None = None
     awarded: int
     max: int
 
@@ -96,7 +101,7 @@ class Lead(BaseModel):
     #: Canonical URLs this person was merged from (spec §45).
     merged_urls: list[str] = Field(default_factory=list)
 
-    def detected_signals(self) -> set[SignalType]:
+    def detected_signals(self) -> set[str]:
         return {signal.type for signal in self.signals if signal.detected}
 
 

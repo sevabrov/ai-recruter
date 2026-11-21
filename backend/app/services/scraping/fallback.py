@@ -25,15 +25,41 @@ for the rest of the search instead of costing one refused request per URL (spec
 §51 — an error that says "this will fail again" is not repeated).
 """
 
+import re
+
 from app.core.errors import ProviderAuthError, ProviderError
 from app.core.logging import get_logger
 from app.core.retry import retry_async
 from app.models.profile import ExtractedProfile
 from app.models.scrape import ScrapeOutcome
 from app.models.source import DiscoveredUrl
-from app.services.scraping.base import ExtractionCost, PageRead, PageReader, ProfileExtractor
+from app.services.scraping.base import (
+    PROFILE_GONE,
+    ExtractionCost,
+    PageRead,
+    PageReader,
+    ProfileExtractor,
+)
+from app.services.scraping.names import clean, commercial, looks_like_a_person
 
 log = get_logger(__name__)
+
+
+def titled_as_a_person(url: DiscoveredUrl) -> bool:
+    """
+    Whether the search result is titled with a person's name: "Sasha Barin
+    (@barinsasha) • Instagram" yes, "MIHI España (@mihi.oficial)" no — business
+    words are looked for in the name and the handle, not in the platform's own
+    "• Instagram photos and videos".
+    """
+    title = url.title or ""
+    name = clean(re.split(r"\s*\(@|\s+[•|·—–-]\s+", title, maxsplit=1)[0])
+    # The platform's own words ("• Instagram photos and videos") are not the
+    # account's: only the name and the handle are looked at for business words.
+    handle = re.search(r"\(@([^)]+)\)", title)
+    return looks_like_a_person(name) and not commercial(
+        f"{name} {handle.group(1) if handle else ''}"
+    )
 
 
 class FallbackProfileExtractor(ProfileExtractor):
@@ -55,18 +81,31 @@ class FallbackProfileExtractor(ProfileExtractor):
         self.budget = getattr(reader, "budget", None)
         #: Set once the provider has told us the key itself is the problem.
         self._reader_disabled: str | None = None
+        #: Addresses whose page never opened and were judged on the search result
+        #: alone — so a refusal can say "would not open" rather than "was read".
+        self.unread: set[str] = set()
 
     async def extract(self, url: DiscoveredUrl) -> ExtractedProfile | None:
         read = await self._read(url)
+        self.unread.discard(url.canonical_url)
 
         if read.usable:
             return read.profile
-        if read.outcome is ScrapeOutcome.NOT_A_PERSON:
+        if read.outcome is ScrapeOutcome.NOT_A_PERSON and (
+            read.detail == PROFILE_GONE or not titled_as_a_person(url)
+        ):
             # The page was read and settled the question. The snippet does not get
             # a second vote — that is how shops come back as leads.
             return None
+        # …unless the search result itself is titled with a person's name. An
+        # Instagram profile often serves a login wall to a reader: "no person on
+        # this page" then means "nothing on this page", and "Артем Нестеренко
+        # (@biznesnesterenko)" was refused as a brand. The snippet is judged
+        # instead — by the same judge, which can still say it is not a person.
 
         profile = await self.stand_in.extract(url)
+        if read.outcome is not ScrapeOutcome.NOT_A_PERSON:
+            self.unread.add(url.canonical_url)
         log.info(
             "extraction_fell_back",
             extra={

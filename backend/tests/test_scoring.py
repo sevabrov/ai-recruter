@@ -51,7 +51,7 @@ def test_undetected_signals_award_nothing_however_confident(scoring):
     score, breakdown = scoring.score(signals, DEFAULT_SIGNAL_WEIGHTS)
 
     assert score == 0
-    assert next(row for row in breakdown if row.type is SignalType.MLM).awarded == 0
+    assert next(row for row in breakdown if row.type == SignalType.MLM).awarded == 0
 
 
 def test_missing_signals_are_reported_with_their_maximum(scoring):

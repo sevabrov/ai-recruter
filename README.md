@@ -82,9 +82,19 @@ person found on Instagram *and* on their own site stop being two leads. Reading 
 costs a credit, so every page is read once and cached for a week (`SCRAPE_CACHE_TTL_HOURS`),
 and the usage card separates *pages read* from *from cache*.
 
-Not every URL can be read — Instagram often shows a login wall to a server. Those
-pages fall back to the search result rather than losing the lead, and every outcome is
-counted per platform in Settings → *Reading the sources*.
+**Instagram and Facebook are read by our own browser.** ScrapeGraphAI timed out on
+almost every Instagram and Facebook page (8 of 145 and 4 of 62 opened), while a
+headless Chromium — no login, from a datacentre address — opened 20 of 20 public
+Instagram profiles in under a second each. So the backend image ships one
+(`services/scraping/browser_reader.py`), shared by all searches, four pages at a
+time, free per page (`BROWSER_READER`, `BROWSER_CONCURRENCY`, `BROWSER_TIMEOUT_SECONDS`).
+The judge then reads the whole current bio instead of a two-line search snippet, a
+deleted profile is dropped instead of being rebuilt from an old snippet, and
+LinkedIn stays with ScrapeGraphAI (without a login it shows a browser a sign-up wall).
+
+Not every URL can be read. Those pages fall back to the search result rather than
+losing the lead, and every outcome is counted per platform in Settings → *Reading
+the sources*.
 
 **You say how many leads you want, and the wizard prices it.** The last step of a new
 search asks for a number, and the backend answers with the queries it will run and
@@ -141,7 +151,7 @@ npx eslint .                                             # lint
 
 # backend (nothing installed on the host)
 docker compose logs -f backend                           # structured JSON logs
-docker compose run --rm backend pytest -q                # 320 tests (needs postgres)
+docker compose run --rm backend pytest -q                # 359 tests (needs postgres)
 docker compose run --rm --no-deps backend ruff check .   # lint
 docker compose run --rm backend alembic current          # schema revision
 docker compose build backend                             # after a dependency change
@@ -316,17 +326,21 @@ stand-in until Phase 6. Details and the phase-by-phase swap table are in
 | Route | What it does |
 |---|---|
 | `/` | Dashboard: stat tiles, recent searches, source share, score distribution, weekly discovery |
-| `/search/new` | 2 steps: describe the search in your own words (any language) → review what was understood, answer what is missing (brands, country, languages), price it, start. Sources, strictness, weights and queries sit under *Advanced settings* |
+| `/search/new` | 2 steps: describe the search in your own words (any language) → review what was understood, answer what is missing (brands, country, languages), edit the search's **requirements** (what makes a candidate right — written per search, each *required / important / nice to have*, points shared out automatically), price it, start. Sources, strictness and queries sit under *Advanced settings* |
 | `/search/:id/progress` | Live pipeline (~3 s on fixtures, longer live), measured counters, generated queries, pages read vs. cached, usage & cost, cancel |
 | `/search/:id/results` | Two lists — **Selected** (filters by score/country/platform/signals/email/social, sorting, re-run) and **Filtered out** (every refused candidate with its address, reason and whether the page was ever read) |
 | `/leads` | All / Saved / Archived across searches |
-| `/leads/:id` | Score dial + breakdown, per-signal evidence with source links, AI summary, sources, notes, outreach draft |
+| `/leads/:id` | Score dial + breakdown, per-requirement evidence (a verbatim quote, checked against the profile) with source links, AI summary, sources, notes, outreach draft |
 | `/searches` | Search history, running searches separated |
 | `/settings` | Theme picker, search defaults, live backend status, which adapter each pipeline stage runs, which sources can be read, concurrency limits, reset demo data |
 
 The description is read into criteria by `POST /searches/parse` — OpenAI
 (`OPENAI_API_KEY`, `OPENAI_MODEL`, default `gpt-4.1`) when a key is set, a rule reader
-otherwise or whenever the model fails. The **Use an example** button fills in the
+otherwise or whenever the model fails. With a key, each candidate is then judged
+against the search's requirements by `OPENAI_JUDGE_MODEL` (default `gpt-4.1-mini`), at
+most `MAX_JUDGEMENTS_PER_SEARCH` (60) per search; every "met" must quote the profile,
+and the quote is checked by code. Past the budget, or without a key, requirements are
+matched by their words. The **Use an example** button fills in the
 MIHI / Spain brief from the spec, which is the fastest way to walk the whole flow.
 
 ---
@@ -366,15 +380,12 @@ MIHI / Spain brief from the spec, which is the fastest way to walk the whole flo
   hand-checked table of a handful of concepts and place names
   (`services/search/phrasebook.py`), so a language or country it does not know is
   simply searched in the client's own wording rather than badly.
-* **Some platforms are hard to read.** Measured over this workspace's own attempts
-  *before* the residential proxy was switched on: LinkedIn opened about half the
-  time, Instagram once in twenty-three, Facebook never. Social pages are now
-  fetched through ScrapeGraphAI's proxy with the page rendered (`SCRAPEGRAPH_STEALTH`,
-  on by default, which doubles the credits those pages cost), and this is the number
-  to re-measure after a run — expect improvement, not a solved problem. Those leads fall back to the search snippet and say
-  so, which is why the wording of the *query* matters most on Instagram — a post
-  caption found by a hashtag carries more about a person than a profile page nobody
-  can open. `GET /sources` and Settings → *Reading the sources* report the hit rate
+* **Some platforms are hard to read.** LinkedIn opens through ScrapeGraphAI about
+  four times in five; Instagram and Facebook go to our own browser (above), which
+  reads public pages only — a private account or a page Facebook hides behind its
+  login is judged on its search snippet and says so. Instagram's anonymous view may
+  start asking for a login at volumes not reached yet (about a hundred profiles a
+  day from one address were fine). `GET /sources` and Settings → *Reading the sources* report the hit rate
   per platform, so this is checkable rather than a claim.
 * **One person can still appear twice** when the pages that would connect them are the
   ones that would not open. Merging is on strong keys only — shared URL, handle,

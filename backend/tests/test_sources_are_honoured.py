@@ -291,7 +291,6 @@ def test_the_platform_s_own_pages_are_not_people():
             result("https://www.facebook.com/photo.php?fbid=8880867795335349", "Facebook"),
             result("https://www.facebook.com/581399108893746", "Facebook"),
             result("https://www.instagram.com/popular/сетевой-маркетинг-обучение", "Instagram"),
-            result("https://www.facebook.com/p/Мережевий-маркетинг-100067957290251", "Facebook"),
         ]
     )
 
@@ -394,3 +393,24 @@ def test_blank_and_duplicate_queries_are_ignored():
     )
 
     assert [plan.query for plan in plans].count('site:instagram.com "#млм"') == 1
+
+
+def test_facebook_s_other_profile_addresses_are_followed():
+    """
+    `/p/Name-ID`, `/people/Name/ID` and `profile.php?id=` are somebody's (or some
+    page's) own address; whether it is a person is the judge's call, not the URL's.
+    A page addressed by number is followed from its photos to the page itself.
+    """
+    urls = discover(
+        [
+            result("https://www.facebook.com/p/Мережевий-маркетинг-100067957290251", "Facebook"),
+            result("https://www.facebook.com/people/Олена-Коваль/100090/", "Facebook"),
+            result("https://www.facebook.com/100066734753457/photos/a.1/2/", "МЛМ"),
+        ]
+    )
+
+    kept = {url.canonical_url for url in candidates(promote_posts(urls), SOCIAL)}
+
+    assert "https://facebook.com/p/Мережевий-маркетинг-100067957290251" in kept
+    assert "https://facebook.com/people/Олена-Коваль/100090" in kept
+    assert "https://facebook.com/100066734753457" in kept

@@ -429,7 +429,7 @@ def _conditions(user_id: str, query: LeadQuery) -> list:
         where.append(LeadRow.platform_kinds.overlap([p.value for p in query.platforms]))
     if query.signals:
         # All of them (spec §17): MLM *and* leadership means both were detected.
-        where.append(LeadRow.detected_signals.contains([s.value for s in query.signals]))
+        where.append(LeadRow.detected_signals.contains(list(query.signals)))
     if query.has_email:
         where.append(and_(LeadRow.email.is_not(None), LeadRow.email != ""))
     if query.has_social:

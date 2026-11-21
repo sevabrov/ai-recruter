@@ -61,10 +61,24 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1"
     openai_endpoint: str = "https://api.openai.com/v1/chat/completions"
     openai_timeout_seconds: float = 30.0
-    #: Judge signals with the model too (Phase 6). Separate from the key on purpose:
-    #: the key arrived for reading briefs, and the LLM detector is still a stub that
-    #: raises — keyed to the key alone, it would have failed every search.
-    llm_signals: bool = False
+    #: Judge candidates against the search's requirements with the model (Phase 6),
+    #: whenever a key is set. `false` keeps the free keyword judge.
+    llm_signals: bool = True
+    #: One call per candidate, so the cheap model: the question is narrow ("is this
+    #: in the text, and where?") and every quote it returns is checked by code.
+    openai_judge_model: str = "gpt-4.1-mini"
+    #: Model judgements bought per lead asked for: a search for 10 leads may have 100
+    #: candidates judged. Measured: a strict network-marketing search accepted 4 of
+    #: the first 60 it judged, so a fixed 60 ran out long before 10 leads.
+    judgements_per_lead: int = 10
+    #: The most candidates one search may have judged by the model, whatever it asks
+    #: for. Past the budget candidates are judged by their words, for free — which is
+    #: what lets the wizard quote a ceiling: candidates whose pages are never read are
+    #: judged too, and there can be many more of them than pages.
+    max_judgements_per_search: int = 300
+    #: Candidates judged in one model call. The instructions and the requirements
+    #: go once per batch, which is most of a call's tokens.
+    judge_batch_size: int = 6
     google_cse_api_key: str = ""
     google_cse_engine_id: str = ""
     #: "brave" — live as soon as the key is there; "fixture" — never, whatever keys
@@ -121,6 +135,18 @@ class Settings(BaseSettings):
     #: JavaScript application; its bio is not in the first response.
     scrapegraph_page_wait_ms: int = 2000
 
+    # ------------------------------------- our own browser (Instagram, Facebook)
+    #: Read public Instagram profiles and Facebook pages with a headless Chromium on
+    #: this server instead of ScrapeGraphAI. Measured: the provider opened 8 of 145
+    #: Instagram profiles, the browser — without logging in, from a datacentre —
+    #: 20 of 20. Free per page. LinkedIn stays with ScrapeGraphAI (a browser without
+    #: a login gets a sign-up wall there). Only with live search.
+    browser_reader: bool = True
+    #: Pages open at once. One browser, shared by every search on this server.
+    browser_concurrency: int = 4
+    #: How long one page may take before its search result is used instead.
+    browser_timeout_seconds: float = 15.0
+
     # ----------------------------------------------------- limits (spec §52)
     search_concurrency: int = 10
     extraction_concurrency: int = 10
@@ -165,7 +191,9 @@ class Settings(BaseSettings):
     #: Charged per judged profile, and only while a detector that really calls an
     #: LLM is plugged in: the keyword stand-in costs nothing, and billing it would
     #: put money on the usage screen that nobody spent.
-    cost_per_llm_call_eur: float = 0.004
+    #: One candidate judged by gpt-4.1-mini, in a batch of six: ~0.7k tokens in and
+    #: ~0.2k out each, the shared instructions included. A ceiling.
+    cost_per_llm_call_eur: float = 0.0008
 
     # --------------------------------------------------------------- pipeline
     # Demo pacing, not throttling. The fixture adapters answer instantly, so a

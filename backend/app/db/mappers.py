@@ -132,7 +132,7 @@ def apply_lead(row: LeadRow, lead: Lead) -> LeadRow:
     row.signals = [signal.model_dump(mode="json") for signal in lead.signals]
     row.sources = [source.model_dump(mode="json") for source in lead.sources]
     row.platform_kinds = [entry.platform.value for entry in lead.platforms]
-    row.detected_signals = sorted(signal.value for signal in lead.detected_signals())
+    row.detected_signals = sorted(lead.detected_signals())
     row.email = lead.contacts.email
     row.website = lead.contacts.website
     row.phone = lead.contacts.phone

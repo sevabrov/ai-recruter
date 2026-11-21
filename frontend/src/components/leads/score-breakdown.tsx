@@ -1,5 +1,8 @@
+"use client";
+
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
+import { useVocabulary } from "@/lib/vocabulary";
 import type { ScoreComponent } from "@/services/types";
 
 /** Explainable scoring: every point is attributed (spec §38). */
@@ -11,7 +14,7 @@ export function ScoreBreakdown({
   total: number;
 }) {
   const t = useTranslations("score");
-  const signals = useTranslations("domain.signal");
+  const vocabulary = useVocabulary();
   const common = useTranslations("common");
 
   return (
@@ -31,7 +34,7 @@ export function ScoreBreakdown({
                 {empty ? common("dash") : `+${component.awarded}`}
               </span>
               <span className={cn("text-sm", empty ? "text-fg-faint" : "text-fg-muted")}>
-                {signals(component.type)}
+                {vocabulary.requirement(component)}
               </span>
             </span>
 

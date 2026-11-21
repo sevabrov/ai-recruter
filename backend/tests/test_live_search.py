@@ -359,4 +359,4 @@ async def test_must_have_criteria_still_gate_live_results(settings, must_have):
 
     assert leads
     for lead in leads:
-        assert set(must_have) <= {signal.type.value for signal in lead.signals if signal.detected}
+        assert set(must_have) <= {str(signal.type) for signal in lead.signals if signal.detected}

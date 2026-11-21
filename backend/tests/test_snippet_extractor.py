@@ -49,7 +49,7 @@ def discovered(**overrides) -> DiscoveredUrl:
 
 
 def signal(profile, kind: SignalType):
-    return next(observation for observation in profile.observations if observation.type is kind)
+    return next(observation for observation in profile.observations if observation.type == kind)
 
 
 # ------------------------------------------------------------------- identities
@@ -316,8 +316,8 @@ async def test_the_detector_still_judges_geography_against_the_criteria():
     matching = await detector.detect(profile, SearchCriteria(location={"country": "Spain"}))
     mismatched = await detector.detect(profile, SearchCriteria(location={"country": "Germany"}))
 
-    assert next(s for s in matching if s.type is SignalType.LOCATION).detected is True
-    rejected = next(s for s in mismatched if s.type is SignalType.LOCATION)
+    assert next(s for s in matching if s.type == SignalType.LOCATION).detected is True
+    rejected = next(s for s in mismatched if s.type == SignalType.LOCATION)
     assert rejected.detected is False
     assert "Germany" in (rejected.evidence or "")
 
@@ -348,7 +348,7 @@ async def test_the_brand_the_client_searched_for_counts_as_the_signal():
         profile, SearchCriteria(keywords=["Jerelia"], industry=["Beauty"])
     )
 
-    mlm = next(entry for entry in judged if entry.type is SignalType.MLM)
+    mlm = next(entry for entry in judged if entry.type == SignalType.MLM)
     assert mlm.detected is True
     assert "Jerelia" in (mlm.evidence or ""), "the signal must carry the words it was read from"
 
@@ -361,8 +361,8 @@ async def test_a_term_the_profile_does_not_say_is_not_invented():
         profile, SearchCriteria(keywords=["Jerelia"], industry=["Furniture"])
     )
 
-    assert next(entry for entry in judged if entry.type is SignalType.RECRUITING).detected is True
+    assert next(entry for entry in judged if entry.type == SignalType.RECRUITING).detected is True
     # "Furniture" appears nowhere on this profile, so the industry signal stays as
     # the extractor left it — read from the page's own words about beauty.
-    beauty = next(entry for entry in judged if entry.type is SignalType.BEAUTY)
+    beauty = next(entry for entry in judged if entry.type == SignalType.BEAUTY)
     assert "Furniture" not in (beauty.evidence or "")

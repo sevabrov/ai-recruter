@@ -13,6 +13,8 @@ import type {
   LeadStatus,
   Platform,
   RejectionReason,
+  Requirement,
+  RequirementImportance,
   ScoredSignalType,
   SearchCriteria,
   SearchStage,
@@ -306,6 +308,66 @@ export function criteriaTarget(criteria: SearchCriteria) {
   return parts.join(" · ");
 }
 
+/** Relative share of the 100 points per importance (mirrors the backend). */
+const IMPORTANCE_SHARE: Record<RequirementImportance, number> = {
+  required: 3,
+  high: 2,
+  normal: 1,
+};
+
+export const REQUIREMENT_IMPORTANCE: RequirementImportance[] = ["required", "high", "normal"];
+
+/** At most this many requirements; past it each one is worth too little to matter. */
+export const MAX_REQUIREMENTS = 8;
+
+/** Whether a requirement id names a built-in signal (translated by the interface). */
+export function isPresetSignal(id: string): id is SignalType {
+  return (SIGNAL_TYPES as string[]).includes(id);
+}
+
+/**
+ * The same requirements with points shared out by importance, summing to 100.
+ * Mirrors `balanced` in `backend/app/models/search.py`: the client picks how much
+ * each thing matters, never a number that has to add up.
+ */
+export function balanceRequirements(requirements: Requirement[]): Requirement[] {
+  const scored = requirements.filter((requirement) => requirement.id !== "activity");
+  const shares = scored.map((requirement) => IMPORTANCE_SHARE[requirement.importance]);
+  const total = shares.reduce((sum, share) => sum + share, 0);
+  if (!total) return requirements.map((requirement) => ({ ...requirement, weight: 0 }));
+  const points = shares.map((share) => Math.floor((100 * share) / total));
+  const order = shares.map((_, index) => index).sort((a, b) => shares[b] - shares[a]);
+  for (const index of order.slice(0, 100 - points.reduce((sum, value) => sum + value, 0))) {
+    points[index] += 1;
+  }
+  const byId = new Map(scored.map((requirement, index) => [requirement.id, points[index]]));
+  return requirements.map((requirement) => ({
+    ...requirement,
+    weight: byId.get(requirement.id) ?? 0,
+  }));
+}
+
+/**
+ * What a search is judged by. A search recorded before requirements existed is
+ * read the way it was run: each scored signal with its points, a must-have
+ * required (mirrors `SearchCriteria.effective_requirements`).
+ */
+export function effectiveRequirements(criteria: SearchCriteria): Requirement[] {
+  if (criteria.requirements) return criteria.requirements;
+  const weights = { ...DEFAULT_SIGNAL_WEIGHTS, ...criteria.signalWeights };
+  const derived: Requirement[] = SCORED_SIGNALS.filter(
+    (signal) => (weights[signal] ?? 0) > 0 || criteria.mustHave.includes(signal),
+  ).map((signal) => ({
+    id: signal,
+    weight: weights[signal] ?? 0,
+    importance: criteria.mustHave.includes(signal) ? "required" : "normal",
+  }));
+  if (criteria.mustHave.includes("activity")) {
+    derived.push({ id: "activity", weight: 0, importance: "required" });
+  }
+  return derived;
+}
+
 export function emptyCriteria(): SearchCriteria {
   return {
     brief: "",
@@ -330,6 +392,7 @@ export function emptyCriteria(): SearchCriteria {
     signalWeights: { ...DEFAULT_SIGNAL_WEIGHTS },
     sources: [...DEFAULT_SOURCES],
     customQueries: [],
+    requirements: [],
     targetLeads: DEFAULT_TARGET_LEADS,
   };
 }

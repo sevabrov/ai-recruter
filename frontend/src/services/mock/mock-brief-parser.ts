@@ -7,7 +7,13 @@
  * reader without judgement — a guessed field looks exactly like an answered one.
  */
 
-import { COUNTRIES, DEFAULT_TARGET_LEADS, emptyCriteria, LANGUAGES } from "@/lib/domain";
+import {
+  balanceRequirements,
+  COUNTRIES,
+  DEFAULT_TARGET_LEADS,
+  emptyCriteria,
+  LANGUAGES,
+} from "@/lib/domain";
 import type { ParsedBrief } from "@/services/types";
 
 const LANGUAGE_STEMS: Record<string, string[]> = {
@@ -103,9 +109,16 @@ export function parseBriefOffline(text: string): ParsedBrief {
       languages: LANGUAGES.filter((entry) => languageCodes.includes(entry.id)).map(
         (entry) => entry.token,
       ),
-      // Nothing about the niche is assumed: the product recruits for any role.
+      // Nothing about the niche is assumed: the product recruits for any role. The
+      // brands found are the one thing to judge by; the review asks for the rest.
       mustHave: [],
       niceToHave: [],
+      requirements: balanceRequirements([
+        ...(brands.length
+          ? [{ id: "r1", label: brands[0], terms: brands, importance: "high" as const, weight: 0 }]
+          : []),
+        ...(countryCode ? [{ id: "location", importance: "normal" as const, weight: 0 }] : []),
+      ]),
       targetLeads: count ? Math.min(1000, Number(count[1])) : DEFAULT_TARGET_LEADS,
     },
   };

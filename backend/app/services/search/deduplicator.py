@@ -7,12 +7,14 @@ merging happens before anything is stored.
 
 Phase 2 merges on the strong keys the spec lists — canonical profile URL, email,
 website, exact username — and keeps the richer record while absorbing the other's
-platforms and sources. Fuzzy entity resolution (name + location + bio similarity)
-is deliberately not attempted yet: a wrong merge destroys data, while a missed
-merge only shows a duplicate.
+platforms and sources. Beyond those, one narrow name key: the same full name in the same city. A
+measured run listed "Mateusz Grzybowski, Warsaw, junior frontend developer" twice,
+from two addresses of his. Anything looser (name + bio similarity) is still not
+attempted: a wrong merge destroys data, while a missed merge only shows a duplicate.
 """
 
 from app.models.lead import Lead
+from app.services.scraping.names import looks_like_a_person
 from app.services.search.url_tools import canonicalize
 
 
@@ -27,6 +29,11 @@ def merge_keys(lead: Lead) -> set[str]:
         keys.add(f"email:{lead.contacts.email.strip().lower()}")
     if lead.contacts.website:
         keys.add(f"site:{canonicalize(lead.contacts.website)}")
+    # The same full name in the same city: one person, found twice. Only when both
+    # are known and the name is a person's — never on a name alone.
+    city = (lead.location.city if lead.location else None) or ""
+    if city and looks_like_a_person(lead.name):
+        keys.add(f"person:{' '.join(lead.name.split()).casefold()}:{city.strip().casefold()}")
     return keys
 
 

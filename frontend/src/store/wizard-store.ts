@@ -14,17 +14,21 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import {
+  balanceRequirements,
   DEFAULT_SIGNAL_WEIGHTS,
   DEFAULT_TARGET_LEADS,
+  effectiveRequirements,
   emptyCriteria,
+  isPresetSignal,
   LANGUAGES,
+  MAX_REQUIREMENTS,
   vocabularyEntry,
 } from "@/lib/domain";
 import type {
   ParsedBrief,
-  ScoredSignalType,
+  Requirement,
+  RequirementImportance,
   SearchCriteria,
-  SignalType,
   SourceKind,
 } from "@/services/types";
 
@@ -33,8 +37,6 @@ export const WIZARD_STEPS = [1, 2] as const;
 
 export type WizardStepId = (typeof WIZARD_STEPS)[number];
 
-/** How much a signal matters to this search, as one choice instead of two lists. */
-export type SignalImportance = "required" | "preferred" | "ignored";
 
 type WizardState = {
   step: WizardStepId;
@@ -62,10 +64,17 @@ type WizardState = {
   applyParsed: (parsed: ParsedBrief) => void;
   patchCriteria: (patch: Partial<SearchCriteria>) => void;
   setLocation: (patch: Partial<SearchCriteria["location"]>) => void;
+  /**
+   * Where to look: countries (most important first) and a region. One country
+   * alone is stored as the single `location.country` the backend has always read.
+   */
+  setPlaces: (countries: string[], region: string) => void;
   toggleSource: (source: SourceKind) => void;
-  setImportance: (signal: SignalType, importance: SignalImportance) => void;
-  setWeight: (signal: ScoredSignalType, points: number) => void;
-  resetWeights: () => void;
+  /** Requirements: every change re-shares the 100 points by importance. */
+  setRequirementImportance: (id: string, importance: RequirementImportance) => void;
+  renameRequirement: (id: string, label: string) => void;
+  addRequirement: (label: string) => void;
+  removeRequirement: (id: string) => void;
   /** Start again from an existing search: its description and its criteria. */
   loadSearch: (name: string, criteria: SearchCriteria) => void;
   reset: () => void;
@@ -112,32 +121,60 @@ export const useWizardStore = create<WizardState>()(
           worldwide: patch.country ? false : state.worldwide,
         })),
 
+      setPlaces: (countries, region) =>
+        set((state) => {
+          const single = countries.length === 1 && !region;
+          return {
+            worldwide: !countries.length && !region,
+            criteria: {
+              ...state.criteria,
+              countries: single ? [] : countries,
+              region,
+              location: {
+                ...state.criteria.location,
+                country: single ? countries[0] : undefined,
+                city: single ? state.criteria.location.city : undefined,
+              },
+            },
+          };
+        }),
+
       toggleSource: (source) =>
         set((state) => ({
           criteria: { ...state.criteria, sources: toggle(state.criteria.sources, source) },
         })),
 
-      setImportance: (signal, importance) =>
-        set((state) => {
-          const mustHave = state.criteria.mustHave.filter((entry) => entry !== signal);
-          const niceToHave = state.criteria.niceToHave.filter((entry) => entry !== signal);
-          if (importance === "required") mustHave.push(signal);
-          if (importance === "preferred") niceToHave.push(signal);
-          return { criteria: { ...state.criteria, mustHave, niceToHave } };
-        }),
+      setRequirementImportance: (id, importance) =>
+        set((state) => withRequirements(state.criteria, (list) =>
+          list.map((requirement) =>
+            requirement.id === id ? { ...requirement, importance } : requirement,
+          ),
+        )),
 
-      setWeight: (signal, points) =>
-        set((state) => ({
-          criteria: {
-            ...state.criteria,
-            signalWeights: { ...state.criteria.signalWeights, [signal]: points },
-          },
+      renameRequirement: (id, label) =>
+        set((state) => withRequirements(state.criteria, (list) =>
+          list.map((requirement) =>
+            requirement.id === id
+              ? // A renamed requirement is looked for by its new name, not the old words.
+                { ...requirement, label, terms: isPresetSignal(id) ? requirement.terms : [label] }
+              : requirement,
+          ),
+        )),
+
+      addRequirement: (label) =>
+        set((state) => withRequirements(state.criteria, (list) => {
+          const name = label.trim();
+          if (!name || list.length >= MAX_REQUIREMENTS) return list;
+          if (list.some((entry) => (entry.label ?? "").toLowerCase() === name.toLowerCase())) {
+            return list;
+          }
+          return [...list, { id: nextRequirementId(list), label: name, terms: [name], importance: "high", weight: 0 }];
         })),
 
-      resetWeights: () =>
-        set((state) => ({
-          criteria: { ...state.criteria, signalWeights: { ...DEFAULT_SIGNAL_WEIGHTS } },
-        })),
+      removeRequirement: (id) =>
+        set((state) => withRequirements(state.criteria, (list) =>
+          list.filter((requirement) => requirement.id !== id),
+        )),
 
       loadSearch: (name, criteria) =>
         set({
@@ -147,7 +184,12 @@ export const useWizardStore = create<WizardState>()(
           parser: null,
           parsedFrom: criteria.brief ?? "",
           worldwide: !criteria.location.country,
-          criteria: { ...emptyCriteria(), ...criteria },
+          // An older search is edited as requirements from the start.
+          criteria: {
+            ...emptyCriteria(),
+            ...criteria,
+            requirements: effectiveRequirements(criteria),
+          },
         }),
 
       reset: () =>
@@ -169,14 +211,24 @@ export const useWizardStore = create<WizardState>()(
   ),
 );
 
-function toggle<T>(list: T[], value: T): T[] {
-  return list.includes(value) ? list.filter((entry) => entry !== value) : [...list, value];
+/** Apply a change to the requirements and share the points out again. */
+function withRequirements(
+  criteria: SearchCriteria,
+  change: (list: Requirement[]) => Requirement[],
+): { criteria: SearchCriteria } {
+  const next = change(effectiveRequirements(criteria));
+  return { criteria: { ...criteria, requirements: balanceRequirements(next) } };
 }
 
-export function importanceOf(criteria: SearchCriteria, signal: SignalType): SignalImportance {
-  if (criteria.mustHave.includes(signal)) return "required";
-  if (criteria.niceToHave.includes(signal)) return "preferred";
-  return "ignored";
+function nextRequirementId(list: Requirement[]): string {
+  const taken = new Set(list.map((requirement) => requirement.id));
+  let index = list.length + 1;
+  while (taken.has(`r${index}`)) index += 1;
+  return `r${index}`;
+}
+
+function toggle<T>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((entry) => entry !== value) : [...list, value];
 }
 
 /**
@@ -189,12 +241,19 @@ export function importanceOf(criteria: SearchCriteria, signal: SignalType): Sign
  * * `terms` (blocks the start) — no brand and no self-description: the queries
  *   fall back to the niche's generic name and come back with its famous accounts.
  * * `brands` — words, but no brand: it runs, and finds fewer of the right people.
+ * * `requirements` — nothing to judge candidates by, so every lead scores alike.
  * * `sources` (blocks the start) — nowhere to look.
  * * `country` — without one, no query is written in any language but English.
  * * `languages` — the country is known but not who in it to look for; a diaspora
  *   (Ukrainians in Spain) writes in a different language from the country.
  */
-export type WizardGap = "terms" | "brands" | "sources" | "country" | "languages";
+export type WizardGap =
+  | "terms"
+  | "brands"
+  | "requirements"
+  | "sources"
+  | "country"
+  | "languages";
 
 export const BLOCKING_GAPS: WizardGap[] = ["terms", "sources"];
 
@@ -209,8 +268,17 @@ export function criteriaGaps(
   // query that reached the people a client actually meant, and a model reading a
   // vague brief fills in "мережевий маркетинг" rather than leaving it empty.
   else if (!brands) gaps.push("brands");
+  // Nothing to judge a candidate by but the country: every lead would score alike.
+  const judged = effectiveRequirements(criteria).filter(
+    (requirement) => requirement.id !== "location" && requirement.weight > 0,
+  );
+  if (!judged.length) gaps.push("requirements");
   if (!criteria.sources.length) gaps.push("sources");
-  if (!criteria.location.country && !state.worldwide) gaps.push("country");
+  const placed =
+    Boolean(criteria.location.country) ||
+    Boolean(criteria.countries?.length) ||
+    Boolean(criteria.region);
+  if (!placed && !state.worldwide) gaps.push("country");
   const knownLanguages = criteria.languages.filter((name) => vocabularyEntry(LANGUAGES, name));
   if (!knownLanguages.length) gaps.push("languages");
   return gaps;

@@ -1,32 +1,32 @@
 "use client";
 
-import { AlertTriangle, HelpCircle, Info, Minus, Plus } from "lucide-react";
+import { AlertTriangle, HelpCircle, Info, Minus, Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useMemo, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   BUSINESS_TYPES,
   COUNTRIES,
   INDUSTRIES,
+  effectiveRequirements,
+  isPresetSignal,
   LANGUAGES,
-  SIGNAL_TYPES,
+  MAX_REQUIREMENTS,
+  REQUIREMENT_IMPORTANCE,
   type VocabularyEntry,
 } from "@/lib/domain";
 import { useNumbers } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useVocabulary } from "@/lib/vocabulary";
-import type { EstimateWarning, SearchEstimate, SignalType } from "@/services/types";
+import type { EstimateWarning, SearchEstimate } from "@/services/types";
 import { useSearchEstimate } from "@/services/hooks";
 import {
   BLOCKING_GAPS,
   criteriaGaps,
-  importanceOf,
   useWizardStore,
-  type SignalImportance,
   type WizardGap,
 } from "@/store/wizard-store";
 import { Button } from "@/components/ui/button";
 import { ChipInput } from "@/components/ui/chip-input";
-import { SelectField } from "@/components/ui/controls";
 import { Input } from "@/components/ui/field";
 import { Eyebrow } from "@/components/ui/misc";
 import { AdvancedSettings } from "@/components/search/wizard/advanced-settings";
@@ -34,13 +34,11 @@ import { AdvancedSettings } from "@/components/search/wizard/advanced-settings";
 /** What the wizard offers with one click. Any number can still be typed. */
 const TARGETS = [5, 10, 25, 50];
 
-/** The select value for "anywhere": Radix has no empty option, and none is a choice. */
-const ANYWHERE = "__anywhere__";
-
 /** Where each gap is answered, so the summary can take the client straight there. */
 const GAP_FIELD: Record<WizardGap, string> = {
   terms: "wizard-brands",
   brands: "wizard-brands",
+  requirements: "wizard-requirements",
   sources: "wizard-sources",
   country: "wizard-country",
   languages: "wizard-languages",
@@ -188,17 +186,7 @@ function Gaps({ gaps }: { gaps: WizardGap[] }) {
 function Understood({ gaps }: { gaps: WizardGap[] }) {
   const t = useTranslations("wizard.review");
   const vocabulary = useVocabulary();
-  const { name, setName, criteria, patchCriteria, setLocation, worldwide, setWorldwide } =
-    useWizardStore();
-
-  const countryOptions = useMemo(
-    () => [
-      { value: ANYWHERE, label: t("anywhere") },
-      ...COUNTRIES.map((entry) => ({ value: entry.token, label: vocabulary.country(entry.token) }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
-    ],
-    [t, vocabulary],
-  );
+  const { name, setName, criteria, patchCriteria, setLocation } = useWizardStore();
 
   const toggleToken = (list: string[], token: string) =>
     list.some((entry) => entry.toLowerCase() === token.toLowerCase())
@@ -262,28 +250,14 @@ function Understood({ gaps }: { gaps: WizardGap[] }) {
           hint={t("fieldCountryHint")}
           question={gaps.includes("country") ? t("gap.country.question") : undefined}
         >
-          <SelectField
-            ariaLabel={t("fieldCountry")}
-            value={criteria.location.country || (worldwide ? ANYWHERE : undefined)}
-            onValueChange={(value) => {
-              if (value === ANYWHERE) {
-                setLocation({ country: undefined, city: undefined });
-                setWorldwide(true);
-              } else {
-                setLocation({ country: value });
-              }
-            }}
-            placeholder={t("fieldCountryPlaceholder")}
-            options={countryOptions}
-            className="w-full"
-          />
+          <Places />
         </ReviewField>
         <ReviewField id="wizard-city" label={t("fieldCity")} hint={t("fieldCityHint")}>
           <Input
             value={criteria.location.city ?? ""}
             onChange={(event) => setLocation({ city: event.target.value || undefined })}
             placeholder={t("fieldCityPlaceholder")}
-            disabled={worldwide && !criteria.location.country}
+            disabled={!criteria.location.country}
           />
         </ReviewField>
       </div>
@@ -332,8 +306,76 @@ function Understood({ gaps }: { gaps: WizardGap[] }) {
         </ReviewField>
       </div>
 
-      <Signals />
+      <Requirements />
     </section>
+  );
+}
+
+/**
+ * Where to look, as chips: any number of countries, "any European country", or
+ * the whole world. "Ukraine or Europe" used to become the whole world, because
+ * the field only held one country — and the search came back from Indonesia.
+ */
+function Places() {
+  const t = useTranslations("wizard.review");
+  const vocabulary = useVocabulary();
+  const { criteria, worldwide, setPlaces } = useWizardStore();
+  const chosen = criteria.location.country
+    ? [criteria.location.country]
+    : (criteria.countries ?? []);
+  const region = criteria.region ?? "";
+  const anywhere = worldwide && !chosen.length && !region;
+
+  const toggleCountry = (token: string) =>
+    setPlaces(
+      chosen.includes(token) ? chosen.filter((entry) => entry !== token) : [...chosen, token],
+      region,
+    );
+
+  const chip = (on: boolean) =>
+    cn(
+      "rounded-pill border px-2.5 py-1 text-[13px] transition-colors",
+      on
+        ? "border-accent-line bg-accent-soft text-accent"
+        : "border-line text-fg-muted hover:border-line-strong hover:text-fg",
+    );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          aria-pressed={region === "europe"}
+          onClick={() => setPlaces(chosen, region === "europe" ? "" : "europe")}
+          className={chip(region === "europe")}
+        >
+          {t("regionEurope")}
+        </button>
+        <button
+          type="button"
+          aria-pressed={anywhere}
+          onClick={() => setPlaces([], "")}
+          className={chip(anywhere)}
+        >
+          {t("anywhere")}
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {[...COUNTRIES]
+          .sort((a, b) => vocabulary.country(a.token).localeCompare(vocabulary.country(b.token)))
+          .map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              aria-pressed={chosen.includes(entry.token)}
+              onClick={() => toggleCountry(entry.token)}
+              className={chip(chosen.includes(entry.token))}
+            >
+              {vocabulary.country(entry.token)}
+            </button>
+          ))}
+      </div>
+    </div>
   );
 }
 
@@ -416,62 +458,127 @@ function ToggleChips({
   );
 }
 
-const IMPORTANCE: SignalImportance[] = ["required", "preferred", "ignored"];
-
 /**
- * What matters in a candidate, one choice per signal. The old wizard had two
- * checkbox lists for this — "must have" and "nice to have" — side by side, with
- * the same seven names in each.
+ * What makes a candidate right for this search — written for it, editable here.
+ *
+ * The client chooses how much each thing matters; the points follow (100 in all)
+ * and are shown, not typed. The old wizard asked for seven fixed network-marketing
+ * signals in two checkbox lists and a page of sliders that had to add up to 100.
  */
-function Signals() {
+function Requirements() {
   const t = useTranslations("wizard.review");
-  const signals = useTranslations("domain.signal");
-  const hints = useTranslations("domain.signalHint");
-  const { criteria, setImportance } = useWizardStore();
+  const common = useTranslations("common");
+  const vocabulary = useVocabulary();
+  const {
+    criteria,
+    setRequirementImportance,
+    renameRequirement,
+    addRequirement,
+    removeRequirement,
+  } = useWizardStore();
+  const [draft, setDraft] = useState("");
+  const requirements = effectiveRequirements(criteria);
+  const full = requirements.length >= MAX_REQUIREMENTS;
+
+  const add = () => {
+    addRequirement(draft);
+    setDraft("");
+  };
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <span className="label text-fg-muted">{t("fieldSignals")}</span>
-      <p className="text-xs leading-relaxed text-fg-faint">{t("fieldSignalsHint")}</p>
+    <div id="wizard-requirements" className="flex scroll-mt-24 flex-col gap-1.5">
+      <span className="label text-fg-muted">{t("fieldRequirements")}</span>
+      <p className="text-xs leading-relaxed text-fg-faint">{t("fieldRequirementsHint")}</p>
+
       <ul className="divide-y divide-line rounded-card border border-line">
-        {SIGNAL_TYPES.map((signal: SignalType) => {
-          const current = importanceOf(criteria, signal);
+        {requirements.map((requirement) => {
+          const preset = isPresetSignal(requirement.id);
+          const name = vocabulary.requirement(requirement);
           return (
             <li
-              key={signal}
+              key={requirement.id}
               className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5"
             >
-              <div className="min-w-0">
-                <p className="text-sm">{signals(signal)}</p>
-                <p className="text-xs text-fg-faint">{hints(signal)}</p>
+              <div className="min-w-0 flex-1">
+                {preset ? (
+                  <p className="text-sm">{name}</p>
+                ) : (
+                  <input
+                    value={requirement.label ?? ""}
+                    onChange={(event) => renameRequirement(requirement.id, event.target.value)}
+                    aria-label={t("requirementName")}
+                    className="w-full rounded-ctl border border-transparent bg-transparent px-1 py-0.5 text-sm hover:border-line focus:border-accent focus:outline-none"
+                  />
+                )}
+                {requirement.description ? (
+                  <p className="px-1 text-xs text-fg-faint">{requirement.description}</p>
+                ) : null}
               </div>
-              <div role="radiogroup" aria-label={signals(signal)} className="flex rounded-pill border border-line p-0.5">
-                {IMPORTANCE.map((level) => (
-                  <button
-                    key={level}
-                    type="button"
-                    role="radio"
-                    aria-checked={current === level}
-                    onClick={() => setImportance(signal, level)}
-                    className={cn(
-                      "rounded-pill px-2.5 py-0.5 text-xs transition-colors",
-                      current === level
-                        ? level === "required"
-                          ? "bg-accent text-accent-on"
-                          : level === "preferred"
-                            ? "bg-accent-soft text-accent"
-                            : "bg-surface-2 text-fg-muted"
-                        : "text-fg-faint hover:text-fg",
-                    )}
-                  >
-                    {t(`importance.${level}`)}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div
+                  role="radiogroup"
+                  aria-label={name}
+                  className="flex rounded-pill border border-line p-0.5"
+                >
+                  {REQUIREMENT_IMPORTANCE.map((level) => (
+                    <button
+                      key={level}
+                      type="button"
+                      role="radio"
+                      aria-checked={requirement.importance === level}
+                      onClick={() => setRequirementImportance(requirement.id, level)}
+                      className={cn(
+                        "rounded-pill px-2.5 py-0.5 text-xs transition-colors",
+                        requirement.importance === level
+                          ? level === "required"
+                            ? "bg-accent text-accent-on"
+                            : "bg-accent-soft text-accent"
+                          : "text-fg-faint hover:text-fg",
+                      )}
+                    >
+                      {t(`importance.${level}`)}
+                    </button>
+                  ))}
+                </div>
+                <span className="num w-12 text-right text-xs text-fg-muted">
+                  {requirement.weight ? t("points", { points: requirement.weight }) : common("dash")}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeRequirement(requirement.id)}
+                  aria-label={t("requirementRemove", { name })}
+                  className="text-fg-faint transition-colors hover:text-bad"
+                >
+                  <X className="size-3.5" />
+                </button>
               </div>
             </li>
           );
         })}
+        {!requirements.length ? (
+          <li className="px-3 py-2.5 text-xs text-fg-faint">{t("requirementsEmpty")}</li>
+        ) : null}
       </ul>
+
+      <div className="flex gap-2">
+        <Input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              add();
+            }
+          }}
+          placeholder={t("requirementPlaceholder")}
+          aria-label={t("requirementAdd")}
+          disabled={full}
+        />
+        <Button variant="secondary" onClick={add} disabled={full || !draft.trim()}>
+          <Plus />
+          {t("requirementAdd")}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -563,6 +670,12 @@ function Cost({
                   : t("costUnlimited")
           }
         />
+        {estimate?.maxJudgements ? (
+          <Line
+            label={t("costJudging")}
+            value={t("costJudgingUpTo", { count: estimate.maxJudgements })}
+          />
+        ) : null}
         {estimate?.readsPages && estimate.maxPages ? (
           <p className="pt-1 text-fg-faint">
             {t("costPerLead", { pages: estimate.pagesPerLead })}

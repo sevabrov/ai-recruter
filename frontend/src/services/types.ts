@@ -42,6 +42,24 @@ export type ScoredSignalType = Exclude<SignalType, "activity">;
 
 export type SignalWeightLevel = "low" | "medium" | "high";
 
+export type RequirementImportance = "required" | "high" | "normal";
+
+/**
+ * One thing that makes a candidate right for *this* search. Written per search:
+ * "Python", "Django" for a developer search; the built-in signals ("mlm",
+ * "beauty"…) for a network-marketing one. A built-in signal's id is its signal
+ * type and its label may be empty — the interface names it.
+ */
+export interface Requirement {
+  id: string;
+  label?: string;
+  description?: string;
+  terms?: string[];
+  importance: RequirementImportance;
+  /** Points a fully confident match is worth; shared out by importance, 100 in all. */
+  weight: number;
+}
+
 export interface GeoLocation {
   country?: string;
   region?: string;
@@ -58,6 +76,13 @@ export interface SearchCriteria {
    * one is asked on every chosen platform (`site:instagram.com джерелія`).
    */
   brands?: string[];
+  /**
+   * Several countries, most important first ("Ukraine or Poland"); the single
+   * `location.country` is then empty. Queries are written for each.
+   */
+  countries?: string[];
+  /** A region accepted as a whole: "europe", or empty. */
+  region?: string;
   /** Tokens from `INDUSTRIES`; shown as `domain.industry.<id>`. */
   industry: string[];
   businessTypes: string[];
@@ -84,6 +109,12 @@ export interface SearchCriteria {
   requireConfirmedLanguage?: boolean;
   /** Score points per signal. Must total 100 — the backend owns the arithmetic. */
   signalWeights: Record<ScoredSignalType, number>;
+  /**
+   * What the search judges and scores candidates by. Absent (null) for a search
+   * recorded before requirements existed — those are read from the signal fields
+   * by `effectiveRequirements`.
+   */
+  requirements?: Requirement[] | null;
   sources: SourceKind[];
   /**
    * Queries written by hand, run ahead of the generated ones and never dropped by
@@ -140,6 +171,8 @@ export interface GeneratedQuery {
   resultCount: number;
   /** Which language's index this query was put to. Absent means the default market. */
   language?: string | null;
+  /** The country it was written for, when the search asks for several. */
+  country?: string | null;
 }
 
 export interface SearchUsage {
@@ -198,7 +231,7 @@ export interface CreateSearchResponse {
  * budget from the same function, so a search cannot cost more than was quoted.
  */
 export interface SearchEstimate {
-  queries: { query: string; language?: string | null }[];
+  queries: { query: string; language?: string | null; country?: string | null }[];
   /** One query is one billed call. */
   searchCalls: number;
   /** The most pages this search may pay to read. 0 = no page is ever paid for. */
@@ -211,6 +244,8 @@ export interface SearchEstimate {
   maxCostEur: number;
   /** Whether pages are read at all right now, so the UI can say why it is free. */
   readsPages: boolean;
+  /** The most candidates a model may judge against the requirements (0 = free). */
+  maxJudgements?: number;
   /**
    * What these criteria are likely to do to the result, before it is paid for.
    * Codes, not sentences: the wording is `wizard.review.warning.<code>`.
@@ -322,7 +357,10 @@ export interface LeadPlatform {
 
 /** Never a bare boolean: every signal carries confidence, evidence and origin. */
 export interface LeadSignal {
-  type: SignalType;
+  /** A requirement id: a built-in signal type, or a search's own ("r1"). */
+  type: string;
+  /** The requirement's name as the client wrote it; absent for a built-in signal. */
+  label?: string | null;
   detected: boolean;
   confidence: number;
   evidence?: string;
@@ -340,7 +378,8 @@ export interface LeadSource {
 }
 
 export interface ScoreComponent {
-  type: ScoredSignalType;
+  type: string;
+  label?: string | null;
   awarded: number;
   max: number;
 }
@@ -390,7 +429,8 @@ export interface LeadFilters {
   minScore?: number;
   countries?: string[];
   platforms?: Platform[];
-  signals?: SignalType[];
+  /** Requirement ids. Only meaningful within one search. */
+  signals?: string[];
   statuses?: LeadStatus[];
   hasEmail?: boolean;
   hasSocial?: boolean;

@@ -1,29 +1,44 @@
 /**
  * SCORING ENGINE (spec §37–38)
  * ============================
- * Deterministic and explainable: the LLM detects signals, this function turns
- * them into points. It lives in `lib` rather than `mocks` because the same rule
- * is mirrored by the backend — the front end only ever renders the breakdown it
- * receives, but the mock phase needs the identical arithmetic.
+ * Deterministic and explainable: a judge decides whether each requirement is
+ * met, this function turns that into points. It lives in `lib` rather than
+ * `mocks` because the same rule is mirrored by the backend — the front end only
+ * ever renders the breakdown it receives, but the mock phase needs the identical
+ * arithmetic.
  */
 
 import { SCORED_SIGNALS } from "@/lib/domain";
 import type {
   LeadSignal,
+  Requirement,
   ScoreComponent,
   ScoredSignalType,
 } from "@/services/types";
 
 export function computeScore(
   signals: LeadSignal[],
-  weights: Record<ScoredSignalType, number>,
+  requirements: Requirement[] | Record<ScoredSignalType, number>,
 ): { score: number; breakdown: ScoreComponent[] } {
-  const breakdown: ScoreComponent[] = SCORED_SIGNALS.map((type) => {
-    const signal = signals.find((entry) => entry.type === type);
-    const max = weights[type] ?? 0;
-    const awarded = signal?.detected ? Math.round(max * signal.confidence) : 0;
-    return { type, awarded, max };
-  });
+  // A bare `{signal: points}` map is how a search was scored before requirements
+  // existed: every built-in signal, a zero-point one included.
+  const legacy = !Array.isArray(requirements);
+  const list: Requirement[] = Array.isArray(requirements)
+    ? requirements
+    : SCORED_SIGNALS.map((id) => ({ id, weight: requirements[id] ?? 0, importance: "normal" }));
+
+  const breakdown: ScoreComponent[] = list
+    .filter((requirement) => legacy || requirement.weight > 0)
+    .map((requirement) => {
+      const signal = signals.find((entry) => entry.type === requirement.id);
+      const awarded = signal?.detected ? Math.round(requirement.weight * signal.confidence) : 0;
+      return {
+        type: requirement.id,
+        label: requirement.label || undefined,
+        awarded,
+        max: requirement.weight,
+      };
+    });
 
   return {
     score: breakdown.reduce((total, component) => total + component.awarded, 0),
@@ -31,6 +46,6 @@ export function computeScore(
   };
 }
 
-export function totalWeight(weights: Record<ScoredSignalType, number>) {
-  return SCORED_SIGNALS.reduce((total, type) => total + (weights[type] ?? 0), 0);
+export function totalWeight(requirements: Requirement[]) {
+  return requirements.reduce((total, requirement) => total + requirement.weight, 0);
 }

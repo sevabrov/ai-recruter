@@ -58,6 +58,12 @@ class ExtractionCost:
     tokens_out: int = 0
 
 
+#: The detail a reader reports a page that no longer exists with. A deleted profile
+#: is not a lead, whatever the search engine still remembers about it — so the
+#: chain does not fall back to its search result.
+PROFILE_GONE = "The profile no longer exists or is not public."
+
+
 @dataclass
 class PageRead:
     """The result of pointing a reader at one URL."""

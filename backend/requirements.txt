@@ -18,3 +18,8 @@ httpx==0.28.1
 sqlalchemy[asyncio]==2.0.37
 asyncpg==0.30.0
 alembic==1.14.1
+
+# Our own page reader for Instagram and Facebook: a headless Chromium
+# (`services/scraping/browser_reader.py`). The browser itself is installed by the
+# Dockerfile (`playwright install`), not by pip.
+playwright==1.57.0

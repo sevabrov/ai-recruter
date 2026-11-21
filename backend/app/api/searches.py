@@ -99,7 +99,8 @@ async def estimate_search(payload: EstimateIn, container: ContainerDep) -> Estim
     )
     return EstimateOut(
         queries=[
-            QueryPreviewOut(query=plan.query, language=plan.language) for plan in quote.queries
+            QueryPreviewOut(query=plan.query, language=plan.language, country=plan.country)
+            for plan in quote.queries
         ],
         search_calls=quote.search_calls,
         max_pages=quote.max_pages,
@@ -108,6 +109,7 @@ async def estimate_search(payload: EstimateIn, container: ContainerDep) -> Estim
         pages_per_lead=quote.pages_per_lead,
         max_cost_eur=quote.max_cost_eur,
         reads_pages=reads_pages,
+        max_judgements=quote.max_judgements,
         warnings=[
             EstimateWarningOut(code=note.code, params=note.params) for note in quote.warnings
         ],

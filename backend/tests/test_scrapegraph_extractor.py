@@ -116,7 +116,7 @@ def recorder(payload: dict, status: int = 200):
 
 
 def signal(profile, kind: SignalType):
-    return next(entry for entry in profile.observations if entry.type is kind)
+    return next(entry for entry in profile.observations if entry.type == kind)
 
 
 # ------------------------------------------------------------------- a person
@@ -486,3 +486,13 @@ async def test_credits_are_counted_where_the_search_can_see_them():
     # The shared counter the pipeline copies into the search's usage.
     assert (cost.pages_read, cost.paid_attempts, cost.pages_cached) == (2, 2, 0)
     assert cost.credits == 20
+
+
+def test_a_name_wrapped_in_marks_or_emoji_is_still_a_name():
+    """'\u200fPiotr Orlik\u200f' and '🐍 Dawid Kosinski' were refused as 'not a person'."""
+    from app.services.scraping.names import clean, looks_like_a_person
+
+    assert clean("\u200fPiotr Orlik\u200f") == "Piotr Orlik"
+    assert clean("🐍 Dawid Kosinski") == "Dawid Kosinski"
+    assert clean("Марина Бородина 🌺") == "Марина Бородина"
+    assert looks_like_a_person(clean("🤘 Dariusz Rzepka"))

@@ -62,6 +62,8 @@ class SearchEstimate:
     target_leads: int = 0
     pages_per_lead: int = 0
     max_cost_eur: float = 0.0
+    #: The most candidates a model may judge (0 when judging is free).
+    max_judgements: int = 0
     #: What is likely to go wrong with *these* criteria, in words the client can act
     #: on. Written here rather than discovered afterwards: a search that returns
     #: nothing has already been paid for.
@@ -71,6 +73,18 @@ class SearchEstimate:
     def unlimited_pages(self) -> bool:
         """No page budget at all — the fixture demo, and a deliberate `0` setting."""
         return self.max_pages <= 0
+
+
+def judging_budget_for(criteria: SearchCriteria, settings: Settings) -> int:
+    """
+    How many candidates the model may judge in this search: so many per lead asked
+    for, under the server's ceiling. The run is given exactly this, so the quote holds.
+    """
+    ceiling = max(0, settings.max_judgements_per_search)
+    target = criteria.target_leads or settings.target_leads
+    if target <= 0:
+        return ceiling
+    return min(ceiling, target * max(1, settings.judgements_per_lead))
 
 
 def page_budget_for(criteria: SearchCriteria, settings: Settings) -> int:
@@ -108,10 +122,10 @@ def estimate(
     billable = pages if pages else (settings.max_pages_per_search if reads_pages else 0)
 
     cost = len(queries) * settings.cost_per_search_call_eur + billable * settings.cost_per_page_eur
-    if paid_detector:
-        # One judgement per candidate that gets as far as being judged. Pages read
-        # is the closest bound the wizard can put on that before anything runs.
-        cost += max(billable, 1) * settings.cost_per_llm_call_eur
+    # One paid judgement per candidate, up to the search's judging budget — the
+    # rest are judged by their words for free, so the budget is the ceiling.
+    judgements = judging_budget_for(criteria, settings) if paid_detector else 0
+    cost += judgements * settings.cost_per_llm_call_eur
 
     per_page = settings.scrapegraph_credits_per_page + (
         settings.scrapegraph_stealth_credits if settings.scrapegraph_stealth else 0
@@ -124,6 +138,7 @@ def estimate(
         target_leads=criteria.target_leads or settings.target_leads,
         pages_per_lead=settings.pages_per_lead,
         max_cost_eur=round(cost, 2),
+        max_judgements=judgements,
         warnings=warnings_for(criteria),
     )
 
@@ -141,7 +156,7 @@ def warnings_for(criteria: SearchCriteria) -> list[EstimateWarning]:
         {SourceKind.PUBLIC_WEB, SourceKind.COMPANY_WEBSITES, SourceKind.BLOGS}
         & set(criteria.sources)
     )
-    country = criteria.location.country or ""
+    country = criteria.place_label()
 
     # Social profiles rarely state a location and their pages often will not open,
     # so most candidates would be dropped as unconfirmed.
@@ -151,10 +166,11 @@ def warnings_for(criteria: SearchCriteria) -> list[EstimateWarning]:
     if criteria.languages and criteria.require_confirmed_language and social_only:
         notes.append(EstimateWarning("confirmed_language_social"))
     # All of them at once, each proven by a quote from the profile.
-    if len(criteria.must_have) > 1:
-        notes.append(EstimateWarning("many_must_have", {"count": str(len(criteria.must_have))}))
+    required = [r for r in criteria.effective_requirements() if r.required]
+    if len(required) > 1:
+        notes.append(EstimateWarning("many_must_have", {"count": str(len(required))}))
     # Gates hard and is worth no points: it needs a date the page states.
-    if SignalType.ACTIVITY in criteria.must_have:
+    if any(r.id == SignalType.ACTIVITY for r in required):
         notes.append(EstimateWarning("activity_must_have"))
     # Without a term of their own the queries fall back to the niche's generic
     # name — which is what the niche's famous brand accounts are called.
@@ -164,7 +180,7 @@ def warnings_for(criteria: SearchCriteria) -> list[EstimateWarning]:
     # a country only the English pass runs: Ukrainian and Russian were chosen in a
     # measured run and not a single query was written in either.
     foreign = [name for name in criteria.languages if language_code(name) not in (None, "en")]
-    if foreign and not country:
+    if foreign and not criteria.focus_countries():
         notes.append(EstimateWarning("languages_without_country"))
     # Zero results for every query in every measured run, each one still billed.
     if SourceKind.THREADS_PUBLIC in criteria.sources:

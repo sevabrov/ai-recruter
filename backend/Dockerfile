@@ -24,6 +24,12 @@ WORKDIR /app
 COPY requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
+# The headless Chromium that reads Instagram and Facebook, with the system libraries
+# it needs. Installed where the unprivileged user below can run it.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install --with-deps --only-shell chromium \
+    && chmod -R a+rx /ms-playwright
+
 COPY pyproject.toml alembic.ini ./
 COPY alembic ./alembic
 COPY app ./app

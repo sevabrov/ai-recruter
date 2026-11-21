@@ -44,6 +44,27 @@ SITE_BY_SOURCE: dict[SourceKind, str] = {
 #: anything. Generating them here would be spending money on a shape we have
 #: measured as empty.
 
+#: Platforms where a profession is mostly advertised by agencies and studios.
+_SOCIAL_SOURCES = {SourceKind.INSTAGRAM_PUBLIC, SourceKind.FACEBOOK_PUBLIC}
+
+#: The word a freelancer puts in their bio and an agency rarely does, per language.
+#: "SMM-менеджер" alone on Instagram returned 109 agencies, studios and courses
+#: for 26 people; a person shows their own work.
+PORTFOLIO = {
+    "uk": "портфоліо",
+    "ru": "портфолио",
+    "en": "portfolio",
+    "pl": "portfolio",
+    "de": "Portfolio",
+    "es": "portafolio",
+    "it": "portfolio",
+    "pt": "portfólio",
+    "fr": "portfolio",
+}
+
+#: Languages a Cyrillic word may be written in when no letter tells them apart.
+_CYRILLIC = {"uk", "ru", "bg"}
+
 #: The sources that mean "anywhere on the indexed web". Without one of these
 #: selected, no query may go out without a `site:` operator.
 _WEB_SOURCES = {SourceKind.PUBLIC_WEB, SourceKind.COMPANY_WEBSITES, SourceKind.BLOGS}
@@ -56,6 +77,9 @@ class QueryPlan:
     query: str
     #: A provider language code (`uk`, `es`), or None for "whatever the market is".
     language: str | None = None
+    #: The country this query was written for, when a search asks for several; the
+    #: provider is then aimed at that country's index for this query alone.
+    country: str | None = None
 
 
 class QueryGenerator(Protocol):
@@ -68,8 +92,9 @@ class TemplateQueryGenerator(QueryGenerator):
         seen: set[str] = {plan.query for plan in written}
         negatives = " ".join(f'-"{word}"' for word in criteria.negative_keywords[:2])
 
-        def pass_for(language: str | None) -> list[QueryPlan]:
+        def pass_for(scoped: SearchCriteria, language: str | None) -> list[QueryPlan]:
             plans: list[QueryPlan] = []
+            country = scoped.location.country if several else None
 
             def push(*parts: str | None) -> None:
                 query = " ".join(_deduplicated(parts))
@@ -77,21 +102,46 @@ class TemplateQueryGenerator(QueryGenerator):
                     return
                 seen.add(query)
                 text = f"{query} {negatives}".strip() if negatives else query
-                plans.append(QueryPlan(text, language))
+                plans.append(QueryPlan(text, language, country))
 
-            self._for_language(criteria, language, push)
+            self._for_language(scoped, language, push)
             return plans
 
-        by_language = [
-            plans for language in self._passes(criteria) if (plans := pass_for(language))
-        ]
-        if not by_language:
-            # Every chosen language was one the phrasebook cannot write. The
-            # client's own words, untranslated, are better than no query at all.
-            by_language = [plans] if (plans := pass_for(None)) else []
+        def for_country(scoped: SearchCriteria, first: bool) -> list[QueryPlan]:
+            passes = self._passes(scoped)
+            if several and not first:
+                # A Ukrainian query about Germany ("Німеччина") is not how anybody in
+                # Germany writes where they are. Past the first country, only English
+                # and the country's own language are asked; the first keeps every
+                # language chosen, which is where a diaspora search lives.
+                own = COUNTRY_LANGUAGE.get(scoped.location.country or "")
+                passes = [language for language in passes if language in (None, "en", own)]
+            by_language = [plans for language in passes if (plans := pass_for(scoped, language))]
+            if not by_language:
+                # Every chosen language was one the phrasebook cannot write. The
+                # client's own words, untranslated, are better than no query at all.
+                by_language = [plans] if (plans := pass_for(scoped, None)) else []
+            return _interleave(by_language)
+
+        # "Ukraine or Europe" is asked country by country: people write the country
+        # they are in, never the region. Several countries are interleaved, so the
+        # query cap cuts each of them equally rather than dropping the last.
+        several = bool(criteria.countries or criteria.region)
+        if several:
+            scopes = [
+                criteria.model_copy(
+                    update={"location": criteria.location.model_copy(update={"country": name})}
+                )
+                for name in criteria.focus_countries()
+            ]
+        else:
+            scopes = [criteria]
+        templates = _interleave(
+            [for_country(scoped, index == 0) for index, scoped in enumerate(scopes)]
+        )
 
         room = max(0, limit - len(written))
-        return [*written, *_interleave(by_language)[:room]]
+        return [*written, *templates[:room]]
 
     # -------------------------------------------------------------- the client's own
     @staticmethod
@@ -162,12 +212,16 @@ class TemplateQueryGenerator(QueryGenerator):
             return
 
         keywords = self._keywords(criteria, language)
-        industries = self._words(criteria.industry, language, "beauty") or ["beauty"]
-        business = self._words(criteria.business_types, language, "network marketing") or [
+        # The words added around a keyword are written in the keyword's language.
+        # "мережевий маркетинг" distributor Beauty mixed two languages in one query
+        # and found next to nothing.
+        words = language or next(iter(detect_codes(keywords[0])), None)
+        industries = self._words(criteria.industry, words, "beauty") or ["beauty"]
+        business = self._words(criteria.business_types, words, "network marketing") or [
             "network marketing"
         ]
-        distributor = phrasebook.term(language, "distributor") or "distributor"
-        leader = phrasebook.term(language, "team leader") or "team leader"
+        distributor = phrasebook.term(words, "distributor") or "distributor"
+        leader = phrasebook.term(words, "team leader") or "team leader"
 
         def phrase(*terms: str) -> str:
             """
@@ -207,6 +261,7 @@ class TemplateQueryGenerator(QueryGenerator):
         # a third of the calls spent outside the sources — which is how a legal
         # journal's article about network marketing became a run's only lead.
         if not _WEB_SOURCES & set(criteria.sources):
+            self._more_keywords(criteria, keywords, place, push)
             return
 
         push(phrase(keywords[0], distributor), place)
@@ -217,6 +272,7 @@ class TemplateQueryGenerator(QueryGenerator):
             push(f'"{keywords[0]}"', distributor, place, "-shop", "-tienda")
         if SourceKind.BLOGS in criteria.sources:
             push(f'"{industries[0]}"', f'"{business[0]}"', "blog", place)
+        self._more_keywords(criteria, keywords, place, push)
 
     def _for_any_role(
         self,
@@ -247,18 +303,54 @@ class TemplateQueryGenerator(QueryGenerator):
             if not site:
                 continue
             push(site, f'"{keywords[0]}"', place)
+            if source in _SOCIAL_SOURCES:
+                # "SMM-менеджер" reads as Ukrainian and Russian alike; the
+                # search's own languages break the tie.
+                written = list(detect_codes(keywords[0]))
+                if _CYRILLIC.intersection(written):
+                    written += sorted(_CYRILLIC.difference(written))
+                wanted = [language_code(name) for name in criteria.languages]
+                code = language or next(
+                    (c for c in wanted if c in written), next(iter(written), None)
+                )
+                if word := PORTFOLIO.get(code or ""):
+                    push(site, f'"{keywords[0]}"', f'"{word}"', place)
             if second:
                 push(site, f'"{second}"', industry, place)
             elif industry:
                 push(site, f'"{keywords[0]}"', industry, place)
 
         if not _WEB_SOURCES & set(criteria.sources):
+            self._more_keywords(criteria, keywords, place, push)
             return
         push(f'"{keywords[0]}"', place)
         if second:
             push(f'"{second}"', industry, place)
         if SourceKind.BLOGS in criteria.sources:
             push(f'"{keywords[0]}"', "blog", place)
+        self._more_keywords(criteria, keywords, place, push)
+
+    @staticmethod
+    def _more_keywords(
+        criteria: SearchCriteria,
+        keywords: list[str],
+        place: str | None,
+        push: Callable[..., None],
+    ) -> None:
+        """
+        The client's further words, each asked on its own on every platform.
+
+        The templates above use the first two. A brief that names five ways these
+        people describe themselves — "консультант", "дистриб'ютор", "бізнес-партнер"
+        — was asking for all five, and a search that used two found forty addresses
+        and ran out of candidates at four leads. Added after the templates, so the
+        query cap trims these first.
+        """
+        for keyword in keywords[2:MAX_KEYWORD_QUERIES]:
+            for source in criteria.sources:
+                site = SITE_BY_SOURCE.get(source)
+                if site:
+                    push(site, f'"{keyword}"', place)
 
     # ------------------------------------------------------------------- ingredients
     @staticmethod
@@ -333,6 +425,28 @@ class TemplateQueryGenerator(QueryGenerator):
         return translated
 
 
+#: How many of the client's keywords become queries of their own.
+MAX_KEYWORD_QUERIES = 5
+
+#: The language a country's people write their location in, for searches over several.
+COUNTRY_LANGUAGE: dict[str, str] = {
+    "Ukraine": "uk",
+    "Poland": "pl",
+    "Germany": "de",
+    "Austria": "de",
+    "Switzerland": "de",
+    "Spain": "es",
+    "Italy": "it",
+    "Portugal": "pt",
+    "France": "fr",
+    "Belgium": "fr",
+    "Netherlands": "nl",
+    "Czechia": "cs",
+    "Romania": "ro",
+    "United Kingdom": "en",
+    "United States": "en",
+}
+
 #: How a search says it is about network marketing, in the words a brief or the
 #: old wizard put into it. Business types are tokens; keywords are the client's.
 _MLM_BUSINESS = {"mlm", "network marketing", "direct sales"}
@@ -361,6 +475,8 @@ def is_network_marketing(criteria: SearchCriteria) -> bool:
     if any(kind.casefold() in _MLM_BUSINESS for kind in criteria.business_types):
         return True
     if SignalType.MLM in criteria.must_have or SignalType.MLM in criteria.nice_to_have:
+        return True
+    if any(r.id == SignalType.MLM for r in criteria.requirements or []):
         return True
     return any(
         marker in keyword.casefold() for keyword in criteria.keywords for marker in _MLM_WORDS

@@ -72,22 +72,22 @@ def admit(profile: ExtractedProfile, criteria: SearchCriteria) -> Eligibility:
     if not verdict.is_person:
         return Eligibility(False, Refusal.NOT_A_PERSON, verdict.detail)
 
-    country = (criteria.location.country or "").strip()
-    if country and criteria.require_location:
+    place = criteria.place_label()
+    if criteria.allowed_countries() and criteria.require_location:
         found = (profile.location.country or "").strip()
-        if found and found.casefold() != country.casefold():
+        if criteria.in_allowed_place(found) is False:
             # The profile says somewhere else. That is a contradiction, and it is
             # refused whatever the settings say — it is the whole point of asking.
             return Eligibility(
                 False,
                 Refusal.WRONG_COUNTRY,
-                f"This profile is in {found}, not {country}.",
+                f"This profile is in {found}, not {place}.",
             )
         if not found and criteria.require_confirmed_location:
             return Eligibility(
                 False,
                 Refusal.WRONG_COUNTRY,
-                f"Nothing on this profile confirms {country}, and this search asked "
+                f"Nothing on this profile confirms {place}, and this search asked "
                 "for confirmed locations only.",
             )
 

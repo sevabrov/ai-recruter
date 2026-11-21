@@ -14,7 +14,7 @@ from typing import Annotated
 
 from fastapi import Depends, Query
 
-from app.models.common import LeadSort, LeadStatus, Platform, SignalType
+from app.models.common import LeadSort, LeadStatus, Platform
 from app.models.query import LeadQuery
 
 
@@ -23,7 +23,7 @@ def lead_filters(
     min_score: Annotated[int | None, Query(ge=0, le=100)] = None,
     country: Annotated[list[str] | None, Query()] = None,
     platform: Annotated[list[Platform] | None, Query()] = None,
-    signal: Annotated[list[SignalType] | None, Query()] = None,
+    signal: Annotated[list[str] | None, Query(max_length=12)] = None,
     status: Annotated[list[LeadStatus] | None, Query()] = None,
     has_email: Annotated[bool, Query()] = False,
     has_social: Annotated[bool, Query()] = False,
