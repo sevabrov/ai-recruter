@@ -649,11 +649,17 @@ function Cost({
 
   return (
     <div className="rounded-card border border-line bg-surface-1 p-4">
-      <Eyebrow className="mb-2">{t("costTitle")}</Eyebrow>
+      <Eyebrow className="mb-2">{t("costExpectedTitle")}</Eyebrow>
       <p className="num font-display text-3xl font-semibold">
-        {loading || !estimate ? common("dash") : eur(estimate.maxCostEur)}
+        {loading || !estimate
+          ? common("dash")
+          : t("costAbout", { amount: eur(estimate.expectedCostEur ?? estimate.maxCostEur) })}
       </p>
       <dl className="mt-3 space-y-1 text-xs text-fg-muted">
+        <Line
+          label={t("costCeiling")}
+          value={estimate ? eur(estimate.maxCostEur) : common("dash")}
+        />
         <Line
           label={t("costQueries")}
           value={estimate ? t("costCalls", { count: estimate.searchCalls }) : common("dash")}
@@ -664,7 +670,9 @@ function Cost({
             !estimate
               ? common("dash")
               : !estimate.readsPages
-                ? t("costNoReader")
+                ? estimate.browserPages
+                  ? t("costBrowserFree")
+                  : t("costNoReader")
                 : estimate.maxPages
                   ? t("costUpTo", { pages: estimate.maxPages, credits: estimate.credits })
                   : t("costUnlimited")
@@ -681,6 +689,10 @@ function Cost({
             {t("costPerLead", { pages: estimate.pagesPerLead })}
           </p>
         ) : null}
+        {estimate?.readsPages && estimate.browserPages ? (
+          <p className="pt-1 text-fg-faint">{t("costBrowserNote")}</p>
+        ) : null}
+        <p className="pt-1 text-fg-faint">{t("costExpectedNote")}</p>
       </dl>
     </div>
   );

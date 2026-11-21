@@ -113,6 +113,59 @@ def test_a_stage_that_is_not_plugged_in_is_not_priced(settings):
     assert priced.max_cost_eur == pytest.approx(calls)
 
 
+def test_pages_our_browser_reads_are_not_priced(settings):
+    """An Instagram-only search was quoted 25 paid pages and paid for none."""
+    from app.services.scraping.browser_reader import BROWSER_SOURCES
+
+    settings = settings.model_copy(update={"cost_per_page_eur": 0.010})
+
+    def priced(sources: list[str]):
+        return estimate(
+            criteria(target_leads=10, sources=sources),
+            settings,
+            generator=TemplateQueryGenerator(),
+            reads_pages=True,
+            free_sources=BROWSER_SOURCES,
+        )
+
+    social = priced(["instagram_public", "facebook_public"])
+    mixed = priced(["instagram_public", "linkedin_public"])
+
+    assert (social.reads_pages, social.max_pages, social.credits) == (False, 0, 0)
+    assert social.browser_pages
+    assert social.max_cost_eur == pytest.approx(
+        social.search_calls * settings.cost_per_search_call_eur
+    )
+    # LinkedIn still goes to the paid reader, so a mixed search still buys pages.
+    assert mixed.reads_pages and mixed.max_pages > 0 and mixed.browser_pages
+
+
+def test_the_expected_price_is_the_usual_judging_never_above_the_ceiling(settings):
+    """Fourteen runs judged 1.5–3.8 candidates per lead; the ceiling assumes 10."""
+    settings = settings.model_copy(
+        update={
+            "openai_api_key": "sk-test",
+            "cost_per_llm_call_eur": 0.004,
+            "judgements_per_lead": 10,
+            "expected_judgements_per_lead": 4,
+        }
+    )
+    priced = estimate(
+        criteria(target_leads=25),
+        settings,
+        generator=TemplateQueryGenerator(),
+        reads_pages=True,
+        paid_detector=True,
+    )
+
+    judging_ceiling = 250 * 0.004
+    judging_usual = 100 * 0.004
+    assert priced.max_cost_eur - priced.expected_cost_eur == pytest.approx(
+        judging_ceiling - judging_usual, abs=0.011
+    )
+    assert priced.expected_cost_eur <= priced.max_cost_eur
+
+
 def test_asking_in_more_languages_costs_more_calls_and_the_quote_shows_it(settings):
     one = quote(settings, languages=["Spanish"])
     three = quote(settings, languages=["Spanish", "Russian", "Ukrainian"])

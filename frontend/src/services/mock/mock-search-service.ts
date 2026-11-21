@@ -75,6 +75,8 @@ export class MockSearchService implements SearchService {
       pagesPerLead: PAGES_PER_LEAD,
       maxCostEur:
         Math.round((queries.length * COST_PER_CALL + maxPages * COST_PER_PAGE) * 100) / 100,
+      expectedCostEur:
+        Math.round((queries.length * COST_PER_CALL + maxPages * COST_PER_PAGE) * 100) / 100,
       readsPages: true,
     };
   }

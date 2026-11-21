@@ -242,8 +242,12 @@ export interface SearchEstimate {
   /** How many paid pages one lead is assumed to take. Measured, not fixed. */
   pagesPerLead: number;
   maxCostEur: number;
-  /** Whether pages are read at all right now, so the UI can say why it is free. */
+  /** What a search like this usually costs; never above `maxCostEur`. */
+  expectedCostEur?: number;
+  /** Whether any chosen platform is read by the paid reader. */
   readsPages: boolean;
+  /** Whether some chosen platforms (Instagram, Facebook) are read free by our browser. */
+  browserPages?: boolean;
   /** The most candidates a model may judge against the requirements (0 = free). */
   maxJudgements?: number;
   /**
