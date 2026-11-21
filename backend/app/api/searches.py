@@ -37,7 +37,8 @@ from app.schemas.search import (
     SearchOut,
     SearchSummaryOut,
 )
-from app.services.adapters import use_llm_signals, use_page_reading
+from app.services.adapters import use_browser_reading, use_llm_signals, use_page_reading
+from app.services.scraping.browser_reader import BROWSER_SOURCES
 from app.services.search.estimate import estimate
 
 router = APIRouter(prefix="/searches", tags=["searches"])
@@ -89,13 +90,13 @@ async def estimate_search(payload: EstimateIn, container: ContainerDep) -> Estim
     """
     settings = container.settings
     criteria = SearchCriteria.model_validate(payload.criteria.model_dump())
-    reads_pages = use_page_reading(settings)
     quote = estimate(
         criteria,
         settings,
         generator=container.query_generator,
-        reads_pages=reads_pages,
+        reads_pages=use_page_reading(settings),
         paid_detector=use_llm_signals(settings),
+        free_sources=BROWSER_SOURCES if use_browser_reading(settings) else frozenset(),
     )
     return EstimateOut(
         queries=[
@@ -108,7 +109,9 @@ async def estimate_search(payload: EstimateIn, container: ContainerDep) -> Estim
         target_leads=quote.target_leads,
         pages_per_lead=quote.pages_per_lead,
         max_cost_eur=quote.max_cost_eur,
-        reads_pages=reads_pages,
+        expected_cost_eur=quote.expected_cost_eur,
+        reads_pages=quote.reads_pages,
+        browser_pages=quote.browser_pages,
         max_judgements=quote.max_judgements,
         warnings=[
             EstimateWarningOut(code=note.code, params=note.params) for note in quote.warnings

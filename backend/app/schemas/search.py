@@ -288,8 +288,14 @@ class EstimateOut(CamelModel):
     #: lead target into a budget. Measured, not fixed: see the run's own usage.
     pages_per_lead: int
     max_cost_eur: float
-    #: Whether pages are read at all right now, so the UI can say why it is free.
+    #: What a search like this usually costs (judging measured per lead, not its
+    #: ceiling). Never above `max_cost_eur`.
+    expected_cost_eur: float = 0.0
+    #: Whether any chosen platform is read by the paid reader, so the UI can say
+    #: why pages are free.
     reads_pages: bool
+    #: Whether some chosen platforms are read by our own browser, for free.
+    browser_pages: bool = False
     #: The most candidates a model may judge against the requirements (0 = free).
     max_judgements: int = 0
     #: What these criteria are likely to do to the result, before it is paid for.

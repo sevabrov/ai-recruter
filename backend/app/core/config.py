@@ -71,6 +71,10 @@ class Settings(BaseSettings):
     #: candidates judged. Measured: a strict network-marketing search accepted 4 of
     #: the first 60 it judged, so a fixed 60 ran out long before 10 leads.
     judgements_per_lead: int = 10
+    #: …and how many a lead *usually* takes, for the expected price next to the
+    #: ceiling. Measured over fourteen runs (November 2026): 1.5 to 3.8 judged
+    #: candidates per lead asked for — the search stops once it has enough.
+    expected_judgements_per_lead: int = 4
     #: The most candidates one search may have judged by the model, whatever it asks
     #: for. Past the budget candidates are judged by their words, for free — which is
     #: what lets the wizard quote a ceiling: candidates whose pages are never read are

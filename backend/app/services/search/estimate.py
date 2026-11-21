@@ -62,6 +62,13 @@ class SearchEstimate:
     target_leads: int = 0
     pages_per_lead: int = 0
     max_cost_eur: float = 0.0
+    #: What a search like this usually costs: the same calls and pages, and the
+    #: judging measured per lead rather than its ceiling. Never above the ceiling.
+    expected_cost_eur: float = 0.0
+    #: Whether any chosen platform is read by the paid reader at all.
+    reads_pages: bool = False
+    #: Whether some of the chosen platforms are read by our own browser, for free.
+    browser_pages: bool = False
     #: The most candidates a model may judge (0 when judging is free).
     max_judgements: int = 0
     #: What is likely to go wrong with *these* criteria, in words the client can act
@@ -109,6 +116,7 @@ def estimate(
     generator: QueryGenerator,
     reads_pages: bool = True,
     paid_detector: bool = False,
+    free_sources: frozenset[SourceKind] = frozenset(),
 ) -> SearchEstimate:
     """
     `reads_pages` and `paid_detector` are what is actually plugged in right now.
@@ -116,6 +124,12 @@ def estimate(
     one would be quoting for a stage that is not running (see `services/adapters`).
     """
     queries = generator.generate(criteria, limit=settings.max_queries_per_search)
+    # Platforms our own browser reads cost nothing per page (Instagram, Facebook):
+    # pages are paid for only when a chosen source goes to the paid reader. A search
+    # on Instagram alone was quoted 25 paid pages and paid for none.
+    sources = set(criteria.sources) or {SourceKind.PUBLIC_WEB}
+    browser_pages = bool(sources & free_sources)
+    reads_pages = reads_pages and bool(sources - free_sources)
     pages = page_budget_for(criteria, settings) if reads_pages else 0
     # An unlimited budget still has to be priced, and the only honest number for
     # it is the server ceiling — which is what `MAX_PAGES_PER_SEARCH=0` removes.
@@ -125,7 +139,15 @@ def estimate(
     # One paid judgement per candidate, up to the search's judging budget — the
     # rest are judged by their words for free, so the budget is the ceiling.
     judgements = judging_budget_for(criteria, settings) if paid_detector else 0
+    fixed = cost
     cost += judgements * settings.cost_per_llm_call_eur
+    target = criteria.target_leads or settings.target_leads
+    usual = (
+        min(judgements, target * max(1, settings.expected_judgements_per_lead))
+        if target > 0
+        else judgements
+    )
+    expected = fixed + usual * settings.cost_per_llm_call_eur
 
     per_page = settings.scrapegraph_credits_per_page + (
         settings.scrapegraph_stealth_credits if settings.scrapegraph_stealth else 0
@@ -138,6 +160,9 @@ def estimate(
         target_leads=criteria.target_leads or settings.target_leads,
         pages_per_lead=settings.pages_per_lead,
         max_cost_eur=round(cost, 2),
+        expected_cost_eur=round(min(expected, cost), 2),
+        reads_pages=reads_pages,
+        browser_pages=browser_pages,
         max_judgements=judgements,
         warnings=warnings_for(criteria),
     )

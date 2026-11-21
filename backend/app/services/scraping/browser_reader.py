@@ -28,7 +28,7 @@ from contextlib import asynccontextmanager, suppress
 from typing import Any
 
 from app.core.logging import get_logger
-from app.models.common import Platform
+from app.models.common import Platform, SourceKind
 from app.models.scrape import ScrapeOutcome
 from app.models.source import DiscoveredUrl
 from app.services.scraping.base import PROFILE_GONE, ExtractionCost, PageRead
@@ -38,6 +38,8 @@ log = get_logger(__name__)
 
 #: What this reader opens. Everything else goes to the other reader.
 BROWSER_PLATFORMS = frozenset({Platform.INSTAGRAM, Platform.FACEBOOK})
+#: …and the search sources whose pages that means: free per page.
+BROWSER_SOURCES = frozenset({SourceKind.INSTAGRAM_PUBLIC, SourceKind.FACEBOOK_PUBLIC})
 
 #: Pages are read in English, so the markers below are the platform's own words.
 _GONE = re.compile(r"isn.t available|content isn.t available|page not found", re.IGNORECASE)
