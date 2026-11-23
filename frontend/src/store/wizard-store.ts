@@ -25,6 +25,7 @@ import {
   vocabularyEntry,
 } from "@/lib/domain";
 import type {
+  GeoLocation,
   ParsedBrief,
   Requirement,
   RequirementImportance,
@@ -69,7 +70,6 @@ type WizardState = {
   setWorldwide: (worldwide: boolean) => void;
   applyParsed: (parsed: ParsedBrief) => void;
   patchCriteria: (patch: Partial<SearchCriteria>) => void;
-  setLocation: (patch: Partial<SearchCriteria["location"]>) => void;
   /**
    * Where to look: countries (most important first) and a region. One country
    * alone is stored as the single `location.country` the backend has always read.
@@ -113,6 +113,7 @@ export const useWizardStore = create<WizardState>()(
           criteria: {
             ...emptyCriteria(),
             ...parsed.criteria,
+            location: withoutCity(parsed.criteria.location),
             brief: state.brief,
             // Weights are not something a brief talks about; the defaults stand.
             signalWeights: { ...DEFAULT_SIGNAL_WEIGHTS },
@@ -122,11 +123,6 @@ export const useWizardStore = create<WizardState>()(
 
       patchCriteria: (patch) =>
         set((state) => ({ criteria: { ...state.criteria, ...patch } })),
-      setLocation: (patch) =>
-        set((state) => ({
-          criteria: { ...state.criteria, location: { ...state.criteria.location, ...patch } },
-          worldwide: patch.country ? false : state.worldwide,
-        })),
 
       setPlaces: (countries, region) =>
         set((state) => {
@@ -138,9 +134,8 @@ export const useWizardStore = create<WizardState>()(
               countries: single ? [] : countries,
               region,
               location: {
-                ...state.criteria.location,
+                ...withoutCity(state.criteria.location),
                 country: single ? countries[0] : undefined,
-                city: single ? state.criteria.location.city : undefined,
               },
             },
           };
@@ -196,6 +191,7 @@ export const useWizardStore = create<WizardState>()(
           criteria: {
             ...emptyCriteria(),
             ...criteria,
+            location: withoutCity(criteria.location),
             requirements: effectiveRequirements(criteria),
           },
         }),
@@ -238,6 +234,17 @@ function nextRequirementId(list: Requirement[]): string {
 
 function toggle<T>(list: T[], value: T): T[] {
   return list.includes(value) ? list.filter((entry) => entry !== value) : [...list, value];
+}
+
+/**
+ * Searches are by country only. A city the brief named, or one an older search
+ * carried, is dropped here — with no field to show it, it would narrow every
+ * query without the client ever seeing why.
+ */
+function withoutCity(location: GeoLocation = {}): GeoLocation {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { city, ...rest } = location;
+  return rest;
 }
 
 /**

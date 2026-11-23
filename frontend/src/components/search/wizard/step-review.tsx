@@ -2,7 +2,7 @@
 
 import { AlertTriangle, HelpCircle, Info, Minus, Plus, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   BUSINESS_TYPES,
   COUNTRIES,
@@ -12,6 +12,7 @@ import {
   LANGUAGES,
   MAX_REQUIREMENTS,
   REQUIREMENT_IMPORTANCE,
+  vocabularyEntry,
   type VocabularyEntry,
 } from "@/lib/domain";
 import { useNumbers } from "@/lib/format";
@@ -27,6 +28,7 @@ import {
 } from "@/store/wizard-store";
 import { Button } from "@/components/ui/button";
 import { ChipInput } from "@/components/ui/chip-input";
+import { MultiCombobox } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/field";
 import { Eyebrow } from "@/components/ui/misc";
 import { AdvancedSettings } from "@/components/search/wizard/advanced-settings";
@@ -186,7 +188,7 @@ function Gaps({ gaps }: { gaps: WizardGap[] }) {
 function Understood({ gaps }: { gaps: WizardGap[] }) {
   const t = useTranslations("wizard.review");
   const vocabulary = useVocabulary();
-  const { name, setName, criteria, patchCriteria, setLocation } = useWizardStore();
+  const { name, setName, criteria, patchCriteria } = useWizardStore();
 
   const toggleToken = (list: string[], token: string) =>
     list.some((entry) => entry.toLowerCase() === token.toLowerCase())
@@ -252,29 +254,22 @@ function Understood({ gaps }: { gaps: WizardGap[] }) {
         >
           <Places />
         </ReviewField>
-        <ReviewField id="wizard-city" label={t("fieldCity")} hint={t("fieldCityHint")}>
-          <Input
-            value={criteria.location.city ?? ""}
-            onChange={(event) => setLocation({ city: event.target.value || undefined })}
-            placeholder={t("fieldCityPlaceholder")}
-            disabled={!criteria.location.country}
+        <ReviewField
+          id="wizard-languages"
+          label={t("fieldLanguages")}
+          hint={t("fieldLanguagesHint")}
+          question={gaps.includes("languages") ? t("gap.languages.question") : undefined}
+        >
+          <VocabularyPicker
+            entries={LANGUAGES}
+            selected={criteria.languages}
+            label={vocabulary.language}
+            placeholder={t("pickLanguage")}
+            ariaLabel={t("fieldLanguages")}
+            onToggle={(token) => patchCriteria({ languages: toggleToken(criteria.languages, token) })}
           />
         </ReviewField>
       </div>
-
-      <ReviewField
-        id="wizard-languages"
-        label={t("fieldLanguages")}
-        hint={t("fieldLanguagesHint")}
-        question={gaps.includes("languages") ? t("gap.languages.question") : undefined}
-      >
-        <ToggleChips
-          entries={LANGUAGES}
-          selected={criteria.languages}
-          label={vocabulary.language}
-          onToggle={(token) => patchCriteria({ languages: toggleToken(criteria.languages, token) })}
-        />
-      </ReviewField>
 
       <ReviewField id="wizard-negatives" label={t("fieldNegatives")} hint={t("fieldNegativesHint")}>
         <ChipInput
@@ -287,18 +282,22 @@ function Understood({ gaps }: { gaps: WizardGap[] }) {
 
       <div className="grid gap-5 md:grid-cols-2">
         <ReviewField id="wizard-industry" label={t("fieldIndustry")}>
-          <ToggleChips
+          <VocabularyPicker
             entries={INDUSTRIES}
             selected={criteria.industry}
             label={vocabulary.industry}
+            placeholder={t("pickIndustry")}
+            ariaLabel={t("fieldIndustry")}
             onToggle={(token) => patchCriteria({ industry: toggleToken(criteria.industry, token) })}
           />
         </ReviewField>
         <ReviewField id="wizard-business" label={t("fieldBusiness")}>
-          <ToggleChips
+          <VocabularyPicker
             entries={BUSINESS_TYPES}
             selected={criteria.businessTypes}
             label={vocabulary.businessType}
+            placeholder={t("pickBusiness")}
+            ariaLabel={t("fieldBusiness")}
             onToggle={(token) =>
               patchCriteria({ businessTypes: toggleToken(criteria.businessTypes, token) })
             }
@@ -311,71 +310,65 @@ function Understood({ gaps }: { gaps: WizardGap[] }) {
   );
 }
 
+/** The two choices of place that are not a country. Never a country token. */
+const WORLD = "@world";
+const EUROPE = "@europe";
+
 /**
- * Where to look, as chips: any number of countries, "any European country", or
- * the whole world. "Ukraine or Europe" used to become the whole world, because
- * the field only held one country — and the search came back from Indonesia.
+ * Where to look: any number of countries, "any European country", or the whole
+ * world. "Ukraine or Europe" used to become the whole world, because the field
+ * only held one country — and the search came back from Indonesia.
+ *
+ * "Anywhere" excludes the rest; Europe and countries combine. Taking the last
+ * choice away leaves nothing chosen — the open question — rather than quietly
+ * turning into "anywhere", which is what an empty pick meant to the store.
  */
 function Places() {
   const t = useTranslations("wizard.review");
   const vocabulary = useVocabulary();
-  const { criteria, worldwide, setPlaces } = useWizardStore();
+  const { criteria, worldwide, setPlaces, setWorldwide } = useWizardStore();
   const chosen = criteria.location.country
     ? [criteria.location.country]
     : (criteria.countries ?? []);
   const region = criteria.region ?? "";
   const anywhere = worldwide && !chosen.length && !region;
 
-  const toggleCountry = (token: string) =>
-    setPlaces(
-      chosen.includes(token) ? chosen.filter((entry) => entry !== token) : [...chosen, token],
+  const place = (countries: string[], nextRegion: string) => {
+    setPlaces(countries, nextRegion);
+    if (!countries.length && !nextRegion) setWorldwide(false);
+  };
+
+  const toggle = (value: string) => {
+    if (value === WORLD) return anywhere ? setWorldwide(false) : setPlaces([], "");
+    if (value === EUROPE) return place(chosen, region === "europe" ? "" : "europe");
+    place(
+      chosen.includes(value) ? chosen.filter((entry) => entry !== value) : [...chosen, value],
       region,
     );
+  };
 
-  const chip = (on: boolean) =>
-    cn(
-      "rounded-pill border px-2.5 py-1 text-[13px] transition-colors",
-      on
-        ? "border-accent-line bg-accent-soft text-accent"
-        : "border-line text-fg-muted hover:border-line-strong hover:text-fg",
-    );
+  const countries = useMemo(
+    () =>
+      COUNTRIES.map((entry) => ({
+        value: entry.token,
+        label: vocabulary.country(entry.token),
+        keywords: entry.token,
+      })).sort((a, b) => a.label.localeCompare(b.label)),
+    [vocabulary],
+  );
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-1.5">
-        <button
-          type="button"
-          aria-pressed={region === "europe"}
-          onClick={() => setPlaces(chosen, region === "europe" ? "" : "europe")}
-          className={chip(region === "europe")}
-        >
-          {t("regionEurope")}
-        </button>
-        <button
-          type="button"
-          aria-pressed={anywhere}
-          onClick={() => setPlaces([], "")}
-          className={chip(anywhere)}
-        >
-          {t("anywhere")}
-        </button>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {[...COUNTRIES]
-          .sort((a, b) => vocabulary.country(a.token).localeCompare(vocabulary.country(b.token)))
-          .map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              aria-pressed={chosen.includes(entry.token)}
-              onClick={() => toggleCountry(entry.token)}
-              className={chip(chosen.includes(entry.token))}
-            >
-              {vocabulary.country(entry.token)}
-            </button>
-          ))}
-      </div>
-    </div>
+    <MultiCombobox
+      pinned={[
+        { value: WORLD, label: t("anywhere") },
+        { value: EUROPE, label: t("regionEurope") },
+      ]}
+      options={countries}
+      selected={anywhere ? [WORLD] : [...(region === "europe" ? [EUROPE] : []), ...chosen]}
+      onToggle={toggle}
+      placeholder={t("pickCountry")}
+      ariaLabel={t("fieldCountry")}
+    />
   );
 }
 
@@ -414,47 +407,42 @@ function ReviewField({
   );
 }
 
-/** A closed list as buttons: the client picks, and never sees a stored token. */
-function ToggleChips({
+/**
+ * A closed list as a searchable dropdown: the client picks, and never sees a
+ * stored token — but may type one, so "Spanish" still finds "Іспанська".
+ */
+function VocabularyPicker({
   entries,
   selected,
   label,
   onToggle,
+  placeholder,
+  ariaLabel,
 }: {
   entries: VocabularyEntry[];
   selected: string[];
   label: (token: string) => string;
   onToggle: (token: string) => void;
+  placeholder: string;
+  ariaLabel: string;
 }) {
-  const chosen = new Set(selected.map((token) => token.toLowerCase()));
-  // A value from an older search that is not in the list is still shown, so it
-  // can be seen and removed rather than silently kept.
-  const unknown = selected.filter(
-    (token) => !entries.some((entry) => entry.token.toLowerCase() === token.toLowerCase()),
+  const options = useMemo(
+    () => entries.map((entry) => ({ value: entry.token, label: label(entry.token), keywords: entry.token })),
+    [entries, label],
   );
+  // Stored tokens are matched case-insensitively; show them as the list spells
+  // them, so "spanish" from an older search is ticked in the list too. One that
+  // is not in the list at all keeps its own spelling and can still be removed.
+  const canonical = selected.map((token) => vocabularyEntry(entries, token)?.token ?? token);
 
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {[...entries.map((entry) => entry.token), ...unknown].map((token) => {
-        const on = chosen.has(token.toLowerCase());
-        return (
-          <button
-            key={token}
-            type="button"
-            aria-pressed={on}
-            onClick={() => onToggle(token)}
-            className={cn(
-              "rounded-pill border px-2.5 py-1 text-[13px] transition-colors",
-              on
-                ? "border-accent-line bg-accent-soft text-accent"
-                : "border-line text-fg-muted hover:border-line-strong hover:text-fg",
-            )}
-          >
-            {label(token)}
-          </button>
-        );
-      })}
-    </div>
+    <MultiCombobox
+      options={options}
+      selected={canonical}
+      onToggle={onToggle}
+      placeholder={placeholder}
+      ariaLabel={ariaLabel}
+    />
   );
 }
 

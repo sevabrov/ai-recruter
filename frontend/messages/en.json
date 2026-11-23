@@ -25,7 +25,8 @@
     "select": "Select…",
     "dash": "—",
     "loading": "Loading…",
-    "removeValue": "Remove {value}"
+    "removeValue": "Remove {value}",
+    "noMatches": "Nothing found"
   },
   "nav": {
     "brand": "AI Recruiter",
@@ -725,9 +726,6 @@
       "fieldCountry": "Where to look",
       "fieldCountryHint": "Pick several countries or all of Europe. Queries are written for each country, and only people from the chosen places become leads.",
       "anywhere": "Anywhere",
-      "fieldCity": "City",
-      "fieldCityHint": "Only with a single country. Narrows the search sharply.",
-      "fieldCityPlaceholder": "Barcelona",
       "fieldLanguages": "Languages they write in",
       "fieldLanguagesHint": "Queries are written in each of these. For a diaspora it is the people's language, not the country's: Ukrainians in Spain write in Ukrainian and Russian.",
       "fieldNegatives": "Don't show",
@@ -746,8 +744,7 @@
         "activity_must_have": "“Recent activity” as a requirement gates hard and is worth no points: it needs a date the page states, which a search result usually omits.",
         "no_keywords": "No companies or brands, and no words these people use about themselves. Add a job title, a skill or a brand — the way people write it in their profiles.",
         "languages_without_country": "Languages are chosen but no country. Queries in languages other than English are written with the place in that language, so without a country none of them will run.",
-        "threads_empty": "Threads has returned zero results for every query in every measured run, and each one still costs a search call. Unselect it unless you know it works for your market.",
-        "city_narrow": "A city narrows the queries sharply. If {city} returns little, the country alone usually returns much more."
+        "threads_empty": "Threads has returned zero results for every query in every measured run, and each one still costs a search call. Unselect it unless you know it works for your market."
       },
       "fieldRequirements": "What makes a candidate right",
       "fieldRequirementsHint": "Each requirement is checked on the candidate's profile and backed by a quote. You choose how much it matters; the points follow. “Required” drops everyone who does not show it, so one such requirement is best, or none.",
@@ -764,12 +761,16 @@
       },
       "costJudging": "AI candidate judging",
       "costJudgingUpTo": "up to {count, number} candidates",
-      "regionEurope": "Any European country"
+      "regionEurope": "Any European country",
+      "pickCountry": "Add a country or region…",
+      "pickLanguage": "Add a language…",
+      "pickIndustry": "Add an industry…",
+      "pickBusiness": "Add a business type…"
     },
     "editBrief": "Edit description",
     "brief": {
       "label": "Describe the search in your own words",
-      "placeholder": "For example: I'm an HR at an IT company in Warsaw. I'm looking for middle or senior Python developers with Django experience who live in Poland…",
+      "placeholder": "For example: I'm an Oriflame partner in Poland. I'm looking for women already in network marketing — Avon, Farmasi, Amway — who have a team or want to build one. Polish- and Ukrainian-speaking. No shops or beauty salons…",
       "hint": "Write in any language. Brands and the words people use about themselves are kept exactly as you wrote them — those are the search queries.",
       "chars": "{count, number} / {max, number}",
       "useExample": "Use an example",

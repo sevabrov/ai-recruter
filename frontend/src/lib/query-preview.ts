@@ -9,9 +9,7 @@ import { SITE_BY_SOURCE, WEB_SOURCES } from "@/lib/domain";
 import type { SearchCriteria } from "@/services/types";
 
 export function generateQueryPreview(criteria: SearchCriteria, limit = 8): string[] {
-  const country = criteria.location.city
-    ? `${criteria.location.city} ${criteria.location.country ?? ""}`.trim()
-    : (criteria.location.country ?? "");
+  const country = criteria.location.country ?? "";
   const keywords = criteria.keywords.length ? criteria.keywords : ["network marketing"];
   const industries = criteria.industry.length ? criteria.industry : ["beauty"];
   const businessTypes = criteria.businessTypes.length
