@@ -9,7 +9,7 @@ import { useVocabulary } from "@/lib/vocabulary";
 import { Badge, Dot } from "@/components/ui/badge";
 import type { SearchSummary } from "@/services/types";
 
-export function searchHref(search: SearchSummary) {
+export function searchHref(search: Pick<SearchSummary, "id" | "status">) {
   return isSearchRunning(search.status)
     ? `/search/${search.id}/progress`
     : `/search/${search.id}/results`;
