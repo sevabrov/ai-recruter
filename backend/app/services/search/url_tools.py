@@ -417,10 +417,23 @@ def needs_opening(url: DiscoveredUrl) -> bool:
     `instagram.com/p/Cxyz`, `instagram.com/reel/Cxyz`. Opening the post is the only
     way to learn who published it — and the post page says so in its first line.
     """
-    if url.platform is not Platform.INSTAGRAM or url.author_url or author_profile(url):
+    if url.author_url or author_profile(url):
         return False
     segments = [segment for segment in urlparse(url.canonical_url).path.split("/") if segment]
-    return len(segments) == 2 and segments[0].lower() in {"p", "reel", "reels", "tv"}
+    first = segments[0].lower() if segments else ""
+    if url.platform is Platform.INSTAGRAM:
+        return len(segments) == 2 and first in {"p", "reel", "reels", "tv"}
+    if url.platform is Platform.FACEBOOK:
+        # `watch/?v=…`, `reel/…`, `share/p/…`, `photo/?fbid=…`: Facebook redirects
+        # the visitor to the post's full address, which names the account.
+        return first in FACEBOOK_POST_ENTRIES
+    return False
+
+
+#: Facebook addresses of one piece of content that do not name its author.
+FACEBOOK_POST_ENTRIES = frozenset(
+    {"watch", "reel", "share", "photo", "photo.php", "story.php", "permalink.php"}
+)
 
 
 def author_profile(url: DiscoveredUrl) -> str | None:

@@ -141,6 +141,7 @@ export function RejectedTable({
 function Row({ entry, label }: { entry: RejectedCandidate; label: string }) {
   const t = useTranslations("rejected");
   const common = useTranslations("common");
+  const explain = useExplain();
   const meta = rejectionMeta(entry.reason);
 
   return (
@@ -190,9 +191,9 @@ function Row({ entry, label }: { entry: RejectedCandidate; label: string }) {
               <EyeOff className="mt-0.5 size-3 shrink-0 text-warn" />
             </Hint>
           )}
-          {/* Written by the pipeline, so it arrives in the backend's language. */}
-          <span>{entry.detail}</span>
+          <span>{explain(entry)}</span>
         </span>
+        {entry.foundVia?.length ? <FoundVia posts={entry.foundVia} /> : null}
         {entry.authorUrl ? <PostAuthor entry={entry} /> : null}
       </td>
     </tr>
@@ -200,29 +201,93 @@ function Row({ entry, label }: { entry: RejectedCandidate; label: string }) {
 }
 
 /**
- * What became of the person who published a refused post. Without it a post
- * reads as a lost lead, when its author was followed and judged — and the
- * answer is in the other list, or further down this one.
+ * The refusal in the interface language. The pipeline records each refusal as a
+ * code and its facts as well as an English sentence; the sentence is only shown
+ * for refusals recorded before codes existed, or for a code this build does not
+ * know yet.
+ */
+function useExplain() {
+  const why = useTranslations("rejected.why");
+  const countries = useTranslations("domain.country");
+  const languages = useTranslations("domain.language");
+  const platforms = useTranslations("domain.platform");
+  const signals = useTranslations("domain.signal");
+
+  const country = (value: string) => (countries.has(value) ? countries(value) : value);
+  const language = (value: string) => (languages.has(value) ? languages(value) : value);
+  const list = (value: string | undefined, name: (item: string) => string, joiner: string) =>
+    (value ?? "").split("|").filter(Boolean).map(name).join(joiner);
+
+  return (entry: RejectedCandidate) => {
+    const code = entry.detailCode;
+    if (!code || !why.has(code)) return entry.detail;
+
+    const params = entry.detailParams ?? {};
+    const values: Record<string, string> = {
+      ...params,
+      platform:
+        params.platform && platforms.has(params.platform)
+          ? platforms(params.platform)
+          : (params.platform ?? ""),
+      found:
+        code === "wrong_language"
+          ? list(params.found, language, ", ")
+          : list(params.found, country, ", "),
+      wanted: list(params.wanted, language, " / "),
+      place: list(params.place, country, " / "),
+      signals: (entry.missing ?? [])
+        .map((signal) =>
+          signal.id === "any"
+            ? why("anyRequirement")
+            : signal.label || (signals.has(signal.id) ? signals(signal.id) : signal.id),
+        )
+        .join(", "),
+      kind: params.kind ?? "other",
+    };
+    const sentence = why(code, values);
+    return params.unopened ? `${sentence} ${why("unopened")}` : sentence;
+  };
+}
+
+/** The posts a refused person was found through: their own words, one click away. */
+function FoundVia({ posts }: { posts: string[] }) {
+  const t = useTranslations("rejected");
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+      <span>{t("foundVia", { count: posts.length })}</span>
+      {posts.map((url, index) => (
+        <a
+          key={url}
+          href={url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="font-medium text-fg hover:text-accent"
+        >
+          {t("post", { index: index + 1 })}
+        </a>
+      ))}
+    </p>
+  );
+}
+
+/**
+ * The author of a post that stayed in this list: found, but not checked — the
+ * page would not open, or the run stopped first. A post whose author was judged
+ * is not listed here at all; it is on the author's row, or among a lead's sources.
  */
 function PostAuthor({ entry }: { entry: RejectedCandidate }) {
   const t = useTranslations("rejected");
   const reasons = useTranslations("domain.rejectionReason");
   const outcome = entry.authorOutcome;
-
-  if (!outcome) {
-    return <p className="mt-1.5 text-fg-faint">{t("authorNotJudged")}</p>;
-  }
-
-  const verdict =
-    outcome === "lead"
-      ? t("authorBecameLead")
-      : t("authorRefused", {
-          reason: isKnownRejectionReason(outcome) ? reasons(`${outcome}.label`) : outcome,
-        });
+  const verdict = !outcome
+    ? t("authorNotJudged")
+    : isKnownRejectionReason(outcome)
+      ? reasons(`${outcome}.label`)
+      : outcome;
 
   return (
     <p className="mt-1.5 flex flex-wrap items-center gap-1">
-      <span>{t("authorChecked")}</span>
+      <span>{t("postAuthor")}</span>
       <a
         href={entry.authorUrl ?? undefined}
         target="_blank"
@@ -232,7 +297,7 @@ function PostAuthor({ entry }: { entry: RejectedCandidate }) {
         {entry.authorName || entry.authorUrl}
       </a>
       <span>—</span>
-      <span className={outcome === "lead" ? "font-medium text-accent" : undefined}>{verdict}</span>
+      <span className="text-fg-faint">{verdict}</span>
     </p>
   );
 }

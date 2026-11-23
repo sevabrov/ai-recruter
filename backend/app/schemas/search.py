@@ -123,6 +123,7 @@ class SearchProgressSchema(CamelModel):
     rejected_country: int = 0
     rejected_language: int = 0
     rejected_signals: int = 0
+    posts_merged: int = 0
     percent: int
     stage: SearchStage
 
@@ -178,6 +179,13 @@ class SearchOut(SearchSummaryOut):
     error: str | None = None
 
 
+class MissingSignalOut(CamelModel):
+    """A required signal a judged candidate did not show."""
+
+    id: str
+    label: str = ""
+
+
 class RejectedCandidateOut(CamelModel):
     """One candidate the run turned away (`GET /searches/:id/rejected`)."""
 
@@ -186,6 +194,10 @@ class RejectedCandidateOut(CamelModel):
     platform: Platform
     reason: RejectionReason
     detail: str
+    #: `detail` as a code and its facts, for the interface's language. Empty on
+    #: refusals recorded before codes existed.
+    detail_code: str = ""
+    detail_params: dict[str, str] = Field(default_factory=dict)
     #: Whether the page itself was opened. False means the refusal rests on the
     #: search result alone, which is where a missed lead would be.
     read: bool
@@ -201,6 +213,10 @@ class RejectedCandidateOut(CamelModel):
     author_url: str | None = None
     author_name: str = ""
     author_outcome: str | None = None
+    #: For `missing_signals`: the required signals that were not shown.
+    missing: list[MissingSignalOut] = Field(default_factory=list)
+    #: The posts this candidate was found through.
+    found_via: list[str] = Field(default_factory=list)
     created_at: datetime
 
 

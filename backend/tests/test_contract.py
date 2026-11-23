@@ -69,6 +69,7 @@ PROGRESS_KEYS = {
     "rejectedCountry",
     "rejectedLanguage",
     "rejectedSignals",
+    "postsMerged",
     "percent",
     "stage",
 }

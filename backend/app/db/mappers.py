@@ -79,6 +79,8 @@ def rejection_row(rejected: RejectedCandidate) -> SearchRejectionRow:
         platform=rejected.platform.value,
         reason=rejected.reason.value,
         detail=rejected.detail,
+        detail_code=rejected.detail_code,
+        detail_params=dict(rejected.detail_params),
         read=rejected.read,
         name=rejected.name,
         title=rejected.title,
@@ -88,6 +90,8 @@ def rejection_row(rejected: RejectedCandidate) -> SearchRejectionRow:
         author_url=rejected.author_url,
         author_name=rejected.author_name,
         author_outcome=rejected.author_outcome,
+        missing=[entry.model_dump(mode="json") for entry in rejected.missing],
+        found_via=list(rejected.found_via),
         created_at=rejected.created_at,
     )
 
@@ -103,6 +107,8 @@ def to_rejection(row: SearchRejectionRow) -> RejectedCandidate:
             "platform": row.platform,
             "reason": row.reason,
             "detail": row.detail,
+            "detail_code": row.detail_code or "",
+            "detail_params": row.detail_params or {},
             "read": row.read,
             "name": row.name,
             "title": row.title,
@@ -112,6 +118,8 @@ def to_rejection(row: SearchRejectionRow) -> RejectedCandidate:
             "author_url": row.author_url,
             "author_name": row.author_name or "",
             "author_outcome": row.author_outcome,
+            "missing": row.missing or [],
+            "found_via": row.found_via or [],
             "created_at": row.created_at,
         }
     )

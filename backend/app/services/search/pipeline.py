@@ -32,16 +32,20 @@ from app.core.retry import retry_async
 from app.db.repository import Repository
 from app.models.common import (
     HIGH_QUALITY_THRESHOLD,
-    Platform,
     SearchStage,
     SearchStatus,
     SignalType,
 )
 from app.models.lead import Lead, LeadSignal, ScoreComponent
 from app.models.profile import ExtractedProfile
-from app.models.rejection import RejectedCandidate, RejectionReason
+from app.models.rejection import (
+    ANY_REQUIREMENT,
+    MissingSignal,
+    RejectedCandidate,
+    RejectionReason,
+)
 from app.models.search import GeneratedQuery, Search, SearchProgress, SearchUsage
-from app.models.source import DiscoveredUrl, ProviderResult, UrlKind
+from app.models.source import DiscoveredUrl, LeadSourceKind, ProviderResult, UrlKind
 from app.services.extraction import personhood
 from app.services.extraction.posts import with_posts
 from app.services.extraction.signal_detector import (
@@ -60,7 +64,7 @@ from app.services.scraping.base import (
 )
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
 from app.services.search.deduplicator import deduplicate
-from app.services.search.eligibility import Refusal, admit
+from app.services.search.eligibility import Refusal, admit, country_param, place_param
 from app.services.search.estimate import judging_budget_for, page_budget_for
 from app.services.search.markets import country_code, iso_code
 from app.services.search.prospects import Prospect, rank
@@ -410,20 +414,24 @@ class SearchPipeline:
 
     async def _open_posts(self, search: Search, urls: list[DiscoveredUrl]) -> list[DiscoveredUrl]:
         """
-        Learn who published the posts that name nobody: `instagram.com/p/Cxyz`.
+        Learn who published the posts that name nobody: `instagram.com/p/Cxyz`,
+        `facebook.com/reel/…`, `facebook.com/watch/?v=…`.
 
         Seven of 34 refused addresses in one run were posts like that — "Czy
         marketing sieciowy to piramida finansowa?" — and every one was thrown away
         unread, while the post page names its author (and its date) in its first
-        line. Our browser opens it for nothing; the author then becomes a candidate
-        like any other post's author, with the post attached as evidence.
+        line (Facebook sends the visitor on to `{account}/videos/…`). Our browser
+        opens it for nothing; the author then becomes a candidate like any other
+        post's author, with the post attached as evidence.
         """
         if self.post_reader is None:
             return urls
         allowed = allowed_platforms(search.criteria.sources)
-        if allowed is not None and Platform.INSTAGRAM not in allowed:
-            return urls
-        todo = [url for url in urls if needs_opening(url)][:MAX_POSTS_OPENED]
+        todo = [
+            url
+            for url in urls
+            if needs_opening(url) and (allowed is None or url.platform in allowed)
+        ][:MAX_POSTS_OPENED]
         if not todo:
             return urls
 
@@ -458,12 +466,15 @@ class SearchPipeline:
                 continue
             author = author_profile(url)
             followed = canonicalize(author) if author and canonicalize(author) in kept else None
+            detail, code, params = _why_not_a_profile(url, kept)
             self._refuse(
                 search,
                 url,
                 RejectionReason.NOT_A_PROFILE,
-                _why_not_a_profile(url, kept),
+                detail,
                 author_url=followed,
+                code=code,
+                params=params,
             )
         for url in off_source:
             self._refuse(
@@ -472,6 +483,8 @@ class SearchPipeline:
                 RejectionReason.OFF_SOURCE,
                 f"Found on {url.platform.value}, which is not among this search's "
                 "sources — so it was never opened and nothing was paid for it.",
+                code="off_source",
+                params={"platform": url.platform.value},
             )
 
     # --------------------------------------------------------------- stage 4
@@ -677,6 +690,8 @@ class SearchPipeline:
                 f"The search already had the {target} leads it was asked for and "
                 "stopped here. This candidate was never opened or paid for.",
                 promise=prospect.promise,
+                code="not_examined",
+                params={"target": str(target)},
             )
 
         spent = cost_of(self.extractor)
@@ -734,6 +749,7 @@ class SearchPipeline:
                     "The reader failed on this address, so nothing about this "
                     "person was ever seen.",
                     promise=prospect.promise,
+                    code="unreadable",
                 )
                 continue
 
@@ -755,6 +771,7 @@ class SearchPipeline:
                 else "The page would not open, and the search result on its own named nobody.",
                 promise=prospect.promise,
                 read=read,
+                code="page_no_person" if read else "unopened_no_person",
             )
         return fresh
 
@@ -782,6 +799,8 @@ class SearchPipeline:
             f"{verdict.detail} Decided from the search result alone, so the page was "
             "never opened or paid for.",
             promise=prospect.promise,
+            code=verdict.code,
+            params={**verdict.params, "unopened": "1"},
         )
         log.info(
             "candidate_prescreened",
@@ -879,6 +898,8 @@ class SearchPipeline:
                 RejectionReason(str(eligible.refusal)),
                 eligible.detail,
                 harvest.promise.get(profile.canonical_url),
+                code=eligible.code,
+                params=eligible.params,
             )
             log.info(
                 "candidate_refused",
@@ -901,6 +922,8 @@ class SearchPipeline:
                     RejectionReason.NOT_A_PERSON,
                     judgement.reason or "This page belongs to an organisation, not a person.",
                     harvest.promise.get(profile.canonical_url),
+                    code="judge_not_person",
+                    params={"kind": judgement.not_person_kind or "other"},
                 )
                 return
 
@@ -919,12 +942,18 @@ class SearchPipeline:
                     f"“{judgement.country_evidence}” places this profile in "
                     f"{profile.location.country}, not {search.criteria.place_label()}.",
                     harvest.promise.get(profile.canonical_url),
+                    code="judge_wrong_country",
+                    params={
+                        "evidence": judgement.country_evidence,
+                        "found": country_param(profile.location.country),
+                        "place": place_param(search.criteria),
+                    },
                 )
                 return
 
             detected = {str(signal.type) for signal in signals if signal.detected}
             missing = [
-                requirement.label or requirement.id
+                MissingSignal(id=requirement.id, label=requirement.label)
                 for requirement in required
                 if requirement.id not in detected
             ]
@@ -943,15 +972,23 @@ class SearchPipeline:
                 and judged
                 and not any(requirement.id in detected for requirement in judged)
             ):
-                missing = ["any of the search's requirements"]
+                missing = [MissingSignal(id=ANY_REQUIREMENT)]
             if missing:
                 harvest.refusals[Refusal.MISSING_SIGNALS] += 1
+                named = ", ".join(
+                    "any of the search's requirements"
+                    if entry.id == ANY_REQUIREMENT
+                    else entry.label or entry.id
+                    for entry in missing
+                )
                 self._refuse_profile(
                     search,
                     profile,
                     RejectionReason.MISSING_SIGNALS,
-                    f"Nothing on this profile showed: {', '.join(missing)}.",
+                    f"Nothing on this profile showed: {named}.",
                     harvest.promise.get(profile.canonical_url),
+                    missing=missing,
+                    code="missing_signals",
                 )
                 return
 
@@ -1000,11 +1037,15 @@ class SearchPipeline:
         promise: int | None = None,
         read: bool = False,
         author_url: str | None = None,
+        code: str = "",
+        params: dict[str, str] | None = None,
     ) -> None:
         """Record a refused address — one the run never got a profile out of."""
         self._record(
             RejectedCandidate(
                 author_url=author_url,
+                detail_code=code,
+                detail_params=params or {},
                 id=_rejection_id(search.id, url.canonical_url),
                 user_id=search.user_id,
                 search_id=search.id,
@@ -1029,9 +1070,16 @@ class SearchPipeline:
         reason: RejectionReason,
         detail: str,
         promise: int | None = None,
+        *,
+        missing: list[MissingSignal] | None = None,
+        code: str = "",
+        params: dict[str, str] | None = None,
     ) -> None:
         """Record a refused person — one the run did read something about."""
-        source = profile.sources[0] if profile.sources else None
+        source = next(
+            (source for source in profile.sources if source.kind is not LeadSourceKind.POST),
+            profile.sources[0] if profile.sources else None,
+        )
         self._record(
             RejectedCandidate(
                 id=_rejection_id(search.id, profile.canonical_url),
@@ -1047,6 +1095,12 @@ class SearchPipeline:
                 title=source.title if source else (profile.headline or ""),
                 snippet=source.snippet if source else (profile.summary or ""),
                 promise=promise,
+                missing=missing or [],
+                detail_code=code,
+                detail_params=params or {},
+                found_via=[
+                    source.url for source in profile.sources if source.kind is LeadSourceKind.POST
+                ],
             )
         )
 
@@ -1079,7 +1133,9 @@ class SearchPipeline:
         await self.repo.add_leads(leads)
         # The result is both lists. Storing only the leads left the client with a
         # count of refusals and no way to check a single one of them.
-        await self.repo.add_rejections(_with_author_outcomes(list(self._rejected.values()), leads))
+        refused, merged = _settle_posts(list(self._rejected.values()), leads)
+        await self.repo.add_rejections(refused)
+        self._progress.posts_merged = merged
         high_quality = sum(1 for lead in leads if lead.score >= HIGH_QUALITY_THRESHOLD)
         self._progress.stage = SearchStage.DONE
         self._progress.percent = 100
@@ -1179,57 +1235,111 @@ class SearchPipeline:
             await asyncio.sleep(delay / 1000)
 
 
-def _why_not_a_profile(url: DiscoveredUrl, kept: set[str]) -> str:
+def _why_not_a_profile(url: DiscoveredUrl, kept: set[str]) -> tuple[str, str, dict[str, str]]:
     """
     Why this address is not a person, said so the client can check it.
 
     A post gets its own sentence, and it matters: `instagram.com/anna/reel/C3Z…`
     appears in the refused list *and* its author appears in the leads. Without the
     sentence the first reads as a person thrown away.
+
+    The sentence comes with its code and facts (`RejectedCandidate.detail_code`),
+    so the interface can say it in the client's language.
     """
     profile = author_profile(url)
     if profile is not None and canonicalize(profile) in kept:
+        author = canonicalize(profile)
         return (
             "A post rather than a profile — the account that published it "
-            f"({canonicalize(profile)}) was looked at instead."
+            f"({author}) was looked at instead.",
+            "post_author_followed",
+            {"author": author},
         )
-    return WHY_NOT_A_PROFILE.get(url.kind, "Not a person's page.")
+    detail = WHY_NOT_A_PROFILE.get(url.kind, "Not a person's page.")
+    code = f"not_profile_{url.kind.value}" if url.kind in WHY_NOT_A_PROFILE else "not_profile"
+    return detail, code, {}
 
 
-#: `RejectedCandidate.author_outcome` for an author who became a lead.
-AUTHOR_BECAME_LEAD = "lead"
+#: Refusals that are a verdict about the author: their page (or, for the country
+#: and language gates, what was known about them) was judged.
+JUDGED_REASONS = frozenset(
+    {
+        RejectionReason.MISSING_SIGNALS,
+        RejectionReason.WRONG_COUNTRY,
+        RejectionReason.WRONG_LANGUAGE,
+    }
+)
 
 
-def _with_author_outcomes(
+def _settle_posts(
     rejected: list[RejectedCandidate], leads: list[Lead]
-) -> list[RejectedCandidate]:
+) -> tuple[list[RejectedCandidate], int]:
     """
-    Tell each refused post what became of the person who published it.
+    Decide where each refused post belongs, now that its author has been judged.
 
-    "Not a profile" next to a post reads as a person thrown away. Most of the time
-    the author was followed and judged — and the answer is in the other list, or
-    further down this one. Said on the post's row, the client does not have to go
-    looking for it.
+    A post is never the candidate — its author is. So:
+
+    * the author became a lead → the post is one of the lead's sources and is not
+      listed as a refusal at all;
+    * the author was judged and refused → the post moves onto the author's row
+      (`found_via`), under the reason the author was refused for;
+    * the author could not be checked — the page would not open, the run stopped
+      first, or no author could be named → the post stays where it was, saying
+      what is known about its author.
+
+    Returns the refusals to store and how many posts were folded into an author.
     """
     lead_by_url = {url: lead for lead in leads for url in lead.merged_urls}
     refused_by_url = {entry.canonical_url: entry for entry in rejected}
-    updated: list[RejectedCandidate] = []
+    folded: dict[str, list[str]] = {}
+    kept: list[RejectedCandidate] = []
+    merged = 0
+
     for entry in rejected:
-        if not entry.author_url:
-            updated.append(entry)
+        author_url = entry.author_url
+        if not author_url:
+            kept.append(entry)
             continue
-        lead = lead_by_url.get(entry.author_url)
-        author = refused_by_url.get(entry.author_url)
-        if lead is not None:
-            entry = entry.model_copy(
-                update={"author_outcome": AUTHOR_BECAME_LEAD, "author_name": lead.name}
-            )
-        elif author is not None:
-            entry = entry.model_copy(
-                update={"author_outcome": author.reason.value, "author_name": author.name}
-            )
-        updated.append(entry)
-    return updated
+        if author_url in lead_by_url:
+            merged += 1
+            continue
+        author = refused_by_url.get(author_url)
+        if author is not None and _was_judged(author):
+            folded.setdefault(author_url, []).append(entry.url)
+            merged += 1
+            continue
+        entry = entry.model_copy(
+            update={
+                "author_outcome": author.reason.value if author else None,
+                "author_name": author.name if author else "",
+                "detail": "A post rather than a profile. The account that published it "
+                f"({author_url}) could not be checked, so the post stays here.",
+                "detail_code": "post_author_unchecked",
+                "detail_params": {"author": author_url},
+            }
+        )
+        kept.append(entry)
+
+    settled = [
+        entry.model_copy(
+            update={"found_via": _unique([*entry.found_via, *folded[entry.canonical_url]])}
+        )
+        if folded.get(entry.canonical_url)
+        else entry
+        for entry in kept
+    ]
+    return settled, merged
+
+
+def _was_judged(entry: RejectedCandidate) -> bool:
+    """Whether this refusal is a verdict about the person rather than about the reader."""
+    if entry.reason in JUDGED_REASONS:
+        return True
+    return entry.reason is RejectionReason.NOT_A_PERSON and entry.read
+
+
+def _unique(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(values))
 
 
 def _title_name(title: str) -> str:

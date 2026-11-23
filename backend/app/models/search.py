@@ -303,6 +303,9 @@ class SearchProgress(BaseModel):
     rejected_country: int = 0
     rejected_language: int = 0
     rejected_signals: int = 0
+    #: Posts whose author was judged: they live on the author's row (or lead), not
+    #: as refusals of their own — so discovery's arithmetic has to count them.
+    posts_merged: int = 0
     percent: int = 0
     stage: SearchStage = SearchStage.QUEUED
 

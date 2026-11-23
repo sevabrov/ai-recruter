@@ -51,6 +51,9 @@ class Judgement:
     #: than one person's own; None when nobody could tell (the keyword judge).
     is_person: bool | None = None
     reason: str = ""
+    #: What the page is instead of a person, as one of `NOT_PERSON_KINDS` — the
+    #: reason in a form the interface can put in the client's language.
+    not_person_kind: str = ""
     #: Where the judge read that the person is, when the text says so in a form
     #: code cannot read ("Мордовия", "Мартук", a flag) — with the quote that says it.
     country: str | None = None
@@ -394,6 +397,25 @@ PRESET_DESCRIPTIONS: dict[str, str] = {
     SignalType.ACTIVITY: "Visibly active recently: a post or update dated within the last 30 days.",
 }
 
+#: What a page that is not one person's can be, for `not_person_kind`. Kept short
+#: and stable: the interface has a sentence for each, in every language it speaks.
+NOT_PERSON_KINDS = (
+    "company",
+    "shop",
+    "brand",
+    "media",
+    "community",
+    "school",
+    "job_posting",
+    "other",
+)
+
+
+def _kind(value: Any) -> str:
+    kind = str(value or "")
+    return kind if kind in NOT_PERSON_KINDS else ""
+
+
 JUDGE_PROMPT = """\
 You check one candidate's public profile text against a recruiter's requirements.
 
@@ -414,7 +436,9 @@ only when the text states them.
 
 Also decide is_person: true only if this is one individual human's own profile; \
 false for a company, brand, shop, school, clinic, agency, community, group or any \
-organisation's page (give the reason in not_person_reason, in English, else ""). An \
+organisation's page (give the reason in not_person_reason, in English, else "", and \
+the kind of page in not_person_kind: company, shop, brand, media, community, school, \
+job_posting or other — "other" when it is a person). An \
 account run by one person under a business-like name is still a person when it \
 speaks as them or names them ("Робота_МЛМ_Світлана", "Наставник сетевиков", "Anna | \
 beauty coach"); judge by who is speaking, not by how the account is titled. A \
@@ -514,7 +538,7 @@ class LlmSignalDetector(SignalDetector):
         base: list[LeadSignal],
         asked: list[Requirement],
         answers: dict[str, dict[str, Any]],
-        person: tuple[bool | None, str, str, str],
+        person: tuple[bool | None, str, str, str, str],
         text: str,
     ) -> Judgement:
         by_id = {requirement.id: requirement for requirement in asked}
@@ -534,13 +558,14 @@ class LlmSignalDetector(SignalDetector):
                 judged.append(
                     self._verdict(empty, requirement, answers[requirement.id], text, profile)
                 )
-        is_person, reason, country, said = person
+        is_person, reason, kind, country, said = person
         # A place counts only with the words that say it, checked like any quote.
         placed = bool(country) and quoted(said, text)
         return Judgement(
             judged,
             is_person=is_person,
             reason=reason,
+            not_person_kind=kind,
             country=country if placed else None,
             country_evidence=said if placed else "",
         )
@@ -579,7 +604,7 @@ class LlmSignalDetector(SignalDetector):
 
     async def _ask(
         self, texts: list[str], requirements: list[Requirement]
-    ) -> dict[int, tuple[dict[str, dict[str, Any]], tuple[bool | None, str, str, str]]]:
+    ) -> dict[int, tuple[dict[str, dict[str, Any]], tuple[bool | None, str, str, str, str]]]:
         """One call for a batch; the answers keyed by the candidate's position."""
         listing = "\n".join(
             f"- id={requirement.id}: {requirement.label or requirement.id}"
@@ -614,6 +639,7 @@ class LlmSignalDetector(SignalDetector):
                             "candidate": {"type": "integer", "enum": numbers},
                             "is_person": {"type": "boolean"},
                             "not_person_reason": {"type": "string"},
+                            "not_person_kind": {"type": "string", "enum": list(NOT_PERSON_KINDS)},
                             "country": {"type": "string"},
                             "country_evidence": {"type": "string"},
                             "results": {"type": "array", "items": result},
@@ -622,6 +648,7 @@ class LlmSignalDetector(SignalDetector):
                             "candidate",
                             "is_person",
                             "not_person_reason",
+                            "not_person_kind",
                             "country",
                             "country_evidence",
                             "results",
@@ -664,7 +691,9 @@ class LlmSignalDetector(SignalDetector):
         if not isinstance(candidates, list):
             raise ProviderError("The judge returned no candidates", provider=self.name)
 
-        replies: dict[int, tuple[dict[str, dict[str, Any]], tuple[bool | None, str, str, str]]] = {}
+        replies: dict[
+            int, tuple[dict[str, dict[str, Any]], tuple[bool | None, str, str, str, str]]
+        ] = {}
         for entry in candidates:
             if not isinstance(entry, dict) or entry.get("candidate") not in numbers:
                 continue
@@ -680,6 +709,7 @@ class LlmSignalDetector(SignalDetector):
                 (
                     person if isinstance(person, bool) else None,
                     " ".join(str(entry.get("not_person_reason") or "").split())[:200],
+                    _kind(entry.get("not_person_kind")),
                     " ".join(str(entry.get("country") or "").split())[:60],
                     " ".join(str(entry.get("country_evidence") or "").split())[:200],
                 ),

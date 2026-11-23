@@ -207,6 +207,9 @@ class SearchRejectionRow(Base):
 
     reason: Mapped[str] = mapped_column(String(32), nullable=False)
     detail: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    #: The explanation as a code and its facts, for the interface's own language.
+    detail_code: Mapped[str] = mapped_column(String(48), nullable=False, default="")
+    detail_params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, default=dict)
     #: Whether the page itself was opened, as opposed to only its search result.
     read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
@@ -220,6 +223,10 @@ class SearchRejectionRow(Base):
     author_url: Mapped[str | None] = mapped_column(Text)
     author_name: Mapped[str] = mapped_column(String(300), nullable=False, default="")
     author_outcome: Mapped[str | None] = mapped_column(String(32))
+    #: Which required signals a judged candidate did not show, and the posts the
+    #: candidate was found through. Small lists read with the row, never queried.
+    missing: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, default=list)
+    found_via: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 

@@ -149,6 +149,8 @@ export interface SearchProgress {
   rejectedCountry?: number;
   rejectedLanguage?: number;
   rejectedSignals?: number;
+  /** Posts whose author was judged: counted on the author's row or lead, not as refusals. */
+  postsMerged?: number;
   /** 0–100, backend-owned once Phase 7 lands. */
   percent: number;
   stage: SearchStage;
@@ -303,8 +305,14 @@ export interface RejectedCandidate {
   url: string;
   platform: Platform;
   reason: RejectionReason;
-  /** The sentence that explains this refusal, written where it happened. */
+  /** The sentence that explains this refusal, written where it happened (English). */
   detail: string;
+  /**
+   * The same explanation as a code and its facts, so it can be shown in the
+   * interface language (`rejected.why.<code>`). Empty on older refusals.
+   */
+  detailCode?: string;
+  detailParams?: Record<string, string>;
   /**
    * Whether the page itself was opened. False means the verdict rests on a
    * two-line search result — which is where a missed lead would be hiding.
@@ -322,8 +330,12 @@ export interface RejectedCandidate {
    */
   authorUrl?: string | null;
   authorName?: string;
-  /** What became of the author: "lead", or the reason they were refused. */
-  authorOutcome?: "lead" | RejectionReason | null;
+  /** What became of an author who could not be checked: the reason, if any. */
+  authorOutcome?: RejectionReason | null;
+  /** For `missing_signals`: the required signals that were not shown. */
+  missing?: { id: string; label?: string }[];
+  /** The posts this candidate was found through. */
+  foundVia?: string[];
   createdAt: string;
 }
 

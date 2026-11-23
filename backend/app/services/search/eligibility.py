@@ -34,12 +34,13 @@ leads instead of forty has to be able to say why, or the client is left guessing
 whether the tool is strict or broken.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 from app.models.profile import ExtractedProfile
 from app.models.search import SearchCriteria
 from app.services.extraction import personhood
+from app.services.search.markets import iso_code, language_code
 
 
 class Refusal(StrEnum):
@@ -61,6 +62,9 @@ class Eligibility:
     admitted: bool
     refusal: Refusal | None = None
     detail: str = ""
+    #: The refusal as a code and its facts, for the interface's own language.
+    code: str = ""
+    params: dict[str, str] = field(default_factory=dict)
 
 
 ADMITTED = Eligibility(True)
@@ -70,7 +74,9 @@ def admit(profile: ExtractedProfile, criteria: SearchCriteria) -> Eligibility:
     """Whether this profile may become a lead, and if not, the reason in words."""
     verdict = personhood.assess(profile)
     if not verdict.is_person:
-        return Eligibility(False, Refusal.NOT_A_PERSON, verdict.detail)
+        return Eligibility(
+            False, Refusal.NOT_A_PERSON, verdict.detail, verdict.code, verdict.params
+        )
 
     place = criteria.place_label()
     if criteria.allowed_countries() and criteria.require_location:
@@ -82,6 +88,8 @@ def admit(profile: ExtractedProfile, criteria: SearchCriteria) -> Eligibility:
                 False,
                 Refusal.WRONG_COUNTRY,
                 f"This profile is in {found}, not {place}.",
+                "wrong_country",
+                {"found": country_param(found), "place": place_param(criteria)},
             )
         if not found and criteria.require_confirmed_location:
             return Eligibility(
@@ -89,6 +97,8 @@ def admit(profile: ExtractedProfile, criteria: SearchCriteria) -> Eligibility:
                 Refusal.WRONG_COUNTRY,
                 f"Nothing on this profile confirms {place}, and this search asked "
                 "for confirmed locations only.",
+                "country_unconfirmed",
+                {"place": place_param(criteria)},
             )
 
     wanted = [language.strip() for language in criteria.languages if language.strip()]
@@ -100,6 +110,11 @@ def admit(profile: ExtractedProfile, criteria: SearchCriteria) -> Eligibility:
                 Refusal.WRONG_LANGUAGE,
                 f"This profile publishes in {', '.join(sorted(profile.languages))}, "
                 f"not in {' / '.join(wanted)}.",
+                "wrong_language",
+                {
+                    "found": languages_param(sorted(profile.languages)),
+                    "wanted": languages_param(wanted),
+                },
             )
         if not spoken and criteria.require_confirmed_language:
             return Eligibility(
@@ -107,6 +122,26 @@ def admit(profile: ExtractedProfile, criteria: SearchCriteria) -> Eligibility:
                 Refusal.WRONG_LANGUAGE,
                 "Nothing on this profile shows which language the person publishes "
                 "in, and this search asked for confirmed languages only.",
+                "language_unconfirmed",
             )
 
     return ADMITTED
+
+
+def country_param(country: str | None) -> str:
+    """A country as the interface can name it: its ISO code, else as written."""
+    return iso_code(country) or (country or "")
+
+
+def place_param(criteria: SearchCriteria) -> str:
+    """The asked-for places, each as `country_param`, joined by "|"."""
+    names = [criteria.location.country] if criteria.location.country else list(criteria.countries)
+    places = [country_param(name) for name in names if name]
+    if criteria.region:
+        places.append(criteria.region.capitalize())
+    return "|".join(places)
+
+
+def languages_param(languages: list[str]) -> str:
+    """Languages as ISO codes where known, joined by "|"."""
+    return "|".join(language_code(name) or name for name in languages if name)

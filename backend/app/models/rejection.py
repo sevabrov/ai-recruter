@@ -63,6 +63,21 @@ UNSEEN_REASONS = frozenset(
 )
 
 
+class MissingSignal(BaseModel):
+    """A required signal a judged candidate did not show."""
+
+    #: The requirement's id: a built-in signal ("mlm", "activity"), the search's
+    #: own ("r1"), or "any" — none of the search's requirements was met.
+    id: str
+    #: The search's own wording, when it has one. Empty for a built-in signal: the
+    #: interface names those in its own language.
+    label: str = ""
+
+
+#: `MissingSignal.id` when the candidate met none of the search's requirements.
+ANY_REQUIREMENT = "any"
+
+
 class RejectedCandidate(BaseModel):
     """One candidate that did not become a lead, and why."""
 
@@ -78,6 +93,11 @@ class RejectedCandidate(BaseModel):
     #: The sentence that explains this particular refusal. Written where the
     #: refusal happens, so it can name the country, the language or the signal.
     detail: str = ""
+    #: The same explanation as a code and its facts (`personhood`, `eligibility`,
+    #: the pipeline), so the interface can say it in the client's language. Empty
+    #: on refusals recorded before codes existed: `detail` is then all there is.
+    detail_code: str = ""
+    detail_params: dict[str, str] = Field(default_factory=dict)
     #: Whether the page itself was opened. False means the verdict rests on the
     #: search result alone — the single most useful thing to know about a refusal.
     read: bool = False
@@ -102,5 +122,12 @@ class RejectedCandidate(BaseModel):
     #: refused for. None when the author was never judged (not reached, or no
     #: author could be named).
     author_outcome: str | None = None
+
+    #: For `missing_signals`: which required signals were not shown — what the
+    #: refusal is *about*, which the reason alone does not say.
+    missing: list[MissingSignal] = Field(default_factory=list)
+    #: The posts this person was found through. A post whose author was judged is
+    #: not listed on its own: it is this row's evidence, not a second candidate.
+    found_via: list[str] = Field(default_factory=list)
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

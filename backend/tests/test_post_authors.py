@@ -29,7 +29,7 @@ from app.services.extraction.posts import POST_ACTIVITY_CONFIDENCE, with_posts
 from app.services.extraction.signal_detector import LlmSignalDetector, profile_text
 from app.services.scraping.browser_reader import parse_post
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
-from app.services.search.pipeline import SearchPipeline, _with_author_outcomes
+from app.services.search.pipeline import SearchPipeline, _settle_posts
 from app.services.search.url_tools import (
     attach_posts,
     author_profile,
@@ -308,12 +308,8 @@ def _refused(url: str, reason: RejectionReason, **extra) -> RejectedCandidate:
     )
 
 
-def test_a_refused_post_says_what_became_of_its_author():
-    post_a = _refused("p/a", RejectionReason.NOT_A_PROFILE, author_url="https://instagram.com/a")
-    post_b = _refused("p/b", RejectionReason.NOT_A_PROFILE, author_url="https://instagram.com/b")
-    post_c = _refused("p/c", RejectionReason.NOT_A_PROFILE, author_url="https://instagram.com/c")
-    author_b = _refused("https://instagram.com/b", RejectionReason.WRONG_COUNTRY, name="Yana")
-    lead = Lead(
+def _lead(url: str) -> Lead:
+    return Lead(
         id="l",
         user_id="u",
         search_id="s",
@@ -322,14 +318,132 @@ def test_a_refused_post_says_what_became_of_its_author():
         headline="",
         score=70,
         summary="",
-        merged_urls=["https://instagram.com/a"],
+        merged_urls=[url],
     )
 
-    out = {
-        entry.id: entry
-        for entry in _with_author_outcomes([post_a, post_b, post_c, author_b], [lead])
-    }
 
-    assert (out["p/a"].author_outcome, out["p/a"].author_name) == ("lead", "Anna")
-    assert (out["p/b"].author_outcome, out["p/b"].author_name) == ("wrong_country", "Yana")
-    assert out["p/c"].author_outcome is None, "never judged: nothing to say"
+def _post(name: str, author: str) -> RejectedCandidate:
+    return _refused(
+        f"https://instagram.com/p/{name}", RejectionReason.NOT_A_PROFILE, author_url=author
+    )
+
+
+def test_a_post_whose_author_became_a_lead_is_not_a_refusal():
+    post = _post("a", "https://instagram.com/anna")
+
+    refused, merged = _settle_posts([post], [_lead("https://instagram.com/anna")])
+
+    assert refused == [] and merged == 1
+
+
+def test_a_post_moves_onto_the_row_of_the_author_who_was_refused():
+    author = _refused(
+        "https://instagram.com/lidia",
+        RejectionReason.MISSING_SIGNALS,
+        name="Lidia",
+        read=True,
+        found_via=["https://instagram.com/lidia/reel/A"],
+    )
+    post = _post("b", author.canonical_url)
+
+    refused, merged = _settle_posts([post, author], [])
+
+    assert merged == 1
+    assert [entry.reason for entry in refused] == [RejectionReason.MISSING_SIGNALS]
+    assert refused[0].found_via == ["https://instagram.com/lidia/reel/A", post.url]
+
+
+def test_the_author_keeps_the_reason_they_were_refused_for():
+    author = _refused("https://instagram.com/yana", RejectionReason.WRONG_COUNTRY, read=True)
+
+    refused, _ = _settle_posts([_post("c", author.canonical_url), author], [])
+
+    assert [entry.reason for entry in refused] == [RejectionReason.WRONG_COUNTRY]
+
+
+def test_a_post_whose_author_could_not_be_checked_stays_where_it_was():
+    unread = _refused("https://instagram.com/gone", RejectionReason.UNREADABLE, name="Gone")
+    post_unread = _post("d", unread.canonical_url)
+    post_nobody = _post("e", "https://instagram.com/never-reached")
+
+    refused, merged = _settle_posts([post_unread, post_nobody, unread], [])
+    by_url = {entry.url: entry for entry in refused}
+
+    assert merged == 0 and len(refused) == 3
+    stayed = by_url[post_unread.url]
+    assert stayed.reason is RejectionReason.NOT_A_PROFILE
+    assert (stayed.author_outcome, stayed.author_name) == ("unreadable", "Gone")
+    assert stayed.detail_code == "post_author_unchecked"
+    assert by_url[post_nobody.url].author_outcome is None
+
+
+def test_a_page_that_only_looked_unpersonlike_from_its_result_does_not_absorb_posts():
+    unopened = _refused("https://instagram.com/x", RejectionReason.NOT_A_PERSON, read=False)
+
+    refused, merged = _settle_posts([_post("f", unopened.canonical_url), unopened], [])
+
+    assert merged == 0 and len(refused) == 2
+
+
+# ------------------------------------------------------- facebook posts, opened
+def test_a_facebook_reel_or_video_link_is_marked_for_opening():
+    for address in (
+        "https://www.facebook.com/watch/?v=475023134965576",
+        "https://www.facebook.com/reel/1040013618445269",
+        "https://www.facebook.com/share/p/1AbCdEf/",
+    ):
+        url = discover([result(address)])[0]
+        assert needs_opening(url), address
+    group = discover([result("https://www.facebook.com/groups/391054954992814")])[0]
+    assert not needs_opening(group), "a group is not one post with an author"
+
+
+def test_where_facebook_sends_the_visitor_names_the_author():
+    from app.services.scraping.browser_reader import _author_at
+
+    assert (
+        _author_at("https://www.facebook.com/aga.przybylska.1/videos/czym-jest/1040013618445269")
+        == "https://facebook.com/aga.przybylska.1"
+    )
+    assert _author_at("https://www.facebook.com/NetworkMagazyn") == (
+        "https://facebook.com/NetworkMagazyn"
+    )
+    assert _author_at("https://www.facebook.com/reel/1040013618445269/") is None
+    assert _author_at("") is None
+
+
+# ---------------------------------------------- explanations, as codes and facts
+def test_a_refusal_carries_a_code_the_interface_can_word():
+    from app.services.search.eligibility import admit
+
+    criteria = SearchCriteria(location={"country": "Poland"}, languages=["Polish"])
+    elsewhere = ExtractedProfile(
+        url="u", canonical_url="u", platform=Platform.INSTAGRAM, name="Anna Nowak"
+    )
+    elsewhere.location.country = "Ukraine"
+    refused = admit(elsewhere, criteria)
+
+    assert refused.code == "wrong_country"
+    assert refused.params == {"found": "UA", "place": "PL"}
+
+    other_tongue = elsewhere.model_copy(
+        update={
+            "location": elsewhere.location.model_copy(update={"country": None}),
+            "languages": ["Ukrainian"],
+        }
+    )
+    spoken = admit(other_tongue, criteria)
+    assert (spoken.code, spoken.params) == ("wrong_language", {"found": "uk", "wanted": "pl"})
+
+
+def test_a_personhood_verdict_carries_its_code_and_facts():
+    magazine = ExtractedProfile(
+        url="u", canonical_url="u", platform=Platform.FACEBOOK, name="Network Magazyn"
+    )
+    verdict = personhood.assess(magazine)
+
+    assert not verdict.is_person
+    assert (verdict.code, verdict.params) == (
+        "organisation_word",
+        {"name": "Network Magazyn", "word": "network"},
+    )

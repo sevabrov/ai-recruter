@@ -31,7 +31,7 @@ credibility with somebody they then try to recruit.
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.models.common import Platform
 from app.models.profile import ExtractedProfile
@@ -189,6 +189,10 @@ class Verdict:
 
     is_person: bool
     detail: str = ""
+    #: The same refusal as a code and its facts, so the interface can say it in the
+    #: client's language (`RejectedCandidate.detail_code`). `detail` stays English.
+    code: str = ""
+    params: dict[str, str] = field(default_factory=dict)
 
 
 PERSON = Verdict(True)
@@ -198,7 +202,7 @@ def assess(profile: ExtractedProfile) -> Verdict:
     """Is the thing this profile describes a human being?"""
     name = (profile.name or "").strip()
     if not name:
-        return Verdict(False, "No person is named on this page.")
+        return Verdict(False, "No person is named on this page.", "no_name")
 
     if profile.platform is Platform.LINKEDIN and "/in/" in profile.canonical_url:
         # LinkedIn keeps people and companies on different paths, and only the
@@ -208,35 +212,75 @@ def assess(profile: ExtractedProfile) -> Verdict:
 
     for token in _tokens(name):
         if token in _ORGANISATION:
-            return Verdict(False, f"“{name}” names an organisation, not a person ({token}).")
+            return _organisation_word(name, token)
         if token in _LEGAL:
-            return Verdict(False, f"“{name}” carries a company form ({token.upper()}).")
+            return _legal_form(name, token)
 
     topic = _topic(name)
     if topic:
-        return Verdict(False, f"“{name}” is the subject being searched for, not a person.")
+        return Verdict(
+            False,
+            f"“{name}” is the subject being searched for, not a person.",
+            "topic",
+            {"name": name},
+        )
 
     if _WEB_ADDRESS.search(name):
-        return Verdict(False, f"“{name}” is a web address, not a person.")
+        return Verdict(
+            False, f"“{name}” is a web address, not a person.", "web_address", {"name": name}
+        )
 
     place = find_place(name)
     if place:
         return Verdict(
-            False, f"“{name}” is named after a place ({place[1]}) — a brand, not a person."
+            False,
+            f"“{name}” is named after a place ({place[1]}) — a brand, not a person.",
+            "named_after_place",
+            {"name": name, "place": place[1]},
         )
 
     if commercial(name):
-        return Verdict(False, f"“{name}” reads as a business name.")
+        return Verdict(
+            False, f"“{name}” reads as a business name.", "business_name", {"name": name}
+        )
 
     summary = profile.summary or ""
     if profile.platform is Platform.FACEBOOK and _facebook_organisation_page(name, summary):
-        return Verdict(False, f"“{name}” is a Facebook page, not somebody's profile.")
+        return Verdict(
+            False,
+            f"“{name}” is a Facebook page, not somebody's profile.",
+            "facebook_page",
+            {"name": name},
+        )
 
     corporate = _matches(_CORPORATE, summary)
     if corporate:
-        return Verdict(False, f"“{name}” writes about itself as an organisation: “{corporate}”.")
+        return Verdict(
+            False,
+            f"“{name}” writes about itself as an organisation: “{corporate}”.",
+            "corporate_voice",
+            {"name": name, "quote": corporate},
+        )
 
     return PERSON
+
+
+def _organisation_word(name: str, token: str) -> Verdict:
+    return Verdict(
+        False,
+        f"“{name}” names an organisation, not a person ({token}).",
+        "organisation_word",
+        {"name": name, "word": token},
+    )
+
+
+def _legal_form(name: str, token: str) -> Verdict:
+    return Verdict(
+        False,
+        f"“{name}” carries a company form ({token.upper()}).",
+        "legal_form",
+        {"name": name, "form": token.upper()},
+    )
 
 
 def _facebook_organisation_page(name: str, summary: str) -> bool:
@@ -276,13 +320,15 @@ def before_reading(name: str, brands: list[str]) -> Verdict:
             False,
             f"“{name}” starts with {brand}, the brand being searched for — the "
             "brand's own account, not a person who works with it.",
+            "searched_brand",
+            {"name": name, "brand": brand},
         )
 
     for token in _tokens(name):
         if token in _ORGANISATION:
-            return Verdict(False, f"“{name}” names an organisation, not a person ({token}).")
+            return _organisation_word(name, token)
         if token in _LEGAL:
-            return Verdict(False, f"“{name}” carries a company form ({token.upper()}).")
+            return _legal_form(name, token)
 
     return PERSON
 

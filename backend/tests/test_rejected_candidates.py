@@ -61,9 +61,11 @@ def test_the_two_lists_account_for_every_candidate(client):
     counts = payload["byReason"]
 
     # Discovery is exact: what was discovered, minus what was worth reading, is
-    # what discovery refused — for free, before anything was opened.
+    # what discovery refused — for free, before anything was opened — plus the
+    # posts whose author was judged, which live on the author's row or lead.
     at_discovery = counts.get("not_a_profile", 0) + counts.get("off_source", 0)
-    assert at_discovery == progress["urlsDiscovered"] - progress["profilesDiscovered"]
+    folded = progress.get("postsMerged", 0)
+    assert at_discovery + folded == progress["urlsDiscovered"] - progress["profilesDiscovered"]
 
     # After that, refusals and leads share the candidates — with room only for the
     # deduplicator, which merges two addresses of one person into a single lead.
@@ -160,15 +162,18 @@ def test_a_post_whose_author_was_followed_says_so():
     )
     kept = {"https://instagram.com/anna.mlm"}
 
-    detail = _why_not_a_profile(post, kept)
+    detail, code, params = _why_not_a_profile(post, kept)
     assert "anna.mlm" in detail
     assert "was looked at instead" in detail
+    assert (code, params) == ("post_author_followed", {"author": "https://instagram.com/anna.mlm"})
 
 
 def test_a_post_nobody_could_attribute_gets_the_plain_reason():
     post = _url("https://instagram.com/p/Cxyz", platform=Platform.INSTAGRAM, kind=UrlKind.ARTICLE)
-    assert "profile" in _why_not_a_profile(post, set()).casefold()
-    assert "was looked at instead" not in _why_not_a_profile(post, set())
+    detail, code, _ = _why_not_a_profile(post, set())
+    assert "profile" in detail.casefold()
+    assert "was looked at instead" not in detail
+    assert code.startswith("not_profile")
 
 
 @pytest.mark.parametrize(
@@ -203,7 +208,7 @@ def test_promotion_and_refusal_agree_about_the_same_post():
     assert [url.canonical_url for url in profiles] == ["https://instagram.com/yanarogozha"]
 
     post = next(url for url in urls if url.kind is not UrlKind.CANDIDATE)
-    assert "yanarogozha" in _why_not_a_profile(post, {profiles[0].canonical_url})
+    assert "yanarogozha" in _why_not_a_profile(post, {profiles[0].canonical_url})[0]
 
 
 def test_a_page_that_would_not_open_is_not_counted_as_a_person_refused():

@@ -31,9 +31,10 @@ from typing import Any
 from app.core.logging import get_logger
 from app.models.common import Platform, SourceKind
 from app.models.scrape import ScrapeOutcome
-from app.models.source import DiscoveredUrl
+from app.models.source import DiscoveredUrl, ProviderResult, UrlKind
 from app.services.scraping.base import PROFILE_GONE, ExtractionCost, PageRead, bills_for
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
+from app.services.search.url_tools import author_profile, canonicalize, discover
 
 log = get_logger(__name__)
 
@@ -174,7 +175,7 @@ class BrowserPageReader:
         Free, like every read here, and never raises: a post that would not open is
         simply a post whose author stays unknown — which is what it was before.
         """
-        if url.platform is not Platform.INSTAGRAM:
+        if url.platform not in BROWSER_PLATFORMS:
             return None
         try:
             async with self.pool.page() as page:
@@ -186,19 +187,31 @@ class BrowserPageReader:
             return None
         if _LOGIN.search(seen["final_url"]):
             return None
-        found = parse_post(seen["description"]) or parse_post(seen["title"])
-        if found is None:
-            return None
-        handle, published, caption = found
-        log.info("browser_post_author", extra={"url": url.canonical_url, "handle": handle})
-        return url.model_copy(
-            update={
-                "author_url": f"https://instagram.com/{handle}",
-                "snippet": caption or url.snippet,
-                "page_age": published or url.page_age,
-                "age_label": None if published else url.age_label,
-            }
-        )
+
+        if url.platform is Platform.INSTAGRAM:
+            found = parse_post(seen["description"]) or parse_post(seen["title"])
+            if found is not None:
+                handle, published, caption = found
+                log.info("browser_post_author", extra={"url": url.canonical_url, "handle": handle})
+                return url.model_copy(
+                    update={
+                        "author_url": f"https://instagram.com/{handle}",
+                        "snippet": caption or url.snippet,
+                        "page_age": published or url.page_age,
+                        "age_label": None if published else url.age_label,
+                    }
+                )
+
+        # Facebook (and an Instagram post that would not say): the visitor is sent
+        # to the post's full address, which is `{account}/videos/…`, `{account}/posts/…`.
+        for address in (seen["final_url"], seen["canonical"], seen["og_url"]):
+            author = _author_at(address)
+            if author:
+                log.info("browser_post_author", extra={"url": url.canonical_url, "author": author})
+                return url.model_copy(
+                    update={"author_url": author, "snippet": seen["description"] or url.snippet}
+                )
+        return None
 
     async def _open(self, page: Any, address: str) -> dict[str, str]:
         await page.goto(address, wait_until="domcontentloaded", timeout=self.timeout_ms)
@@ -214,15 +227,13 @@ class BrowserPageReader:
             with suppress(Exception):
                 main = await page.locator('[role="main"]').first.inner_text(timeout=2000)
                 header = main[:800]
-        meta = page.locator('meta[property="og:description"]')
-        description = (
-            await meta.get_attribute("content", timeout=1000) if await meta.count() else ""
-        )
         return {
             "final_url": page.url,
             "title": await page.title(),
             "header": header or "",
-            "description": description or "",
+            "description": await _attribute(page, 'meta[property="og:description"]', "content"),
+            "og_url": await _attribute(page, 'meta[property="og:url"]', "content"),
+            "canonical": await _attribute(page, 'link[rel="canonical"]', "href"),
         }
 
     async def _verdict(self, url: DiscoveredUrl, seen: dict[str, str]) -> PageRead:
@@ -259,6 +270,30 @@ class BrowserPageReader:
         )
         log.info("browser_read", extra={"url": url.canonical_url, "person": profile.name})
         return PageRead(ScrapeOutcome.OK, profile=profile)
+
+
+async def _attribute(page: Any, selector: str, name: str) -> str:
+    """An element's attribute, or "" when the page has no such element."""
+    with suppress(Exception):
+        element = page.locator(selector)
+        if await element.count():
+            return await element.first.get_attribute(name, timeout=1000) or ""
+    return ""
+
+
+def _author_at(address: str) -> str | None:
+    """The account an address belongs to: a post's author, or the profile itself."""
+    if not address:
+        return None
+    found = discover(
+        [ProviderResult(url=address, title="", snippet="", query="", provider="browser")]
+    )[0]
+    if found.platform not in BROWSER_PLATFORMS:
+        return None
+    if found.kind is UrlKind.CANDIDATE:
+        return found.canonical_url
+    author = author_profile(found)
+    return canonicalize(author) if author else None
 
 
 def parse_post(text: str) -> tuple[str, datetime | None, str] | None:
