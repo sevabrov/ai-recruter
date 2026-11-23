@@ -30,7 +30,7 @@ from app.db.repository import Repository
 from app.models.profile import ExtractedProfile
 from app.models.scrape import ScrapeOutcome, ScrapeRecord
 from app.models.source import DiscoveredUrl
-from app.services.scraping.base import ExtractionCost, PageRead, PageReader
+from app.services.scraping.base import ExtractionCost, PageRead, PageReader, bills_for
 
 log = get_logger(__name__)
 
@@ -54,6 +54,14 @@ class CachedPageReader(PageReader):
         # Passed through, not owned: the pipeline asks the chain how much it may
         # still spend, and the answer belongs to the reader at the bottom of it.
         self.budget = getattr(inner, "budget", None)
+
+    def bills(self, url: DiscoveredUrl) -> bool:
+        """
+        As the reader behind it. A hit is free, but whether there will be one is
+        only known after a database round trip — so the slot is reserved anyway, and
+        a hit simply hands it back sooner.
+        """
+        return bills_for(self.inner, url)
 
     async def extract(self, url: DiscoveredUrl) -> ExtractedProfile | None:
         return (await self.read(url)).profile

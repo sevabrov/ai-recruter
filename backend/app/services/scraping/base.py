@@ -115,6 +115,26 @@ def budget_of(extractor: object) -> PageBudget | None:
     return budget if isinstance(budget, PageBudget) else None
 
 
+def bills_for(extractor: object, url: DiscoveredUrl) -> bool:
+    """
+    Whether reading this URL goes to a reader that bills for it.
+
+    The pipeline schedules the two kinds differently: a paid read waits for a slot
+    in the page budget, in rank order, while a free one (our own browser, a
+    snippet) need not wait behind it. A chain that routes by platform answers per
+    URL through its own `bills`; anything else bills exactly when it carries a
+    budget — which is the truth for every reader here.
+    """
+    route = getattr(extractor, "bills", None)
+    if callable(route):
+        return bool(route(url))
+    return budget_of(extractor) is not None
+
+
+#: The attributes one reader in the chain keeps the next one under.
+CHAIN_LINKS = ("inner", "reader", "browser", "other")
+
+
 def fetch_from(extractor: object, country: str | None) -> None:
     """
     Tell the chain which country to fetch through, when it can be told.
@@ -124,14 +144,22 @@ def fetch_from(extractor: object, country: str | None) -> None:
     being searched is what makes a social platform serve the page a local visitor
     sees — which is also the version that names the city the geographic filter is
     looking for. Extractors that fetch nothing ignore this entirely.
+
+    The chain is a tree, not a line: the cache wraps its `inner`, the fallback its
+    `reader`, and the router splits into `browser` and `other`. Walking only the
+    first two stopped at the router, so with our own browser switched on
+    ScrapeGraphAI was never told the country — every branch is visited now, and
+    every reader that can be told is.
     """
     if not country:
         return
-    target = extractor
-    # The chain nests under two different names: the cache wraps its `inner`, the
-    # fallback wraps its `reader`.
-    while target is not None:
+    pending = [extractor]
+    seen: set[int] = set()
+    while pending:
+        target = pending.pop()
+        if target is None or id(target) in seen:
+            continue
+        seen.add(id(target))
         if hasattr(target, "country"):
             target.country = country
-            return
-        target = getattr(target, "inner", None) or getattr(target, "reader", None)
+        pending.extend(getattr(target, name, None) for name in CHAIN_LINKS)

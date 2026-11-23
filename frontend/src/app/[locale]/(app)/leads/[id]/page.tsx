@@ -146,8 +146,8 @@ export default function LeadDetailPage() {
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-[1.45fr_1fr]">
-        <div className="flex flex-col gap-5">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+        <div className="flex min-w-0 flex-col gap-5">
           <Card>
             <CardHeader title={t("whyMatches")} hint={t("whyMatchesHint")} />
             <SignalEvidence signals={lead.signals} />
@@ -157,7 +157,7 @@ export default function LeadDetailPage() {
             <CardHeader title={t("aiSummary")} hint={t("aiSummaryHint")} />
             <CardBody>
               {/* Written by the model, in the language the profile was in. */}
-              <p className="text-sm leading-relaxed text-fg-muted">{lead.summary}</p>
+              <p className="text-sm leading-relaxed break-words text-fg-muted">{lead.summary}</p>
             </CardBody>
           </Card>
 
@@ -205,7 +205,7 @@ export default function LeadDetailPage() {
           </Card>
         </div>
 
-        <div className="flex flex-col gap-5">
+        <div className="flex min-w-0 flex-col gap-5">
           <Card>
             <CardBody className="flex flex-col items-center gap-3 py-6">
               <Eyebrow>{t("aiMatchScore")}</Eyebrow>
@@ -320,9 +320,9 @@ function Detail({
   className?: string;
 }) {
   return (
-    <div className={className}>
+    <div className={cn("min-w-0", className)}>
       <Eyebrow className="mb-1">{label}</Eyebrow>
-      <p className="text-sm">{children}</p>
+      <p className="text-sm break-words">{children}</p>
     </div>
   );
 }

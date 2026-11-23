@@ -39,6 +39,7 @@ from app.services.scraping.base import (
     PageRead,
     PageReader,
     ProfileExtractor,
+    bills_for,
 )
 from app.services.scraping.names import clean, commercial, looks_like_a_person
 
@@ -84,6 +85,10 @@ class FallbackProfileExtractor(ProfileExtractor):
         #: Addresses whose page never opened and were judged on the search result
         #: alone — so a refusal can say "would not open" rather than "was read".
         self.unread: set[str] = set()
+
+    def bills(self, url: DiscoveredUrl) -> bool:
+        """Only the reader can cost money; the snippet behind it never does."""
+        return bills_for(self.reader, url)
 
     async def extract(self, url: DiscoveredUrl) -> ExtractedProfile | None:
         read = await self._read(url)

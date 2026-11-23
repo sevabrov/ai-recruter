@@ -35,7 +35,7 @@ export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {
           {signal.evidence ? (
             <blockquote
               className={cn(
-                "mt-2.5 border-l-2 border-accent-line pl-3 text-sm leading-relaxed text-fg-muted",
+                "mt-2.5 border-l-2 border-accent-line pl-3 text-sm leading-relaxed break-words text-fg-muted",
               )}
             >
               {signal.evidence}

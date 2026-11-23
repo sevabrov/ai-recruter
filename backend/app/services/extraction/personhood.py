@@ -232,6 +232,67 @@ def assess(profile: ExtractedProfile) -> Verdict:
     return PERSON
 
 
+def before_reading(name: str, brands: list[str]) -> Verdict:
+    """
+    Is the search result alone enough to say this is not a person — before a credit
+    is spent opening the page?
+
+    `assess` answers after the page is read, and it lets LinkedIn's `/in/` path
+    settle the question because the page is then there to contradict it. Asked of
+    a search result, with money on the line, the bar is different, and narrower:
+    only the *name* is looked at, and only for what no person's name carries.
+
+    * **the brand being searched for, first.** People write "Anna Koval - Farmasi";
+      the brand's own accounts are "Farmasi Bucuresti", "FARMASI TUNISIE", "Farmasi
+      World". A measured run paid for ten such LinkedIn pages out of twenty-two, and
+      one of them still came back as a lead.
+    * **an organisation's own nouns or a legal form** — the same lists `assess` uses.
+
+    The summary is deliberately not read: "we are hiring" in a real person's
+    headline is exactly what `assess` was taught to forgive on LinkedIn, and a
+    two-line snippet is too little to overrule that.
+    """
+    name = name.strip()
+    if not name:
+        return PERSON
+
+    brand = _leading_brand(name, brands)
+    if brand:
+        return Verdict(
+            False,
+            f"“{name}” starts with {brand}, the brand being searched for — the "
+            "brand's own account, not a person who works with it.",
+        )
+
+    for token in _tokens(name):
+        if token in _ORGANISATION:
+            return Verdict(False, f"“{name}” names an organisation, not a person ({token}).")
+        if token in _LEGAL:
+            return Verdict(False, f"“{name}” carries a company form ({token.upper()}).")
+
+    return PERSON
+
+
+def _leading_brand(name: str, brands: list[str]) -> str:
+    """The searched-for brand this name opens with, as the client typed it."""
+    # Leading emoji, '#' and '@' are decoration, not part of the name.
+    opening = re.sub(r"^[\W_]+", "", _fold(name))
+    for brand in brands:
+        folded = _fold(brand).strip()
+        if len(folded) < 3 or not opening.startswith(folded):
+            continue
+        # A whole word, not a prefix: "Farmasi" is not the start of "Farmasiya".
+        rest = opening[len(folded) :]
+        if not rest or not rest[0].isalnum():
+            return brand
+    return ""
+
+
+def _fold(text: str) -> str:
+    """Case and apostrophes out of the way: J’erelia, J'erelia and j`erelia are one brand."""
+    return re.sub(r"[’‘`´ʼ]", "'", text).casefold()
+
+
 def _topic(name: str) -> bool:
     """
     Is the "name" simply what the search is about?

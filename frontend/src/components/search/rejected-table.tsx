@@ -101,13 +101,13 @@ export function RejectedTable({
 
       {shown.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[48rem] border-collapse text-sm">
+          <table className="w-full min-w-[52rem] table-fixed border-collapse text-sm">
             <thead>
               <tr className="border-b border-line">
                 <Th className="pl-5">{t("candidate")}</Th>
                 <Th className="w-24">{t("promise")}</Th>
-                <Th className="w-44">{t("refusedBecause")}</Th>
-                <Th className="pr-5">{t("whichIs")}</Th>
+                <Th className="w-64">{t("refusedBecause")}</Th>
+                <Th className="w-64 pr-5">{t("whichIs")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -153,7 +153,7 @@ function Row({ entry, label }: { entry: RejectedCandidate; label: string }) {
           className="flex items-start gap-2.5"
         >
           <PlatformIcon platform={entry.platform} className="mt-0.5 shrink-0 text-fg-faint" />
-          <span className="min-w-0">
+          <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5">
               <span className="truncate font-medium group-hover:text-accent">
                 {entry.name || entry.title || entry.url}
@@ -167,12 +167,16 @@ function Row({ entry, label }: { entry: RejectedCandidate; label: string }) {
         </a>
       </td>
 
-      <td className="num text-fg-muted">
+      <td className="num text-fg-muted text-center">
         {typeof entry.promise === "number" ? entry.promise : common("dash")}
       </td>
 
-      <td>
-        <Badge tone={meta.tone}>{label}</Badge>
+      <td className="px-2">
+        <Badge tone={meta.tone} className="max-w-full">
+          <span className="truncate" title={label}>
+            {label}
+          </span>
+        </Badge>
       </td>
 
       <td className="max-w-md pr-5 py-2.5 text-xs leading-relaxed text-fg-muted">

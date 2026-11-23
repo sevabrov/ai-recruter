@@ -8,11 +8,21 @@ where each platform is routed.
 
 import asyncio
 
+import httpx
+
+from app.core.config import Settings
+from app.core.limits import RateLimiter
 from app.models.common import Platform
 from app.models.scrape import ScrapeOutcome
 from app.models.source import DiscoveredUrl, UrlKind
-from app.services.scraping.base import PROFILE_GONE, ExtractionCost, PageRead
-from app.services.scraping.browser_reader import BrowserPageReader, RoutingPageReader
+from app.services.adapters import ReaderResources, build_profile_extractor
+from app.services.scraping.base import PROFILE_GONE, ExtractionCost, PageRead, fetch_from
+from app.services.scraping.browser_reader import (
+    BrowserPageReader,
+    BrowserPool,
+    RoutingPageReader,
+)
+from app.services.scraping.cache import CachedPageReader
 from app.services.scraping.fallback import FallbackProfileExtractor
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
 
@@ -148,3 +158,29 @@ def test_a_deleted_profile_is_not_rebuilt_from_its_old_search_result():
     chain = FallbackProfileExtractor(_Gone(), SnippetProfileExtractor())
 
     assert asyncio.run(chain.extract(named)) is None
+
+
+def test_the_country_reaches_scrapegraph_past_the_router():
+    """
+    `fetch_from` used to follow `inner` and `reader` only, and stopped at the
+    router — so with our own browser on, ScrapeGraphAI never heard which country to
+    fetch LinkedIn through. Built the way the container builds it, cache included.
+    """
+    settings = Settings(
+        scrapegraph_api_key="key",
+        brave_search_api_key="key",
+        search_provider="brave",
+        browser_reader=True,
+        openai_api_key="",
+    )
+    resources = ReaderResources(
+        client=httpx.AsyncClient(), limiter=RateLimiter(0), browser=BrowserPool(concurrency=1)
+    )
+    chain = build_profile_extractor(settings, [], repository=object(), resources=resources)  # type: ignore[arg-type]
+
+    fetch_from(chain, "UA")
+
+    router = chain.reader
+    assert isinstance(router, RoutingPageReader)
+    assert isinstance(router.other, CachedPageReader)
+    assert router.other.inner.country == "UA"

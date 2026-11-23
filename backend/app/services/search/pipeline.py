@@ -19,6 +19,7 @@ Two properties matter more than the stub data:
 
 import asyncio
 import hashlib
+import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -34,6 +35,7 @@ from app.models.profile import ExtractedProfile
 from app.models.rejection import RejectedCandidate, RejectionReason
 from app.models.search import GeneratedQuery, Search, SearchProgress, SearchUsage
 from app.models.source import DiscoveredUrl, ProviderResult, UrlKind
+from app.services.extraction import personhood
 from app.services.extraction.signal_detector import (
     Judgement,
     SignalDetector,
@@ -41,7 +43,13 @@ from app.services.extraction.signal_detector import (
     placed_by_judge,
 )
 from app.services.scoring.scoring_service import ScoringService
-from app.services.scraping.base import ProfileExtractor, budget_of, cost_of, fetch_from
+from app.services.scraping.base import (
+    ProfileExtractor,
+    bills_for,
+    budget_of,
+    cost_of,
+    fetch_from,
+)
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
 from app.services.search.deduplicator import deduplicate
 from app.services.search.eligibility import Refusal, admit
@@ -64,6 +72,21 @@ log = get_logger(__name__)
 #: Extractors that never open a page. A profile one of these produced was judged
 #: on the search result alone, which is what `RejectedCandidate.read` records.
 SNIPPET_ONLY = {"snippet"}
+
+#: How far a free read may run ahead of the best paid candidate still waiting for a
+#: budget slot, in multiples of EXTRACTION_CONCURRENCY. Wide enough that the
+#: browser is not idle while ScrapeGraphAI takes a minute over a LinkedIn page;
+#: narrow enough that "best first" — and the judging budget — still mean something.
+LOOKAHEAD_WIDTHS = 2
+
+#: How long a read profile waits for others to share a judging call with. A batch
+#: shares the instructions and requirements, which is most of a call's tokens; a
+#: lead left waiting behind a slow page is a lead the target check cannot see.
+JUDGE_AFTER_SECONDS = 2.0
+
+#: How often reading writes the progress record. Reads now finish one at a time,
+#: and a database write per page would be most of the work for the cached ones.
+SAVE_EVERY_SECONDS = 1.0
 
 #: Why an address is not somebody's profile, per classification. Written out
 #: rather than counted, because the client reads this list to check whether a
@@ -162,6 +185,9 @@ class SearchPipeline:
         self._rejected: dict[str, RejectedCandidate] = {}
         #: How many leads this run was asked for; set per search by `_aim`.
         self._target = 0
+        #: LLM_CONCURRENCY for the whole run (§52). Judging now overlaps reading, so
+        #: several `_judge` calls can be in flight at once and must share the limit.
+        self._llm_slots = asyncio.Semaphore(max(1, settings.llm_concurrency))
 
     async def run(self, search_id: str) -> None:
         search = await self.repo.get_search(search_id)
@@ -381,83 +407,197 @@ class SearchPipeline:
     # --------------------------------------------------------------- stage 4
     async def _extract(self, search: Search, urls: list[DiscoveredUrl]) -> Harvest:
         """
-        Read the candidates — best first, in waves, and only as far as the search's
-        limits allow.
-
-        Three things changed here once reading became a paid operation:
+        Read the candidates — best first, as a stream, and only as far as the
+        search's limits allow.
 
         * **order is a decision.** Candidates are ranked by what their search result
           alone already supports (`services/search/prospects.py`), so the page
           budget is spent on the most promising pages instead of on whichever
           coroutine started first.
-        * **a wave is a checkpoint.** With `TARGET_LEADS` set, each wave is judged as
-          soon as it lands, and the search stops as soon as the user has the leads
-          they asked for — the pages behind that point are never paid for.
+        * **paid and free reads do not wait for each other.** This used to run in
+          waves of EXTRACTION_CONCURRENCY, each finished before the next began — so
+          one LinkedIn page taking a minute at ScrapeGraphAI held up nine Instagram
+          profiles our own browser reads in two seconds. A measured run spent 4½ of
+          its 6 minutes like that. Now every read starts as soon as it has a slot:
+          paid reads take budget slots strictly in rank order, free ones run beside
+          them, but never more than `LOOKAHEAD_WIDTHS` × EXTRACTION_CONCURRENCY
+          places ahead of the best candidate still waiting — so "best first" stays
+          true to within that window, and the weakest tail is what a target drops.
+        * **the search result can already say "not a person".** A paid candidate
+          whose name is the searched-for brand ("Farmasi Bucuresti") is refused
+          before anything is spent on it (`personhood.before_reading`).
+        * **judging runs alongside reading.** With `TARGET_LEADS` set, profiles are
+          judged in batches as they arrive, and the search stops dispatching as soon
+          as the user has the leads they asked for. Reads already in flight finish —
+          a paid one is billed either way — and are judged with the rest.
         * **the budget lives lower down.** How many pages may be *read* is enforced
           by the reader itself (`services/scraping/budget.py`); the pages it refuses
           still become leads from their snippet. That is why every candidate still
           goes through the chain: a cache hit costs nothing and is worth having
           (spec §53).
 
-        Concurrency inside a wave stays bounded by EXTRACTION_CONCURRENCY (§35).
+        Each kind of read is bounded by EXTRACTION_CONCURRENCY (§35).
         """
         await self._enter(search.id, SearchStage.EXTRACTING)
         ranked = await rank(urls, search.criteria, snippets=self._snippets, scoring=self.scoring)
         target = self._target
         harvest = Harvest()
-        semaphore = asyncio.Semaphore(self.settings.extraction_concurrency)
+        width = max(1, self.settings.extraction_concurrency)
+        window = width * LOOKAHEAD_WIDTHS
+        batch = max(1, self.settings.judge_batch_size)
+        budget = budget_of(self.extractor)
+        clock = asyncio.get_running_loop()
+
+        #: Dispatched, or refused before reading — either way, not waiting any more.
+        decided = [False] * len(ranked)
+        #: The best-ranked candidate still waiting; the window is measured from here.
+        head = 0
+        reads: dict[asyncio.Task[tuple[ExtractedProfile | None, bool]], tuple[Prospect, bool]] = {}
+        judging: set[asyncio.Task[None]] = set()
+        #: Read and admitted to judging, but not yet sent: profiles go in batches.
+        waiting: list[ExtractedProfile] = []
+        waiting_since = 0.0
+        running = {True: 0, False: 0}  # paid / free reads in flight
         processed = 0
+        saved_at = clock.time()
+        stopping = False
 
         async def extract_one(url: DiscoveredUrl) -> tuple[ExtractedProfile | None, bool]:
             """The profile, and whether the reader failed outright getting it."""
-            async with semaphore:
-                await self._tick()
-                try:
-                    profile = await retry_async(
-                        lambda: self.extractor.extract(url),
-                        attempts=self.settings.max_retries,
-                        label=f"extract:{self.extractor.name}",
-                    )
-                except Exception:
-                    log.warning("extraction_failed", extra={"url": url.canonical_url})
-                    return None, True
-                return profile, False
-
-        while processed < len(ranked):
-            wave = ranked[processed : processed + self._wave_size()]
-            found = await asyncio.gather(*(extract_one(prospect.url) for prospect in wave))
-            # A page nobody could find a person on is the first refusal, and it
-            # happens here rather than at judging: there is nothing to judge.
-            fresh = self._sift(search, wave, found, harvest)
-            harvest.profiles.extend(fresh)
-
-            processed += len(wave)
-            self._usage.pages_analyzed += len(wave)
-            self._bill_extraction()
-            self._progress.profiles_processed = processed
-
-            if target > 0:
-                # Judged now rather than in the scoring stage, because "we have
-                # enough leads" is the only thing that can stop the spending.
-                await self._judge(search, fresh, harvest)
-            self._tally(harvest)
-            await self._save(search.id, SearchStage.EXTRACTING, processed / max(1, len(ranked)))
-
-            # Counted as the client will see them: the same person reached at two
-            # addresses is one lead. Counting before merging stopped a search at
-            # eleven candidates that became nine leads.
-            if target > 0 and len(deduplicate(harvest.leads)[0]) >= target:
-                harvest.stopped_early = True
-                log.info(
-                    "lead_target_reached",
-                    extra={"target": target, "leads": len(harvest.leads), "pages": processed},
+            await self._tick()
+            try:
+                profile = await retry_async(
+                    lambda: self.extractor.extract(url),
+                    attempts=self.settings.max_retries,
+                    label=f"extract:{self.extractor.name}",
                 )
-                break
+            except Exception:
+                log.warning("extraction_failed", extra={"url": url.canonical_url})
+                return None, True
+            return profile, False
 
-        # Whatever the break left behind is not a judgement about anybody: those
+        def paid_slot_open() -> bool:
+            if running[True] >= width:
+                return False
+            if budget is None or budget.unlimited or budget.exhausted:
+                # Past the budget a "paid" read is a cache lookup or a skip: free.
+                return True
+            # Every read in flight may still claim a slot, so one more is sent only
+            # if all of them fit: the last credit then goes to the better-ranked page,
+            # not to whichever coroutine reached the reader first.
+            return running[True] < (budget.remaining or 0)
+
+        def dispatch() -> None:
+            nonlocal head, processed
+            progressed = True
+            while progressed:
+                progressed = False
+                paid_blocked = False
+                for index in range(head, min(len(ranked), head + window)):
+                    if decided[index]:
+                        continue
+                    if paid_blocked and running[False] >= width:
+                        break
+                    prospect = ranked[index]
+                    paid = bills_for(self.extractor, prospect.url)
+                    if paid and self._prescreened(search, prospect, harvest):
+                        decided[index] = progressed = True
+                        processed += 1
+                        continue
+                    if paid and (paid_blocked or not paid_slot_open()):
+                        # Later paid candidates must not jump this one.
+                        paid_blocked = True
+                        continue
+                    if not paid and running[False] >= width:
+                        continue
+                    decided[index] = progressed = True
+                    running[paid] += 1
+                    reads[asyncio.create_task(extract_one(prospect.url))] = (prospect, paid)
+                while head < len(ranked) and decided[head]:
+                    head += 1
+
+        def judge_waiting() -> None:
+            nonlocal waiting
+            # Judged now rather than in the scoring stage, because "we have enough
+            # leads" is the only thing that can stop the spending.
+            profiles, waiting = waiting, []
+            judging.add(asyncio.create_task(self._judge(search, profiles, harvest)))
+
+        try:
+            dispatch()
+            while reads or judging:
+                timeout = None
+                if waiting:
+                    timeout = max(0.0, waiting_since + JUDGE_AFTER_SECONDS - clock.time())
+                done, _ = await asyncio.wait(
+                    {*reads, *judging}, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
+                )
+                for task in done:
+                    if task in judging:
+                        judging.discard(task)
+                        task.result()  # a judge that failed fails the search, as before
+                        continue
+                    prospect, paid = reads.pop(task)
+                    running[paid] -= 1
+                    # A page nobody could find a person on is the first refusal, and
+                    # it happens here rather than at judging: there is nothing to judge.
+                    fresh = self._sift(search, [prospect], [task.result()], harvest)
+                    harvest.profiles.extend(fresh)
+                    processed += 1
+                    self._usage.pages_analyzed += 1
+                    if target > 0 and fresh:
+                        if not waiting:
+                            waiting_since = clock.time()
+                        waiting.extend(fresh)
+
+                # A full batch, or one that has waited long enough for company, or the
+                # last reads are in: a slow paid page must not hold judged leads back.
+                if waiting and (
+                    len(waiting) >= batch
+                    or not reads
+                    or clock.time() - waiting_since >= JUDGE_AFTER_SECONDS
+                ):
+                    judge_waiting()
+
+                # Counted as the client will see them: the same person reached at two
+                # addresses is one lead. Counting before merging stopped a search at
+                # eleven candidates that became nine leads.
+                if not stopping and target > 0 and len(deduplicate(harvest.leads)[0]) >= target:
+                    stopping = harvest.stopped_early = True
+                    log.info(
+                        "lead_target_reached",
+                        extra={"target": target, "leads": len(harvest.leads), "pages": processed},
+                    )
+                if not stopping:
+                    dispatch()
+
+                self._progress.profiles_processed = processed
+                self._bill_extraction()
+                self._tally(harvest)
+                if clock.time() - saved_at >= SAVE_EVERY_SECONDS:
+                    await self._save(
+                        search.id, SearchStage.EXTRACTING, processed / max(1, len(ranked))
+                    )
+                    saved_at = clock.time()
+        finally:
+            # Only reached with work left on a failure or a cancel: nothing may outlive
+            # the stage that started it.
+            leftovers = [*reads, *judging]
+            for task in leftovers:
+                task.cancel()
+            await asyncio.gather(*leftovers, return_exceptions=True)
+
+        self._progress.profiles_processed = processed
+        self._bill_extraction()
+        self._tally(harvest)
+        await self._save(search.id, SearchStage.EXTRACTING, 1.0)
+
+        # Whatever the stop left behind is not a judgement about anybody: those
         # candidates were never opened. Recorded all the same, because "we had
         # enough" is the one refusal the client may want to undo by asking for more.
-        for prospect in ranked[processed:]:
+        for index, prospect in enumerate(ranked):
+            if decided[index]:
+                continue
             self._refuse(
                 search,
                 prospect.url,
@@ -467,7 +607,6 @@ class SearchPipeline:
                 promise=prospect.promise,
             )
 
-        self._bill_extraction()
         spent = cost_of(self.extractor)
         log.info(
             "extraction_completed",
@@ -500,7 +639,7 @@ class SearchPipeline:
         harvest: Harvest,
     ) -> list[ExtractedProfile]:
         """
-        Split a wave into profiles worth judging and refusals worth explaining.
+        Split what was read into profiles worth judging and refusals worth explaining.
 
         Two different things used to be counted as one here, and the difference is
         the whole reason the refused list exists. *We opened the page and there was
@@ -547,21 +686,36 @@ class SearchPipeline:
             )
         return fresh
 
-    def _wave_size(self) -> int:
+    def _prescreened(self, search: Search, prospect: Prospect, harvest: Harvest) -> bool:
         """
-        How many candidates to dispatch together.
+        Refuse a paid candidate, unread, when its search result already names no
+        person — and say so, because the client can only check a refusal that tells
+        them nothing was opened.
 
-        EXTRACTION_CONCURRENCY, except when the budget has fewer paid reads left
-        than that: with one page left to pay for and ten coroutines in flight, the
-        last credit would go to whichever of them reached the reader first, and
-        ranking the candidates would have bought nothing. Once the budget is spent
-        nothing costs money any more, so the rest runs at full width.
+        Only paid reads are screened: a page our own browser opens costs nothing, and
+        reading it is better evidence than any title.
         """
-        width = max(1, self.settings.extraction_concurrency)
-        budget = budget_of(self.extractor)
-        if budget is None or budget.unlimited or budget.exhausted:
-            return width
-        return max(1, min(width, budget.remaining or width))
+        named = prospect.profile.name if prospect.profile else None
+        verdict = personhood.before_reading(
+            named or _title_name(prospect.url.title), search.criteria.brands
+        )
+        if verdict.is_person:
+            return False
+        harvest.promise[prospect.url.canonical_url] = prospect.promise
+        harvest.refusals[Refusal.NOT_A_PERSON] += 1
+        self._refuse(
+            search,
+            prospect.url,
+            RejectionReason.NOT_A_PERSON,
+            f"{verdict.detail} Decided from the search result alone, so the page was "
+            "never opened or paid for.",
+            promise=prospect.promise,
+        )
+        log.info(
+            "candidate_prescreened",
+            extra={"url": prospect.url.canonical_url, "detail": verdict.detail},
+        )
+        return True
 
     def _bill_extraction(self) -> None:
         """Copy what the extractor chain has spent so far into this run's usage."""
@@ -576,7 +730,7 @@ class SearchPipeline:
         """
         Judge whatever the harvest has not judged yet.
 
-        With a lead target set, the waves above did this as they landed and this
+        With a lead target set, reading did this as the profiles landed and this
         stage has nothing left to do — that is the point of the target: judging is
         what tells the search it can stop. Without one, every profile is judged
         here, exactly as before.
@@ -621,18 +775,18 @@ class SearchPipeline:
         the detector runs, which also means a filtered-out candidate is never paid
         for once Phase 6 makes judging an LLM call.
 
-        Bounded by LLM_CONCURRENCY (§52), and every profile is judged at most once —
-        `harvest.judged_urls` is what keeps a wave-judged profile from being paid
-        for a second time when the LLM detector arrives in Phase 6.
+        Bounded by LLM_CONCURRENCY (§52) across the whole run, and every profile is
+        judged at most once — `harvest.judged_urls` is what keeps a profile judged
+        while reading from being paid for a second time at scoring.
 
-        `stage=None` means "count, do not move the bar": inside a wave the meter is
+        `stage=None` means "count, do not move the bar": while reading, the meter is
         already advancing with the pages read, and a second writer would make it go
-        backwards. The wave loop saves once the wave is judged.
+        backwards. The reading loop saves the progress itself.
         """
         if not profiles:
             return
 
-        semaphore = asyncio.Semaphore(self.settings.llm_concurrency)
+        semaphore = self._llm_slots
         requirements = search.criteria.effective_requirements()
         required = [requirement for requirement in requirements if requirement.required]
         done = 0
@@ -966,6 +1120,11 @@ def _why_not_a_profile(url: DiscoveredUrl, kept: set[str]) -> str:
             f"({canonicalize(profile)}) was looked at instead."
         )
     return WHY_NOT_A_PROFILE.get(url.kind, "Not a person's page.")
+
+
+def _title_name(title: str) -> str:
+    """The name a search result is titled with: what comes before "- Headline", "|", "(@"."""
+    return re.split(r"\s*\(@|\s+[-–—|·•:]\s+|\s*[|•]\s*", title or "", maxsplit=1)[0].strip()
 
 
 def _rejection_id(search_id: str, canonical_url: str) -> str:

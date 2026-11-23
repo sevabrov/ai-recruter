@@ -31,7 +31,7 @@ from app.core.logging import get_logger
 from app.models.common import Platform, SourceKind
 from app.models.scrape import ScrapeOutcome
 from app.models.source import DiscoveredUrl
-from app.services.scraping.base import PROFILE_GONE, ExtractionCost, PageRead
+from app.services.scraping.base import PROFILE_GONE, ExtractionCost, PageRead, bills_for
 from app.services.scraping.snippet_extractor import SnippetProfileExtractor
 
 log = get_logger(__name__)
@@ -228,6 +228,12 @@ class RoutingPageReader:
         self.name = other.name if other is not None else browser.name
         self.cost = cost
         self.budget = getattr(other, "budget", None)
+
+    def bills(self, url: DiscoveredUrl) -> bool:
+        """The browser is free; only what goes to the other reader may cost money."""
+        if url.platform in BROWSER_PLATFORMS:
+            return False
+        return self.other is not None and bills_for(self.other, url)
 
     async def extract(self, url: DiscoveredUrl):
         return (await self.read(url)).profile

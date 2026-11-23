@@ -25,7 +25,9 @@ Two additions to that score, both deliberate:
 
 What this file does *not* do is drop anything. Ranking changes the order in which
 candidates are read, and — when the search has a lead target — where the tail is
-cut. Nothing is excluded on the strength of a snippet.
+cut. The one refusal a snippet can earn is made by the pipeline, and only before a
+*paid* read: a name that is the searched-for brand itself ("Farmasi Bucuresti"),
+or an organisation's own noun (`personhood.before_reading`).
 """
 
 from dataclasses import dataclass
