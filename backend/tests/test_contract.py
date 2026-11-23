@@ -113,7 +113,7 @@ def test_score_breakdown_explains_the_total(client):
 
 def test_search_payload_shape(client):
     summaries = client.get("/searches").json()
-    assert summaries, "the seed should provide search history"
+    assert summaries, "the test workspace should provide search history"
 
     search = client.get(f"/searches/{summaries[0]['id']}").json()
     assert set(search) >= SEARCH_KEYS

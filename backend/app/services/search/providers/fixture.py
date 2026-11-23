@@ -1,8 +1,9 @@
 """
 Fixture search provider — the Phase 2 stand-in for Brave (spec §28).
 
-It answers queries out of the seeded candidate catalogue by naive text matching,
-which is enough to make the pipeline behave like the real thing:
+It answers queries out of the candidate catalogue it was given by naive text
+matching, which is enough to make the pipeline behave like the real thing. The app
+gives it no catalogue, so offline it finds no one; the test suite gives it its own:
 
 * the criteria decide who is found — a Spain query surfaces Spanish profiles
 * the same person is returned by several queries, so deduplication has work to do
@@ -12,8 +13,8 @@ which is enough to make the pipeline behave like the real thing:
 
 No network, no keys, deterministic for a given query. Since Phase 4 it is the
 fallback rather than the default: it runs when no `BRAVE_SEARCH_API_KEY` is
-configured (or `SEARCH_PROVIDER=fixture` asks for it), which keeps the demo — and
-the test suite — working without a paid account. `SearchMarket` is ignored: the
+configured (or `SEARCH_PROVIDER=fixture` asks for it), which keeps the test suite
+running without a paid account. `SearchMarket` is ignored: the
 catalogue has no index to point at a country.
 """
 

@@ -12,11 +12,10 @@ BRAVE_SEARCH_API_KEY=…   # criteria → real queries → real URLs          (P
 SCRAPEGRAPH_API_KEY=…    # those URLs → the profile the page states     (Phase 5)
 ```
 
-Both are optional. With neither, the app runs exactly as before over a seeded
-catalogue of 24 candidates, so the demo works offline; with only the first, profiles
-are built from search results instead of pages. Judging a profile with a model is
-still a stand-in (Phase 6), and `/health` names the adapter behind every stage — demo
-output is never dressed up as live results.
+Without the first, searches find no one: the app ships no demo data, so a new
+install opens on an empty workspace. With only the first, profiles are built from
+search results instead of pages. `/health` names the adapter behind every stage, so
+stand-in output is never dressed up as live results.
 
 ```
 ai-recruiter/
@@ -41,15 +40,14 @@ docker compose up -d backend      # API on http://localhost:8000 (starts postgre
 
 cd frontend
 npm install                       # already done if you cloned with node_modules
-cp .env.local.example .env.local  # NEXT_PUBLIC_DATA_SOURCE=api
+cp .env.local.example .env.local  # NEXT_PUBLIC_API_BASE_URL
 npm run dev                       # http://localhost:3000
 ```
 
-The API migrates its schema on start and seeds an empty database once, so the first
-run needs nothing extra. If the API — or its database — is not running, the app says
-so in the sidebar and in Settings rather than looking empty. To work without a
-backend at all, set `NEXT_PUBLIC_DATA_SOURCE=mock` and restart `npm run dev`; the
-Phase 1 fixtures still work.
+The API migrates its schema on start, so the first run needs nothing extra; the
+workspace starts empty. If the API — or its database — is not running, the app says
+so in the sidebar and in Settings rather than looking empty. The frontend has no
+offline mode: it always talks to the backend.
 
 ### Searching the real web
 
@@ -169,8 +167,7 @@ docker compose down            # stop, data kept in named volumes
 docker compose down -v         # stop and wipe the workspace
 ```
 
-The workspace lives in the `postgres-data` volume. To start over from the seed,
-either `POST /admin/reset` (the *Reset demo data* button in Settings) or
+The workspace lives in the `postgres-data` volume. To start over with an empty one,
 `docker compose down -v && docker compose up -d backend`.
 
 Adminer opens at <http://localhost:8081> (server `postgres`, user/password from
@@ -267,7 +264,7 @@ Three kinds of string stay as they are, and the reasons differ:
   variable names, shell commands.
 * **Whatever the data source says.** Dashboard stat *hints*, estimate warnings,
   rejection details, AI summaries and outreach drafts are produced by the backend
-  (or, in mock mode, by the fixtures that stand in for it) and arrive as prose,
+  and arrive as prose,
   not as keys. The interface labels around them are translated — the dashboard
   tiles, for instance, are told which stat they are showing and take the heading
   from the catalogue. Localising the rest needs the backend to return keys, or to
@@ -275,29 +272,26 @@ Three kinds of string stay as they are, and the reasons differ:
 
 ---
 
-## Architecture — one switch, two data sources
+## Architecture — one data source
 
 No component imports a data source. Data flows:
 
 ```
 page/component  →  TanStack Query hook  →  service interface  →  implementation
-                   src/services/hooks.ts   src/services/types.ts   mock/ or api/
+                   src/services/hooks.ts   src/services/types.ts   api/
 ```
 
-`NEXT_PUBLIC_DATA_SOURCE` in [frontend/src/services/index.ts](frontend/src/services/index.ts) picks the
-implementation — `api` (default, the FastAPI backend) or `mock` (the Phase 1
-fixtures, useful with nothing else running). Not a single component changed when
-the backend arrived.
+[frontend/src/services/index.ts](frontend/src/services/index.ts) wires every service to the
+FastAPI backend; there is no in-browser stand-in.
 
 * [frontend/src/services/types.ts](frontend/src/services/types.ts) — the contract both sides implement:
   `Lead`, `LeadSignal`, `Search`, `SearchProgress`, `DashboardData`, `HealthStatus`.
   [backend/tests/test_contract.py](backend/tests/test_contract.py) asserts the API keeps matching it.
 * [frontend/src/services/api/](frontend/src/services/api/) — the HTTP client.
-* [frontend/src/services/mock/](frontend/src/services/mock/) — fixtures + a localStorage store.
 * [backend/app/schemas/](backend/app/schemas/) — the same contract in Pydantic; camelCase over the
   wire, snake_case query parameters.
 
-Four rules the product follows in both modes:
+Four rules the product follows:
 
 * **Scores are computed, not authored.** [backend/app/services/scoring/scoring_service.py](backend/app/services/scoring/scoring_service.py)
   turns `confidence × weight` into points. The model detects signals; code does
@@ -332,7 +326,7 @@ stand-in until Phase 6. Details and the phase-by-phase swap table are in
 | `/leads` | All / Saved / Archived across searches |
 | `/leads/:id` | Score dial + breakdown, per-requirement evidence (a verbatim quote, checked against the profile) with source links, AI summary, sources, notes, outreach draft |
 | `/searches` | Search history, running searches separated |
-| `/settings` | Theme picker, search defaults, live backend status, which adapter each pipeline stage runs, which sources can be read, concurrency limits, reset demo data |
+| `/settings` | Theme picker, search defaults, live backend status, which adapter each pipeline stage runs, which sources can be read, concurrency limits |
 
 The description is read into criteria by `POST /searches/parse` — OpenAI
 (`OPENAI_API_KEY`, `OPENAI_MODEL`, default `gpt-4.1`) when a key is set, a rule reader
@@ -347,13 +341,11 @@ MIHI / Spain brief from the spec, which is the fastest way to walk the whole flo
 
 ## Known limitations (Phase 5, by design)
 
-* **Nobody is discovered without a key.** Out of the box the search provider and the
-  extractor work over the seeded catalogue of 24 candidates: the real pipeline runs
-  and re-scores them against your weights and geography, but it cannot reach the open
-  web. Set `BRAVE_SEARCH_API_KEY` and it can.
+* **Nobody is discovered without a key.** Without `BRAVE_SEARCH_API_KEY` the
+  pipeline runs but has nowhere to look, so a search finishes with no leads.
 * **Without `SCRAPEGRAPH_API_KEY`, a live search reads result snippets, not pages.**
   Those profiles are built from what the search API returned — title, description,
-  page age, language — so they are thinner than the seeded ones and score lower.
+  page age, language — so they are thinner than read pages and score lower.
 * **A search reads 25 pages by default, not every candidate it finds.** That is the
   page budget (`MAX_PAGES_PER_SEARCH`), and it exists because a live search finds a
   hundred-plus candidates and reading them all spends a plan. The rest become leads
@@ -397,17 +389,16 @@ MIHI / Spain brief from the spec, which is the fastest way to walk the whole flo
   block each other and the job records are persisted, but a restart cannot resume a
   job in the middle of a stage — it re-queues the whole search — and they cannot
   scale across machines. Phase 7 moves them to Celery + Redis.
-* **The dashboard's charts stay seeded.** The tiles are counted by the database and
-  react to what you do; the source split, score distribution and weekly curve are
-  still the fixture aggregates.
-* **No authentication.** Every request is attributed to one demo user row, though
+* **The dashboard has no trend.** Tiles and charts are counted from your own
+  searches and leads, but no earlier period is stored, so the tiles show no change.
+* **No authentication.** Every request is attributed to one owner row, though
   every query is already scoped by `user_id`. Phase 8.
 * **Outreach drafts come from a template**, not a model, and are not stored.
-* **Fixture runs are paced deliberately** (`PIPELINE_STEP_DELAY_MS=250`): the
+* **Offline runs are paced deliberately** (`PIPELINE_STEP_DELAY_MS=250`): the
   stand-in adapters answer instantly and the progress screen would otherwise never
   be seen. Live searches ignore it.
 * **Export, bulk actions and pagination controls are not built** (the API supports
-  pagination; the demo lists fit one page).
+  pagination).
 
 ---
 

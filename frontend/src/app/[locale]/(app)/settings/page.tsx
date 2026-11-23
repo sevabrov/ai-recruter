@@ -1,23 +1,19 @@
 "use client";
 
-import { Check, Database, FileSearch, Monitor, Radio, Trash2 } from "lucide-react";
+import { Check, Database, FileSearch, Monitor, Radio } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge, Dot } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { SwitchField } from "@/components/ui/controls";
 import { Eyebrow } from "@/components/ui/misc";
-import { Modal } from "@/components/ui/overlay";
-import { useToast } from "@/components/ui/toast";
 import { useTheme } from "@/lib/theme-provider";
 import { THEMES } from "@/lib/themes";
 import { useNumbers } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { DATA_SOURCE, IS_MOCK } from "@/services";
 import { API_BASE_URL } from "@/services/api/http";
-import { useBackendHealth, useResetWorkspace, useSourceReport } from "@/services/hooks";
+import { useBackendHealth, useSourceReport } from "@/services/hooks";
 import type { HealthStatus } from "@/services/types";
 
 /**
@@ -109,44 +105,25 @@ const OUTCOMES: ("usable" | "notAPerson" | "blocked" | "empty" | "failed")[] = [
 
 export default function SettingsPage() {
   const t = useTranslations("settings");
-  const common = useTranslations("common");
   const theme = useTranslations("theme");
   const { number } = useNumbers();
 
   const { preference, resolved, setPreference } = useTheme();
-  const [confirmReset, setConfirmReset] = useState(false);
   const [autoSaveHigh, setAutoSaveHigh] = useState(false);
   const [notifyDone, setNotifyDone] = useState(true);
-  const { toast } = useToast();
   const health = useBackendHealth();
   const sources = useSourceReport();
-  const resetWorkspace = useResetWorkspace();
 
   // A backend whose database stopped answering is not "connected" — it is degraded,
   // and saying so beats letting every screen fail with an empty state.
   const degraded = health.data?.database === false;
-  const sourceTone = IS_MOCK
-    ? "warn"
-    : health.isError
-      ? "bad"
-      : degraded
-        ? "warn"
-        : health.data
-          ? "good"
-          : "neutral";
-
-  const reset = () => {
-    setConfirmReset(false);
-    resetWorkspace.mutate(undefined, {
-      onSuccess: () =>
-        toast({ title: t("resetToastTitle"), description: t("resetToastBody") }),
-      onError: (error) =>
-        toast({
-          title: t("resetFailedTitle"),
-          description: error instanceof Error ? error.message : t("resetFailedBody"),
-        }),
-    });
-  };
+  const sourceTone = health.isError
+    ? "bad"
+    : degraded
+      ? "warn"
+      : health.data
+        ? "good"
+        : "neutral";
 
   return (
     <>
@@ -239,15 +216,13 @@ export default function SettingsPage() {
             action={
               <Badge tone={sourceTone} mono>
                 <Dot tone={sourceTone} />
-                {DATA_SOURCE}
+                api
               </Badge>
             }
           />
           <CardBody className="flex flex-col gap-4">
             <p className="text-sm text-fg-muted">
-              {IS_MOCK ? (
-                t("dataSourceMock")
-              ) : health.isError ? (
+              {health.isError ? (
                 // The address and the shell command are values, not copy, so
                 // they are injected as empty tags rather than sitting in the
                 // catalogue where a translation pass could reword them.
@@ -452,38 +427,7 @@ export default function SettingsPage() {
             ) : null}
           </CardBody>
         </Card>
-
-        <Card className="border-bad/30">
-          <CardHeader title={t("resetTitle")} hint={t("resetHint")} />
-          <CardBody>
-            <Button variant="danger" onClick={() => setConfirmReset(true)}>
-              <Trash2 />
-              {t("resetButton")}
-            </Button>
-          </CardBody>
-        </Card>
       </div>
-
-      <Modal
-        open={confirmReset}
-        onOpenChange={setConfirmReset}
-        title={t("resetModalTitle")}
-        description={t("resetModalDescription")}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmReset(false)}>
-              {common("cancel")}
-            </Button>
-            <Button variant="danger" onClick={reset}>
-              {common("reset")}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-fg-muted">
-          {IS_MOCK ? t("resetBodyMock") : t("resetBodyApi")}
-        </p>
-      </Modal>
     </>
   );
 }

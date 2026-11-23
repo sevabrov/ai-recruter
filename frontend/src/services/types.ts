@@ -1,10 +1,8 @@
 /**
  * API CONTRACTS
  * =============
- * The single source of truth shared by the mock services (Phase 1) and the
- * FastAPI client that replaces them (Phase 2+). UI components import types from
- * here only — never from the mock modules — so swapping the implementation is a
- * one-line change in src/services/index.ts.
+ * The single source of truth for the shapes the FastAPI backend speaks. UI
+ * components import types from here only, never from the client in `api/`.
  */
 
 /* ------------------------------------------------------------------ search */
@@ -626,14 +624,9 @@ export interface DashboardService {
   get(): Promise<DashboardData>;
 }
 
-/**
- * Workspace-level concerns that both implementations can answer, so no screen
- * has to know which one is active: "is the data source reachable?" and "put the
- * demo data back".
- */
+/** Workspace-level concerns: "is the backend reachable?" and "what can it read?". */
 export interface WorkspaceService {
   health(): Promise<HealthStatus>;
   /** Which sources can actually be read, from the backend's own record. */
   sources(): Promise<SourcesReport>;
-  reset(): Promise<void>;
 }

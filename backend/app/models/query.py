@@ -7,6 +7,8 @@ the repository turns it into WHERE / ORDER BY / LIMIT. Keeping it here is what
 stops `app/db/` from importing `app/services/`.
 """
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from app.models.common import LeadSort, LeadStatus, Platform
@@ -46,3 +48,11 @@ class LeadStats(BaseModel):
     total: int = 0
     high_quality: int = 0
     saved: int = 0
+
+
+class LeadPoint(BaseModel):
+    """One lead, reduced to what the dashboard charts are drawn from."""
+
+    platforms: list[Platform]
+    score: int
+    created_at: datetime

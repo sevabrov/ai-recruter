@@ -14,14 +14,13 @@ so both sides of the seam can speak it.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from app.core.errors import NotFoundError
 from app.db.repository import Repository
 from app.models.common import LeadStatus, Platform
 from app.models.lead import Lead, LeadNote
-from app.models.query import LeadQuery, LeadStats, Page
+from app.models.query import LeadPoint, LeadQuery, LeadStats, Page
 
 
 class LeadService:
@@ -76,8 +75,11 @@ class LeadService:
         """Filter options built from the data present, not a hardcoded list."""
         return await self.repo.lead_facets(user_id)
 
-    async def stats(self, user_id: str, *, exclude_search_ids: Sequence[str] = ()) -> LeadStats:
-        return await self.repo.lead_stats(user_id, exclude_search_ids=exclude_search_ids)
+    async def stats(self, user_id: str) -> LeadStats:
+        return await self.repo.lead_stats(user_id)
+
+    async def points(self, user_id: str) -> list[LeadPoint]:
+        return await self.repo.lead_points(user_id)
 
 
 def _digest(value: str) -> str:

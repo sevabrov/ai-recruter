@@ -16,7 +16,7 @@
 # Nothing here calls out to the internet unless `.env` carries a provider key:
 # with BRAVE_SEARCH_API_KEY set, searches query the live web (Phase 4); with
 # SCRAPEGRAPH_API_KEY set as well, the pages they find are opened and read
-# (Phase 5). Without either, everything runs over the seeded catalogue.
+# (Phase 5). Without either, searches find no one. No demo data is ever loaded.
 
 name: ai-recruiter
 
@@ -74,7 +74,7 @@ services:
 
   # ------------------------------------------------------------------ the API
   # `docker compose up -d backend` starts postgres too and waits for it to be
-  # healthy, then the API migrates the schema and seeds an empty database once.
+  # healthy, then the API migrates the schema. A new database starts empty.
   backend:
     build: ./backend
     container_name: air-backend

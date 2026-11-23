@@ -309,20 +309,3 @@ class ScrapeRow(Base):
     last_scraped_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
-
-
-class SeedStateRow(Base):
-    """
-    Why the seed is applied once and not on every boot.
-
-    Without a marker, an empty workspace and a *deliberately emptied* workspace
-    look identical, so the demo data would grow back after every restart. This row
-    records that it was applied; `POST /admin/reset` deletes it and re-applies.
-    """
-
-    __tablename__ = "seed_state"
-
-    key: Mapped[str] = mapped_column(String(64), primary_key=True)
-    applied_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=_now())
-    searches: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    leads: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

@@ -23,7 +23,7 @@ from app.db.bootstrap import upgrade_schema
 from app.db.engine import create_session_factory
 from app.db.tables import Base
 from app.main import create_app
-from tests.conftest import run_search, wait_for
+from tests.conftest import make_settings, run_search, wait_for
 
 #: A port nothing listens on — a database that is simply not there.
 UNREACHABLE = "postgresql+asyncpg://nobody:nothing@127.0.0.1:1/nowhere"
@@ -63,28 +63,14 @@ def test_an_edited_lead_keeps_its_edits_and_notes(client, settings):
     assert after["notes"][-1]["body"] == "Answered on the second call"
 
 
-def test_the_seed_is_applied_once_not_on_every_boot(client, settings):
-    """
-    The whole point of the marker row: without it the demo data would grow by 24
-    leads on every restart.
-    """
-    before = client.get("/leads", params={"page_size": 500}).json()["total"]
-    searches = len(client.get("/searches").json())
+def test_a_new_install_starts_empty_and_stays_empty(fresh_client, empty_database):
+    """No demo data on the first boot, and none appearing on a later one."""
+    assert fresh_client.get("/searches").json() == []
+    assert fresh_client.get("/leads").json()["total"] == 0
 
-    with restart(settings) as second, restart(settings) as third:
-        assert second.get("/leads", params={"page_size": 500}).json()["total"] == before
-        assert len(third.get("/searches").json()) == searches
-
-
-def test_a_reset_drops_new_work_and_restores_the_seed(client):
-    search = run_search(client, name="Discarded by the reset")
-    lead = client.get("/leads").json()["items"][0]
-    client.patch(f"/leads/{lead['id']}", json={"archived": True})
-
-    client.post("/admin/reset")
-
-    assert client.get(f"/searches/{search['id']}").status_code == 404
-    assert client.get(f"/leads/{lead['id']}").json()["archived"] is False
+    with restart(make_settings(empty_database)) as second:
+        assert second.get("/searches").json() == []
+        assert second.get("/leads").json()["total"] == 0
 
 
 def test_a_search_interrupted_by_a_restart_is_picked_up_again(client, settings):
@@ -116,7 +102,7 @@ def test_wildcards_typed_into_the_search_box_are_literal_text(client):
 def test_paging_has_a_total_order_so_no_lead_appears_twice(client):
     """
     LIMIT/OFFSET without a tiebreak is free to shuffle equal rows between pages.
-    Score has plenty of ties in the seed, which is what makes this worth asserting.
+    Score has plenty of ties in the test workspace, which is what makes this worth asserting.
     """
     seen: list[str] = []
     for page in (1, 2, 3, 4, 5, 6):

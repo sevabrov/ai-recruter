@@ -5,7 +5,7 @@ Everything is built once at startup and hung off `app.state`, so handlers stay
 thin and tests can construct the same container without a running server.
 
 `current_user_id` is the authentication seam (spec §55). Until Phase 8 there is
-one demo owner, but every service call already takes a `user_id` and every lookup
+one owner, but every service call already takes a `user_id` and every lookup
 is scoped by it — so adding real accounts means replacing this one function, not
 auditing every query.
 """
@@ -17,12 +17,11 @@ from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.core.config import Settings, get_settings
-from app.core.logging import get_logger
 from app.db.bootstrap import upgrade_schema_async
 from app.db.engine import create_engine, create_session_factory
 from app.db.postgres import PostgresRepository
 from app.db.repository import Repository
-from app.db.seed import SeedData, load_seed
+from app.models.lead import Lead
 from app.services.adapters import (
     ReaderResources,
     build_brief_parser,
@@ -44,13 +43,10 @@ from app.services.search.query_generator import TemplateQueryGenerator
 from app.services.search.search_service import SearchService
 from app.workers.job_service import JobService
 
-log = get_logger(__name__)
-
 
 @dataclass
 class Container:
     settings: Settings
-    seed: SeedData
     engine: AsyncEngine
     repository: Repository
     provider: SearchProvider
@@ -68,20 +64,24 @@ class Container:
     dashboard: DashboardService
 
 
-def build_container(settings: Settings | None = None) -> Container:
+def build_container(
+    settings: Settings | None = None, catalogue: list[Lead] | None = None
+) -> Container:
     """
     Wires everything together. Nothing here touches the network: the engine only
     opens connections when a session is used, so building a container is cheap and
     `open_container` owns the part that can fail.
+
+    `catalogue` is what the offline stand-ins (no Brave key) can find. The app
+    passes none, so offline searches find no one; the test suite passes its own.
     """
     settings = settings or get_settings()
-    seed = load_seed(settings.dev_user_id)
     engine = create_engine(settings)
-    repository = PostgresRepository(create_session_factory(engine), seed)
+    repository = PostgresRepository(create_session_factory(engine))
 
     scoring = ScoringService()
     query_generator = TemplateQueryGenerator()
-    catalogue = seed.catalogue
+    catalogue = catalogue or []
 
     # The provider is shared by every job on purpose: it owns the connection pool
     # and the per-key rate limiter, neither of which may be duplicated per search.
@@ -90,7 +90,7 @@ def build_container(settings: Settings | None = None) -> Container:
     provider = build_search_provider(settings, catalogue)
     reader = build_reader_resources(settings)
     post_reader = build_post_reader(settings, reader)
-    # Demo pacing is for fixtures. Real providers bring their own latency, and
+    # Pacing is for the offline stand-ins. Real providers bring their own latency, and
     # adding a quarter of a second per step to it would be nothing but a delay.
     pipeline_settings = (
         settings.model_copy(update={"pipeline_step_delay_ms": 0})
@@ -118,7 +118,6 @@ def build_container(settings: Settings | None = None) -> Container:
 
     return Container(
         settings=settings,
-        seed=seed,
         engine=engine,
         repository=repository,
         provider=provider,
@@ -129,17 +128,18 @@ def build_container(settings: Settings | None = None) -> Container:
         searches=searches,
         leads=leads,
         outreach=OutreachService(),
-        dashboard=DashboardService(searches, leads, seed),
+        dashboard=DashboardService(searches, leads),
     )
 
 
-async def open_container(settings: Settings | None = None) -> Container:
-    """Build it, bring the schema up to date and seed an empty database once."""
-    container = build_container(settings)
+async def open_container(
+    settings: Settings | None = None, catalogue: list[Lead] | None = None
+) -> Container:
+    """Build it, bring the schema up to date and make sure the owner row exists."""
+    container = build_container(settings, catalogue)
     if container.settings.run_migrations_on_startup:
         await upgrade_schema_async(container.settings.database_url)
-    if await container.repository.ensure_seeded():
-        log.info("workspace_seeded")
+    await container.repository.ensure_owner(container.settings.dev_user_id)
     return container
 
 

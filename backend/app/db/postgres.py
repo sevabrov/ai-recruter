@@ -6,7 +6,7 @@ actually want: the worker writes progress dozens of times per search and must no
 hold a transaction open across a stage, and two searches running at once must not
 serialise behind each other.
 
-Three things are worth reading closely:
+Two things are worth reading closely:
 
 * `query_leads` is the whole `/leads` screen in one statement — filters as WHERE,
   sort as ORDER BY (always with a tiebreak, so paging cannot repeat or skip a row),
@@ -14,15 +14,10 @@ Three things are worth reading closely:
 * `patch_search` locks the row it is about to update, which closes the window
   where a cancel arriving mid-stage would be overwritten by the worker's next
   progress write.
-* `ensure_seeded` is guarded by a marker row, so the demo data is inserted once —
-  a workspace someone deliberately emptied stays empty across restarts.
 """
 
-from collections.abc import Sequence
-
-from sqlalchemy import Select, and_, delete, func, select, text
+from sqlalchemy import Select, and_, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.db.engine import SessionFactory
@@ -41,7 +36,6 @@ from app.db.mappers import (
     to_search,
 )
 from app.db.repository import Repository
-from app.db.seed import SeedData
 from app.db.tables import (
     JobRow,
     LeadNoteRow,
@@ -49,7 +43,6 @@ from app.db.tables import (
     ScrapeRow,
     SearchRejectionRow,
     SearchRow,
-    SeedStateRow,
     UserRow,
 )
 from app.models.common import (
@@ -61,29 +54,20 @@ from app.models.common import (
 )
 from app.models.job import Job
 from app.models.lead import Lead, LeadNote
-from app.models.query import LeadQuery, LeadStats, Page
+from app.models.query import LeadPoint, LeadQuery, LeadStats, Page
 from app.models.rejection import RejectedCandidate, RejectionReason
 from app.models.scrape import USABLE_OUTCOMES, ScrapeOutcome, ScrapeRecord, SourceReliability
 from app.models.search import Search
 
 log = get_logger(__name__)
 
-#: Marker for "the demo seed has been applied to this database".
-SEED_KEY = "demo-workspace"
-
 #: A search in one of these states is finished; the worker must not write over it.
 FINISHED_STATUSES = (SearchStatus.CANCELLED.value, SearchStatus.FAILED.value)
 
-#: Tables the demo reset clears. Users survive: the accounts are not demo data.
-#: Neither does `scrape_cache` — those pages were paid for in credits (spec §53),
-#: and a reset of the demo workspace is no reason to buy them again.
-RESET_TABLES = "lead_notes, leads, search_rejections, jobs, searches, seed_state"
-
 
 class PostgresRepository(Repository):
-    def __init__(self, session_factory: SessionFactory, seed: SeedData) -> None:
+    def __init__(self, session_factory: SessionFactory) -> None:
         self._session = session_factory
-        self._seed = seed
 
     # ------------------------------------------------------------- searches
     async def list_searches(self, user_id: str) -> list[Search]:
@@ -246,20 +230,31 @@ class PostgresRepository(Repository):
         # Enum order, not alphabetical: the filter chips read the same every time.
         return countries, [platform for platform in Platform if platform.value in kinds]
 
-    async def lead_stats(
-        self, user_id: str, *, exclude_search_ids: Sequence[str] = ()
-    ) -> LeadStats:
+    async def lead_stats(self, user_id: str) -> LeadStats:
         stmt = select(
             func.count().label("total"),
             func.count().filter(LeadRow.score >= HIGH_QUALITY_THRESHOLD).label("high_quality"),
             func.count().filter(LeadRow.saved.is_(True)).label("saved"),
         ).where(LeadRow.user_id == user_id)
-        if exclude_search_ids:
-            stmt = stmt.where(LeadRow.search_id.not_in(list(exclude_search_ids)))
 
         async with self._session() as session:
             row = (await session.execute(stmt)).one()
             return LeadStats(total=row.total, high_quality=row.high_quality, saved=row.saved)
+
+    async def lead_points(self, user_id: str) -> list[LeadPoint]:
+        stmt = select(LeadRow.platform_kinds, LeadRow.score, LeadRow.created_at).where(
+            LeadRow.user_id == user_id
+        )
+        async with self._session() as session:
+            rows = await session.execute(stmt)
+            return [
+                LeadPoint(
+                    platforms=[Platform(kind) for kind in row.platform_kinds],
+                    score=row.score,
+                    created_at=row.created_at,
+                )
+                for row in rows
+            ]
 
     # ----------------------------------------------------------------- jobs
     async def list_jobs(self, user_id: str) -> list[Job]:
@@ -343,69 +338,24 @@ class PostgresRepository(Repository):
             log.warning("database_unreachable", exc_info=True)
             return False
 
-    async def ensure_seeded(self) -> bool:
-        async with self._session() as session, session.begin():
-            claimed = await session.execute(
-                insert(SeedStateRow)
-                .values(
-                    key=SEED_KEY,
-                    searches=len(self._seed.searches),
-                    leads=len(self._seed.leads),
-                )
-                .on_conflict_do_nothing(index_elements=["key"])
-            )
-            # Nobody else got there first, so this transaction owns the insert.
-            if claimed.rowcount == 0:
-                return False
-            await self._insert_seed(session)
-
-        log.info(
-            "seed_applied",
-            extra={"searches": len(self._seed.searches), "leads": len(self._seed.leads)},
-        )
-        return True
-
-    async def reset(self) -> None:
+    async def ensure_owner(self, user_id: str) -> None:
         """
-        Back to the seed as it was loaded at startup — including its timestamps, so
-        "3 hours ago" is relative to the boot, not to the reset.
+        The workspace owner's row, created on first boot. Every other table points
+        at it, so it has to exist before the first search is saved.
         """
         async with self._session() as session, session.begin():
-            await session.execute(text(f"TRUNCATE TABLE {RESET_TABLES}"))
             await session.execute(
-                insert(SeedStateRow).values(
-                    key=SEED_KEY,
-                    searches=len(self._seed.searches),
-                    leads=len(self._seed.leads),
-                )
+                insert(UserRow).values(id=user_id).on_conflict_do_nothing(index_elements=["id"])
             )
-            await self._insert_seed(session)
-        log.info("workspace_reset")
-
-    async def _insert_seed(self, session: AsyncSession) -> None:
-        user_id = self._seed.user_id
-        if await session.get(UserRow, user_id) is None:
-            session.add(UserRow(id=user_id, email="demo@ai-recruiter.local", name="Demo user"))
-            await session.flush()
-
-        for search in self._seed.searches:
-            session.add(apply_search(SearchRow(), search))
-        await session.flush()
-
-        for lead in self._seed.leads:
-            session.add(apply_lead(LeadRow(), lead))
-            for note in lead.notes:
-                session.add(note_row(lead.id, note))
 
     async def purge(self) -> None:
-        """Leave the database empty — no seed, no marker. Used by the test suite."""
+        """Leave the database empty. Used by the test suite."""
         async with self._session() as session, session.begin():
             await session.execute(delete(LeadNoteRow))
             await session.execute(delete(LeadRow))
             await session.execute(delete(JobRow))
             await session.execute(delete(SearchRow))
             await session.execute(delete(ScrapeRow))
-            await session.execute(delete(SeedStateRow))
 
 
 # ------------------------------------------------------------------ predicates

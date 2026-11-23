@@ -11,8 +11,8 @@ BRAVE_SEARCH_API_KEY=…   # in .env — finds real URLs
 SCRAPEGRAPH_API_KEY=…    # in .env — reads what is on them
 ```
 
-Neither is required: without them nothing calls out and the demo works exactly as
-before. `/health` always says which stage is real:
+Without them nothing calls out, and searches find no one: the app ships no demo
+data. `/health` always says which stage is real:
 
 ```json
 {"pipeline": "partial",
@@ -53,8 +53,7 @@ against a reachable `DATABASE_URL`.
 ```
 users ─┬─< searches ─┬─< leads ─< lead_notes
        │             └─< search_rejections   (what the run turned away, and why)
-       └─< jobs                 seed_state   (the "seeded once" marker)
-                                scrape_cache (one row per page ever read)
+       └─< jobs                 scrape_cache (one row per page ever read)
 ```
 
 `scrape_cache` is the one table with no `user_id`: a page is a page, nothing in it
@@ -95,9 +94,9 @@ Three consequences worth knowing:
 * **Progress writes lock the row.** `patch_search` is one transaction with
   `SELECT … FOR UPDATE`, so a cancel arriving mid-stage cannot be overwritten by the
   worker's next progress write.
-* **The seed is applied once**, on the first boot against an empty database, and
-  the workspace ages from there. `POST /admin/reset` empties the tables and
-  re-applies it.
+* **A new database starts empty.** The first boot creates the owner row and
+  nothing else; migration `0007` removed the demo workspace earlier versions
+  inserted.
 
 Adminer at <http://localhost:8081> (server `postgres`) is the quickest way to look
 at the rows.
@@ -126,7 +125,6 @@ at the rows.
 | GET | `/dashboard` | tiles, recent searches, distributions |
 | GET | `/jobs`, `/jobs/:id` | operator view of background work; survives a restart |
 | GET | `/sources` | which platforms can actually be read, counted from the scrape cache |
-| POST | `/admin/reset` | re-seeds the workspace; debug builds only |
 
 Responses are camelCase to match `frontend/src/services/types.ts`; query
 parameters are snake_case (`min_score`, `page_size`), which is what the frontend
@@ -552,7 +550,7 @@ criteria → query generation → provider → URL normalization → dedup
 | Search provider (§27–28) | **`BraveSearchProvider`** when a key is set, `FixtureSearchProvider` otherwise | — |
 | URL normalization + discovery (§31–32) | real | — |
 | Page budget (§52) | real: `MAX_PAGES_PER_SEARCH`, `TARGET_LEADS`, candidates read best-first | — |
-| Extraction (§33–34) | **`ScrapeGraphProfileExtractor`** when a key is set (cached, with the snippet extractor as fallback), `FixtureProfileExtractor` in the demo | — |
+| Extraction (§33–34) | **`ScrapeGraphProfileExtractor`** when a key is set (cached, with the snippet extractor as fallback), `FixtureProfileExtractor` offline (finds no one outside the tests) | — |
 | Scrape cache (§53) | real, PostgreSQL, per canonical URL | — |
 | Signal detection (§36) | `FixtureSignalDetector` — keyword sightings from the page's own text | Phase 6 — `LlmSignalDetector` |
 | Scoring (§37–38) | real, deterministic | — |
@@ -560,12 +558,12 @@ criteria → query generation → provider → URL normalization → dedup
 | Cost tracking (§54) | real: search calls, pages read / cached / skipped, credits in plan units, unit costs from config | — |
 | Storage (§23) | **PostgreSQL 17 + Alembic** | — |
 | Jobs (§39–41) | asyncio tasks in the API process, recorded in the database | Phase 7 — Celery + Redis |
-| Auth (§55) | one demo user row, every query scoped by `user_id` | Phase 8 |
+| Auth (§55) | one owner row, every query scoped by `user_id` | Phase 8 |
 
 Swapping an adapter is a decision in [app/services/adapters.py](app/services/adapters.py): a
 provider is used as soon as its key is configured, otherwise a stand-in keeps the
 product working. Nothing else in the codebase names a vendor — `SEARCH_PROVIDER=fixture`
-forces the demo back on even with a key present, which is what the test suite uses.
+forces the offline stand-ins even with a key present, which is what the test suite uses.
 
 ---
 
@@ -580,12 +578,11 @@ app/
   schemas/           API DTOs (camelCase aliases) — the contract
   db/
     repository.py    the storage protocol every service depends on
-    postgres.py      the SQL implementation: filters, locking, seeding, reset
+    postgres.py      the SQL implementation: filters, locking
     tables.py        the schema — what is a column and what is JSONB
     mappers.py       rows ↔ domain models, and the query mirrors
     engine.py        the connection pool
     bootstrap.py     `alembic upgrade head`
-    seed.py          the demo workspace, generated from the Phase 1 fixtures
   services/
     search/          query generator, providers, url_tools, markets, dedup, pipeline
     scraping/        base.py       the extraction and page-reading interfaces
@@ -609,22 +606,14 @@ tests/               306 tests: contract, scoring, pipeline units, lifecycle, fi
                      estimate, and two live end-to-end runs
 ```
 
-### Seed data
+### Test data
 
-`app/db/seed/fixtures.json` is generated from the Phase 1 frontend fixtures, so
-the demo content the client already approved is served by the API rather than
-re-typed. Timestamps are rebased when the file is loaded and then **inserted once**,
-so the workspace ages like real data; a search that was still running when the seed
-was captured is re-queued at startup — the same thing a worker pool does after a
-restart.
-
-Without a Brave key, new searches rediscover those same people through the pipeline
-and re-score them against the criteria you chose, so geography and weights visibly
-change the result — they just cannot find anybody new. With a key, the catalogue is
-out of the picture entirely: the URLs come from the web and the seeded people are
-unreachable, because none of their URLs exist. The seeded searches carry `pagesRead`
-and `pagesCached` figures too, so the usage card reads the same before and after a
-real run.
+The app ships no data. The test suite has its own workspace in
+`tests/data/workspace.json` (four searches, 24 leads): `tests/conftest.py` inserts
+it before each test and hands its leads to the offline stand-ins, so a test search
+rediscovers those people through the real pipeline and re-scores them against the
+criteria. Timestamps are rebased when the file is loaded, so "3 hours ago" stays
+true however long it sits in git.
 
 ### Configuration
 
@@ -632,7 +621,7 @@ All of it is environment (spec §22, §52) — see `../.env.example`. Provider k
 are read in `core/config.py` and nowhere else, and never leave the server:
 `/health` reports whether a key is set, never its value.
 
-`PIPELINE_STEP_DELAY_MS` (default 250) is demo pacing only: fixture adapters
+`PIPELINE_STEP_DELAY_MS` (default 250) is offline pacing only: the stand-ins
 answer instantly, so without it a search finishes in about a second and the
 progress screen is never seen. It is ignored in live mode — Brave brings its own
 latency — and `0` gives an instant fixture run.

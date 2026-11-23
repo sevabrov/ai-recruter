@@ -13,13 +13,12 @@ back the whole table — the filters became WHERE clauses, the sort became ORDER
 and the page became LIMIT/OFFSET.
 """
 
-from collections.abc import Sequence
 from typing import Protocol
 
 from app.models.common import Platform
 from app.models.job import Job
 from app.models.lead import Lead, LeadNote
-from app.models.query import LeadQuery, LeadStats, Page
+from app.models.query import LeadPoint, LeadQuery, LeadStats, Page
 from app.models.rejection import RejectedCandidate, RejectionReason
 from app.models.scrape import ScrapeRecord, SourceReliability
 from app.models.search import Search
@@ -90,9 +89,10 @@ class Repository(Protocol):
     async def lead_facets(self, user_id: str) -> tuple[list[str], list[Platform]]:
         """Countries and platforms actually present, for the filter menus."""
 
-    async def lead_stats(
-        self, user_id: str, *, exclude_search_ids: Sequence[str] = ()
-    ) -> LeadStats: ...
+    async def lead_stats(self, user_id: str) -> LeadStats: ...
+
+    async def lead_points(self, user_id: str) -> list[LeadPoint]:
+        """Every lead's platforms, score and creation time, for the dashboard charts."""
 
     # ----------------------------------------------------------------- jobs
     async def list_jobs(self, user_id: str) -> list[Job]: ...
@@ -118,8 +118,5 @@ class Repository(Protocol):
     async def ping(self) -> bool:
         """Whether the store answers — reported by `GET /health`."""
 
-    async def ensure_seeded(self) -> bool:
-        """Apply the demo seed if this workspace has never been seeded."""
-
-    async def reset(self) -> None:
-        """Drop everything and re-apply the seed (used by the demo reset)."""
+    async def ensure_owner(self, user_id: str) -> None:
+        """Create the workspace owner's row if it does not exist yet."""

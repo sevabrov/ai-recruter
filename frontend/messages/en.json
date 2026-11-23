@@ -77,15 +77,13 @@
     "daysAgo": "{count}d ago"
   },
   "backend": {
-    "mockTitle": "Phase 1 · mock data",
     "unreachableTitle": "Backend unreachable",
     "connectingTitle": "Connecting…",
     "databaseDownTitle": "Database unreachable",
     "liveTitle": "Live backend · v{version}",
-    "mockDetail": "No external services are called. Every number is fixture data.",
     "unreachableDetail": "No answer from {url}. Start it with: docker compose up -d backend",
     "databaseDownDetail": "The API is running but PostgreSQL is not answering: docker compose up -d postgres",
-    "fixtureDetail": "Connected. Search providers are not configured yet, so results come from the seeded catalogue.",
+    "fixtureDetail": "Connected, but no search provider is configured: searches will find no one until BRAVE_SEARCH_API_KEY is set.",
     "readingDetail": "Connected. New searches query the live web through {provider} and read the pages they find.",
     "searchOnlyDetail": "Connected. New searches query the live web through {provider}; the pages themselves are not read yet.",
     "connectedDetail": "Connected to the FastAPI backend."
@@ -329,7 +327,8 @@
     "leadsDiscoveredHint": "Last 7 days",
     "sourceTooltip": "{count, number} leads discovered via {platform}",
     "weeklyAria": "Leads discovered per day this week",
-    "dayTooltip": "{day}: {count, number} leads"
+    "dayTooltip": "{day}: {count, number} leads",
+    "noSources": "No leads yet. Sources appear after your first search."
   },
   "leads": {
     "eyebrow": "Pipeline",
@@ -796,11 +795,10 @@
     "notifyDone": "Notify me when a search finishes",
     "notifyDoneHint": "A toast while the app is open; email once accounts exist",
     "dataSource": "Data source",
-    "dataSourceMock": "The app is running on in-browser fixtures. No search API, scraper or model is called. Switch by setting NEXT_PUBLIC_DATA_SOURCE=api once the backend is live.",
     "dataSourceUnreachable": "No answer from <url></url>. Start it with <command></command>.",
     "dataSourceDegraded": "{service} is up but its database is not answering. Check it with <command></command>.",
     "dataSourceConnected": "Connected to {service} v{version} (phase {phase}), storing the workspace in {storage}.",
-    "dataSourcePipelineFixture": "No external service is called: searches run over the seeded catalogue.",
+    "dataSourcePipelineFixture": "No external service is configured, so searches find no one until BRAVE_SEARCH_API_KEY is set.",
     "dataSourcePipelinePartial": "New searches query the live web; the stages below say what is real and what is still a stand-in.",
     "dataSourcePipelineLive": "Every pipeline stage is running against a real provider.",
     "dataSourceConnecting": "Connecting to the backend…",
@@ -826,7 +824,7 @@
       "scrapegraph": "Opens each candidate page and extracts the profile it states",
       "llm": "Judges each signal on the profile",
       "snippet": "Profiles built from result metadata, not from the page — add SCRAPEGRAPH_API_KEY",
-      "fixture": "The seeded catalogue of 24 candidates",
+      "fixture": "Offline stand-in: no external service is configured",
       "unknown": "Unknown adapter"
     },
     "live": "live",
@@ -861,17 +859,6 @@
     },
     "noPageRead": "No page has been read yet.",
     "noPageReadLive": "Run a search and this fills in per platform.",
-    "noPageReadFixture": "Reading starts once SCRAPEGRAPH_API_KEY is set.",
-    "resetTitle": "Reset demo data",
-    "resetHint": "Clears searches you created, saved flags, statuses and notes",
-    "resetButton": "Reset demo data",
-    "resetModalTitle": "Reset demo data?",
-    "resetModalDescription": "Searches you started, saved leads, statuses and notes are removed. Fixture leads come back unchanged.",
-    "resetBodyMock": "This only touches browser storage — nothing is stored on a server in mock mode.",
-    "resetBodyApi": "This empties the workspace tables in PostgreSQL and re-applies the seed. Nothing outside this demo is affected.",
-    "resetToastTitle": "Demo data reset",
-    "resetToastBody": "Fixtures are back to their original state.",
-    "resetFailedTitle": "Reset failed",
-    "resetFailedBody": "The data source did not respond."
+    "noPageReadFixture": "Reading starts once SCRAPEGRAPH_API_KEY is set."
   }
 }

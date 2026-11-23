@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
-import { IS_MOCK } from "@/services";
 import { API_BASE_URL } from "@/services/api/http";
 import { useBackendHealth } from "@/services/hooks";
 import { cn } from "@/lib/utils";
@@ -82,9 +81,8 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 /**
- * In mock mode this is a static disclaimer. Against the API it is a live
- * connection indicator — an unreachable backend must not look like an empty
- * workspace.
+ * A live connection indicator — an unreachable backend must not look like an
+ * empty workspace.
  */
 function DataSourceFooter() {
   const t = useTranslations("backend");
@@ -92,42 +90,30 @@ function DataSourceFooter() {
 
   const degraded = data?.database === false;
 
-  const tone = IS_MOCK
-    ? "warn"
-    : isError
-      ? "bad"
-      : isPending
-        ? "neutral"
-        : degraded
-          ? "warn"
-          : "good";
-  const title = IS_MOCK
-    ? t("mockTitle")
-    : isError
-      ? t("unreachableTitle")
-      : isPending
-        ? t("connectingTitle")
-        : degraded
-          ? t("databaseDownTitle")
-          : t("liveTitle", { version: data?.version ?? "" });
-  const detail = IS_MOCK
-    ? t("mockDetail")
-    : isError
-      ? t("unreachableDetail", { url: API_BASE_URL })
+  const tone = isError ? "bad" : isPending ? "neutral" : degraded ? "warn" : "good";
+  const title = isError
+    ? t("unreachableTitle")
+    : isPending
+      ? t("connectingTitle")
       : degraded
-        ? t("databaseDownDetail")
-        : data?.pipeline === "fixture"
-          ? t("fixtureDetail")
-          : data?.stages?.extraction === "scrapegraph"
-            ? t("readingDetail", { provider: data.stages.search })
-            : data?.stages?.search && data.stages.search !== "fixture"
-              ? t("searchOnlyDetail", { provider: data.stages.search })
-              : t("connectedDetail");
+        ? t("databaseDownTitle")
+        : t("liveTitle", { version: data?.version ?? "" });
+  const detail = isError
+    ? t("unreachableDetail", { url: API_BASE_URL })
+    : degraded
+      ? t("databaseDownDetail")
+      : data?.pipeline === "fixture"
+        ? t("fixtureDetail")
+        : data?.stages?.extraction === "scrapegraph"
+          ? t("readingDetail", { provider: data.stages.search })
+          : data?.stages?.search && data.stages.search !== "fixture"
+            ? t("searchOnlyDetail", { provider: data.stages.search })
+            : t("connectedDetail");
 
   return (
     <div className="border-t border-line px-4 py-3">
       <div className="flex items-center gap-2">
-        <Dot tone={tone} pulse={IS_MOCK || isPending} />
+        <Dot tone={tone} pulse={isPending} />
         <p className="label truncate text-fg-faint">{title}</p>
       </div>
       <p className="mt-1.5 text-xs leading-relaxed text-fg-faint">{detail}</p>

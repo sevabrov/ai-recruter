@@ -14,7 +14,7 @@ class ProviderStatus(CamelModel):
 class StageStatus(CamelModel):
     """
     Which adapter is behind each pipeline stage, so "is this real?" is answerable
-    from outside: `search: "brave"` is the live web, `"fixture"` is the catalogue.
+    from outside: `search: "brave"` is the live web, `"fixture"` the offline stand-in.
     """
 
     search: str

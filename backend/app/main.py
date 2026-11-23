@@ -17,11 +17,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, dashboard, health, jobs, leads, searches, sources
+from app.api import dashboard, health, jobs, leads, searches, sources
 from app.api.deps import close_container, open_container
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging, get_logger
+from app.models.lead import Lead
 
 log = get_logger(__name__)
 
@@ -31,7 +32,7 @@ async def lifespan(app: FastAPI):
     settings: Settings = app.state.settings
     configure_logging("DEBUG" if settings.debug else "INFO")
 
-    container = await open_container(settings)
+    container = await open_container(settings, app.state.catalogue)
     app.state.container = container
     log.info("api_started", extra={"phase": settings.phase, "storage": "postgres"})
 
@@ -48,8 +49,7 @@ async def _resume_interrupted(container) -> None:
     """
     Now that searches are persisted this matters for real: a search interrupted by
     a restart is stored mid-flight, and re-queueing it is what a worker pool does on
-    boot — nothing should sit frozen at 58%. (The seed contains one such search, so
-    the behaviour is visible on the very first start.)
+    boot — nothing should sit frozen at 58%.
     """
     for search in await container.repository.list_searches(container.settings.dev_user_id):
         if search.is_running:
@@ -57,8 +57,11 @@ async def _resume_interrupted(container) -> None:
             log.info("search_resumed", extra={"search_id": search.id})
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
-    """`settings` is injectable so tests get a fast, quiet pipeline."""
+def create_app(settings: Settings | None = None, catalogue: list[Lead] | None = None) -> FastAPI:
+    """
+    `settings` is injectable so tests get a fast, quiet pipeline, and `catalogue`
+    so the offline stand-ins have someone to find in tests. The app passes neither.
+    """
     settings = settings or get_settings()
     app = FastAPI(
         title="AI Recruiter API",
@@ -67,6 +70,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.catalogue = catalogue
 
     # The browser sends credentials, so origins must be listed explicitly.
     app.add_middleware(
@@ -85,8 +89,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(jobs.router)
     app.include_router(sources.router)
-    if settings.debug:
-        app.include_router(admin.router)
 
     return app
 

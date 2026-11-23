@@ -337,28 +337,3 @@ def test_the_sources_endpoint_describes_the_stand_in_when_nothing_is_read(client
     assert body["cacheTtlHours"] == 168
     assert body["items"] == []
     assert "search results" in body["fallback"]
-
-
-def test_a_demo_reset_keeps_the_pages_it_already_paid_for(client, settings):
-    """
-    Deliberate: `POST /admin/reset` puts the demo workspace back, and re-buying
-    pages that were already read is not part of that (spec §53).
-    """
-    import asyncio
-
-    url = elsewhere("https://instagram.com/kept.after.reset", Platform.INSTAGRAM)
-
-    async def read_one() -> None:
-        async with workspace(settings) as repository:
-            await cached(
-                CountingReader(PageRead(ScrapeOutcome.OK, profile_for(url, "Kept Lead"))),
-                repository,
-            ).read(url)
-
-    asyncio.run(read_one())
-    assert client.get("/sources").json()["items"], "the page should be on record"
-
-    assert client.post("/admin/reset").status_code == 200
-
-    after = client.get("/sources").json()["items"]
-    assert [row["platform"] for row in after] == ["instagram"]

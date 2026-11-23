@@ -5,7 +5,7 @@ The pipeline is assembled exactly as the container assembles it with a Brave key
 configured — live provider, snippet extractor, real database — with one difference:
 Brave's HTTP transport answers from the canned payload below instead of the
 internet. So this exercises the whole path, including the parts that only exist
-when the URLs are ones the seeded catalogue has never heard of.
+when the URLs are ones the test catalogue has never heard of.
 """
 
 import httpx
@@ -25,7 +25,7 @@ from app.services.search.query_generator import TemplateQueryGenerator
 from tests.conftest import MIHI_SPAIN, start_search, wait_for, wait_for_job
 
 #: Results in Brave's shape, keyed by the site: operator the query carries. Nobody
-#: in the seeded catalogue appears here — that is the point.
+#: in the test catalogue appears here — that is the point.
 WEB: dict[str, list[dict]] = {
     "instagram.com": [
         {
@@ -176,7 +176,7 @@ async def test_a_live_search_stores_leads_found_on_the_open_web(settings):
         "https://www.instagram.com/lucia.mihi/?utm_source=brave"
     }
     assert {lead.name for lead in leads} >= {"Lucía Ferrer", "Pablo Serrano", "Rosa Delgado"}
-    # The catalogue is unreachable in live mode: none of the seeded people appear.
+    # The catalogue is unreachable in live mode: none of the catalogue people appear.
     assert all(lead.search_id == search.id for lead in leads)
 
 

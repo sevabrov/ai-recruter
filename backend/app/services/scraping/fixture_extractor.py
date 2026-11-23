@@ -1,7 +1,8 @@
 """
-Fixture extractor — the Phase 2 stand-in for ScrapeGraphAI.
+Fixture extractor — the offline stand-in for ScrapeGraphAI.
 
-Looks the URL up in the seeded catalogue and returns that person's structured
+Looks the URL up in the catalogue it was given (the test suite's; the app gives
+none) and returns that person's structured
 profile. URLs it does not recognise return `None`, which is the same answer the
 real extractor gives for a blocked or irrelevant page — so the pipeline's
 "extracted, but nothing usable" branch is exercised from day one.

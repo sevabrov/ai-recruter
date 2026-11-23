@@ -6,9 +6,11 @@ database called `<name>_test` that is created on demand. There is no in-memory
 substitute on purpose: the filters, the sort order and the locked progress writes
 *are* SQL now, and a fake store would test something the product does not do.
 
-Each test starts from the seed: the tables are truncated, then the app's own
-startup path (`open_container` → `ensure_seeded`) fills them. The schema is
-migrated once per session with the same Alembic revisions the container runs.
+Each test starts from the test workspace (`tests/workspace.py`): the tables are
+truncated, then its searches and leads are inserted, and the app is handed its
+leads as the catalogue the offline stand-ins search. The app itself ships no data.
+The schema is migrated once per session with the same Alembic revisions the
+container runs.
 
 Settings are injected: no step delays, no startup resume, no migrations at app
 startup, and explicitly empty provider keys so a stray `.env` on someone's machine
@@ -29,11 +31,12 @@ from sqlalchemy.pool import NullPool
 from app.core.config import Settings
 from app.db.bootstrap import upgrade_schema
 from app.main import create_app
+from app.models.lead import Lead
+from tests.workspace import insert_workspace, load_workspace
 
-#: Cleared between tests. `users` is included so the seeding path runs in full, and
-#: `scrape_cache` because a page read by one test must not be a cache hit in the
-#: next one — the product keeps it across a reset on purpose (pages cost credits).
-TABLES = "lead_notes, leads, search_rejections, jobs, searches, seed_state, users, scrape_cache"
+#: Cleared between tests, `scrape_cache` included: a page read by one test must not
+#: be a cache hit in the next one.
+TABLES = "lead_notes, leads, search_rejections, jobs, searches, users, scrape_cache"
 
 #: The wizard's "Fill example" scenario, in the shape the frontend posts.
 MIHI_SPAIN: dict[str, Any] = {
@@ -74,16 +77,27 @@ def database_url() -> str:
 
 
 @pytest.fixture
-def clean_database(database_url: str) -> str:
-    """Empty tables before every test; the app under test re-applies the seed."""
+def empty_database(database_url: str) -> str:
+    """Empty tables, nothing inserted: what a fresh install starts from."""
     asyncio.run(_truncate(database_url))
     return database_url
 
 
 @pytest.fixture
-def settings(clean_database: str) -> Settings:
+def clean_database(empty_database: str) -> str:
+    """Empty tables, then the test workspace."""
+    asyncio.run(insert_workspace(empty_database, load_workspace(Settings().dev_user_id)))
+    return empty_database
+
+
+@pytest.fixture
+def catalogue() -> list[Lead]:
+    return load_workspace(Settings().dev_user_id).catalogue
+
+
+def make_settings(database_url: str) -> Settings:
     return Settings(
-        database_url=clean_database,
+        database_url=database_url,
         # The session fixture already migrated; each app start would redo the work.
         run_migrations_on_startup=False,
         pipeline_step_delay_ms=0,
@@ -100,16 +114,29 @@ def settings(clean_database: str) -> Settings:
 
 
 @pytest.fixture
-def client(settings: Settings):
-    with TestClient(create_app(settings)) as test_client:
+def settings(clean_database: str) -> Settings:
+    return make_settings(clean_database)
+
+
+@pytest.fixture
+def client(settings: Settings, catalogue: list[Lead]):
+    with TestClient(create_app(settings, catalogue)) as test_client:
         yield test_client
 
 
 @pytest.fixture
-def slow_client(settings: Settings):
+def slow_client(settings: Settings, catalogue: list[Lead]):
     """A pipeline that takes about a second, so a running search can be observed."""
-    with TestClient(create_app(settings.model_copy(update={"pipeline_step_delay_ms": 25}))) as c:
+    slow = settings.model_copy(update={"pipeline_step_delay_ms": 25})
+    with TestClient(create_app(slow, catalogue)) as c:
         yield c
+
+
+@pytest.fixture
+def fresh_client(empty_database: str):
+    """The app as a new install sees it: an empty database and no catalogue."""
+    with TestClient(create_app(make_settings(empty_database))) as test_client:
+        yield test_client
 
 
 def start_search(client: TestClient, name: str = "MIHI Beauty Leaders Spain", **overrides) -> str:

@@ -1,9 +1,6 @@
 /**
- * PHASE 2 TARGET IMPLEMENTATION
- * =============================
- * These classes already speak the endpoints from spec §57. They are wired into
- * the registry but inactive until NEXT_PUBLIC_DATA_SOURCE=api, so the UI can be
- * switched over without touching a single component.
+ * The backend client: one class per service in `types.ts`, each speaking the
+ * endpoints from spec §57.
  */
 
 import type {
@@ -132,10 +129,5 @@ export class ApiWorkspaceService implements WorkspaceService {
 
   sources() {
     return request<SourcesReport>("/sources");
-  }
-
-  /** Debug-only on the server; Phase 8 puts it behind an admin role. */
-  async reset() {
-    await request<unknown>("/admin/reset", { method: "POST" });
   }
 }

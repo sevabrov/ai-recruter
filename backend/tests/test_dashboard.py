@@ -1,14 +1,32 @@
-"""Dashboard aggregates (spec §7) and the demo reset."""
+"""Dashboard aggregates (spec §7), counted from the workspace's own data."""
 
 from tests.conftest import run_search
 
 
-def test_dashboard_reports_the_seeded_workspace(client):
+def test_dashboard_counts_the_workspace(client):
     body = client.get("/dashboard").json()
+    leads = client.get("/leads", params={"include_archived": True, "page_size": 500}).json()
+    searches = client.get("/searches").json()
 
-    assert body["stats"]["totalLeads"]["value"] > 0
+    assert body["stats"]["totalLeads"]["value"] == leads["total"] > 0
+    assert body["stats"]["searches"]["value"] == len(searches)
     assert len(body["recentSearches"]) <= 5
-    assert sum(row["share"] for row in body["sourceBreakdown"]) == 100
+    assert sum(bucket["count"] for bucket in body["scoreDistribution"]) == leads["total"]
+    assert len(body["weeklyLeads"]) == 7
+    # Shares are rounded per platform, so they may miss 100 by one per row.
+    shares = [row["share"] for row in body["sourceBreakdown"]]
+    assert abs(sum(shares) - 100) <= len(shares)
+
+
+def test_a_new_workspace_shows_zeros(fresh_client):
+    body = fresh_client.get("/dashboard").json()
+
+    assert {stat["value"] for stat in body["stats"].values()} == {0}
+    assert all(stat.get("delta") is None for stat in body["stats"].values())
+    assert body["recentSearches"] == []
+    assert body["sourceBreakdown"] == []
+    assert {bucket["count"] for bucket in body["scoreDistribution"]} == {0}
+    assert {point["count"] for point in body["weeklyLeads"]} == {0}
 
 
 def test_starting_a_search_moves_the_tiles(client):
@@ -21,6 +39,15 @@ def test_starting_a_search_moves_the_tiles(client):
     assert after["totalLeads"]["value"] == before["totalLeads"]["value"] + search["leadCount"]
 
 
+def test_new_leads_land_on_today(client):
+    today_before = client.get("/dashboard").json()["weeklyLeads"][-1]["count"]
+
+    search = run_search(client, name="Counted today")
+
+    today_after = client.get("/dashboard").json()["weeklyLeads"][-1]["count"]
+    assert today_after == today_before + search["leadCount"]
+
+
 def test_saving_a_lead_moves_the_saved_tile(client):
     lead = client.get("/leads").json()["items"][0]
     before = client.get("/dashboard").json()["stats"]["savedLeads"]["value"]
@@ -29,7 +56,6 @@ def test_saving_a_lead_moves_the_saved_tile(client):
 
     after = client.get("/dashboard").json()["stats"]["savedLeads"]
     assert after["value"] == before + (0 if lead["saved"] else 1)
-    assert "saved in this workspace" in after["hint"]
 
 
 def test_recent_searches_are_newest_first(client):
@@ -38,15 +64,3 @@ def test_recent_searches_are_newest_first(client):
     recent = client.get("/dashboard").json()["recentSearches"]
 
     assert recent[0]["id"] == search["id"]
-
-
-def test_reset_returns_the_workspace_to_the_seed(client):
-    lead = client.get("/leads").json()["items"][0]
-    client.patch(f"/leads/{lead['id']}", json={"status": "contacted", "saved": True})
-    run_search(client, name="Will be discarded")
-
-    response = client.post("/admin/reset")
-
-    assert response.status_code == 200
-    assert client.get(f"/leads/{lead['id']}").json()["status"] == lead["status"]
-    assert len(client.get("/searches").json()) == response.json()["searches"]

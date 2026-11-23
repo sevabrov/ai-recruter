@@ -72,14 +72,6 @@ export function useSourceReport() {
   });
 }
 
-export function useResetWorkspace() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => services.workspace.reset(),
-    onSuccess: () => queryClient.clear(),
-  });
-}
-
 export function useDashboard() {
   return useQuery({
     queryKey: queryKeys.dashboard,
@@ -98,8 +90,7 @@ export function useSearches() {
 }
 
 /**
- * Polls while the search is running (spec §43: 2–3s). Identical behaviour
- * against the mock service and the real backend.
+ * Polls while the search is running (spec §43: 2–3s).
  */
 export function useSearch(id: string, options?: Partial<UseQueryOptions<Search>>) {
   return useQuery<Search>({

@@ -2,18 +2,18 @@
 Adapter wiring — the one place that answers "what is plugged in right now?".
 
 Selection is by configuration (spec §46–47): a provider is used when its key is
-set, otherwise a stand-in keeps the product working and `/health` says which is
-which, so nobody mistakes demo output for live results.
+set, otherwise a stand-in takes its place and `/health` says which is which, so
+nobody mistakes stand-in output for live results.
 
 The stand-ins are not interchangeable, and the choice of extractor depends on the
 search above it:
 
-* fixture search + fixture extraction — the demo. Searches rediscover the seeded
-  catalogue and re-score it against the criteria.
+* fixture search + fixture extraction — offline. They search a catalogue handed
+  in at startup; the app hands in none, so an offline search finds no one. Only
+  the test suite gives them people to find.
 * **live search + snippet extraction** — Phase 4. Real URLs, and profiles built
   from the result metadata the search API returned, because a live search that
-  reported nothing would be worse than the demo. Never invented from the
-  catalogue: with a Brave key set, the seeded people are unreachable.
+  reported nothing would be worse than nothing. Never invented from a catalogue.
 * **live search + ScrapeGraphAI** — Phase 5. The candidate pages are opened and
   read, through a cache so no page is paid for twice, with the snippet extractor
   behind it for the pages that will not open at all.
@@ -56,9 +56,9 @@ log = get_logger(__name__)
 
 def use_live_search(settings: Settings) -> bool:
     """
-    `SEARCH_PROVIDER=fixture` forces the demo even with a key configured, which is
-    what the test suite and an offline demo use. Anything else means "live if we
-    can": a key is required, never assumed.
+    `SEARCH_PROVIDER=fixture` forces the offline stand-in even with a key
+    configured, which is what the test suite uses. Anything else means "live if
+    we can": a key is required, never assumed.
     """
     return settings.search_provider != "fixture" and bool(settings.brave_search_api_key)
 
@@ -98,7 +98,7 @@ def use_page_reading(settings: Settings) -> bool:
 
 
 def use_browser_reading(settings: Settings) -> bool:
-    """Our own browser reads real pages only: the demo's addresses do not exist."""
+    """Our own browser reads real pages only: a catalogue's addresses do not exist."""
     return settings.browser_reader and use_live_search(settings)
 
 

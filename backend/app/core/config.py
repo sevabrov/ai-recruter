@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     google_cse_api_key: str = ""
     google_cse_engine_id: str = ""
     #: "brave" — live as soon as the key is there; "fixture" — never, whatever keys
-    #: are set, which is what the test suite and an offline demo want.
+    #: are set, which is what the test suite wants.
     search_provider: str = "brave"
 
     # ---------------------------------------------- Brave Search (spec §28, §52)
@@ -200,7 +200,7 @@ class Settings(BaseSettings):
     cost_per_llm_call_eur: float = 0.0008
 
     # --------------------------------------------------------------- pipeline
-    # Demo pacing, not throttling. The fixture adapters answer instantly, so a
+    # Pacing, not throttling. The offline stand-ins answer instantly, so a
     # whole search would finish in about a second and the progress screen would
     # never be seen. Each pipeline step therefore pauses briefly, which keeps the
     # run in the "seconds, not minutes" band the spec asks for (§13).

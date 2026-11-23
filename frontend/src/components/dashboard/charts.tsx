@@ -21,6 +21,10 @@ export function SourceShareBars({ items }: { items: SourceShare[] }) {
   const platforms = useTranslations("domain.platform");
   const max = Math.max(...items.map((item) => item.share), 1);
 
+  if (!items.length) {
+    return <p className="text-sm text-fg-muted">{t("noSources")}</p>;
+  }
+
   return (
     <ul className="flex flex-col gap-2.5">
       {items.map((item) => (

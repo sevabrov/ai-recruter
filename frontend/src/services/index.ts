@@ -1,11 +1,9 @@
 /**
  * SERVICE REGISTRY
  * ================
- * The single switch between Phase 1 and Phase 2. Components and hooks import
- * `services` from here and never know which implementation answers.
- *
- *   NEXT_PUBLIC_DATA_SOURCE=mock   (default) → in-browser fixtures
- *   NEXT_PUBLIC_DATA_SOURCE=api              → FastAPI backend
+ * Components and hooks import `services` from here and never construct a client
+ * themselves. Every service talks to the FastAPI backend at
+ * `NEXT_PUBLIC_API_BASE_URL`; there is no in-browser stand-in.
  */
 
 import {
@@ -14,23 +12,12 @@ import {
   ApiSearchService,
   ApiWorkspaceService,
 } from "./api/api-services";
-import { MockDashboardService } from "./mock/mock-dashboard-service";
-import { MockLeadService } from "./mock/mock-lead-service";
-import { MockSearchService } from "./mock/mock-search-service";
-import { MockWorkspaceService } from "./mock/mock-workspace-service";
 import type {
   DashboardService,
   LeadService,
   SearchService,
   WorkspaceService,
 } from "./types";
-
-export type DataSource = "mock" | "api";
-
-export const DATA_SOURCE: DataSource =
-  process.env.NEXT_PUBLIC_DATA_SOURCE === "api" ? "api" : "mock";
-
-export const IS_MOCK = DATA_SOURCE === "mock";
 
 type ServiceRegistry = {
   searches: SearchService;
@@ -39,19 +26,11 @@ type ServiceRegistry = {
   workspace: WorkspaceService;
 };
 
-export const services: ServiceRegistry =
-  DATA_SOURCE === "api"
-    ? {
-        searches: new ApiSearchService(),
-        leads: new ApiLeadService(),
-        dashboard: new ApiDashboardService(),
-        workspace: new ApiWorkspaceService(),
-      }
-    : {
-        searches: new MockSearchService(),
-        leads: new MockLeadService(),
-        dashboard: new MockDashboardService(),
-        workspace: new MockWorkspaceService(),
-      };
+export const services: ServiceRegistry = {
+  searches: new ApiSearchService(),
+  leads: new ApiLeadService(),
+  dashboard: new ApiDashboardService(),
+  workspace: new ApiWorkspaceService(),
+};
 
 export * from "./types";
