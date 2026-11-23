@@ -135,6 +135,18 @@ def build_reader_resources(settings: Settings) -> ReaderResources | None:
     )
 
 
+def build_post_reader(
+    settings: Settings, resources: ReaderResources | None
+) -> BrowserPageReader | None:
+    """
+    What opens an Instagram post to learn its author: our browser, or nothing.
+    It never bills, so it needs no per-search counters and can be shared.
+    """
+    if resources is None or resources.browser is None:
+        return None
+    return BrowserPageReader(resources.browser, timeout_seconds=settings.browser_timeout_seconds)
+
+
 def build_profile_extractor(
     settings: Settings,
     catalogue: list[Lead],

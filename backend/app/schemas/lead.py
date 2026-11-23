@@ -42,6 +42,9 @@ class LeadSourceSchema(CamelModel):
     title: str
     snippet: str
     discovered_at: datetime
+    #: "page", or "post" for something the person published themselves.
+    kind: str = "page"
+    published_at: datetime | None = None
 
 
 class ScoreComponentSchema(CamelModel):

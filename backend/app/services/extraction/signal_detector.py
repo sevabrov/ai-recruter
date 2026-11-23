@@ -25,6 +25,7 @@ here from the profile's country, by code, for both judges.
 import json
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 import httpx
@@ -35,7 +36,8 @@ from app.models.common import SignalType
 from app.models.lead import LeadSignal
 from app.models.profile import ExtractedProfile
 from app.models.search import Requirement, SearchCriteria
-from app.services.extraction.vocabulary import find_place, quote
+from app.models.source import LeadSourceKind
+from app.services.extraction.vocabulary import DATED_ACTIVITY_CONFIDENCE, find_place, quote
 
 log = get_logger(__name__)
 
@@ -358,8 +360,18 @@ def profile_text(profile: ExtractedProfile, *, snippets: int = 3) -> str:
         ("Languages", ", ".join(profile.languages)),
         ("About", profile.summary),
     ]
-    for source in profile.sources[:snippets]:
+    pages = [source for source in profile.sources if source.kind is not LeadSourceKind.POST]
+    posts = [source for source in profile.sources if source.kind is LeadSourceKind.POST]
+    for source in pages[:snippets]:
         lines.append(("Search result", " — ".join(p for p in (source.title, source.snippet) if p)))
+    # The person's own posts get a label of their own: their words are the person
+    # speaking, which a search result about a page is not.
+    for source in posts[:snippets]:
+        published = source.published_at
+        when = f" (published {published.date().isoformat()})" if published else ""
+        lines.append(
+            (f"Their own post{when}", " — ".join(p for p in (source.title, source.snippet) if p))
+        )
     return "\n".join(f"{label}: {value}" for label, value in lines if value and value.strip())
 
 
@@ -370,7 +382,10 @@ PRESET_DESCRIPTIONS: dict[str, str] = {
     SignalType.MLM: "Is personally an independent consultant, distributor or partner "
     "of a network-marketing (MLM / direct selling) brand — Farmasi, Oriflame, Avon, "
     "Jerelia, Amway, Faberlic and the like — or says they build a team in one. A "
-    "company that distributes or wholesales products is NOT network marketing.",
+    "person who publishes their own posts promoting network marketing as a business, "
+    "explaining why they do it or inviting others into it, shows this too. A "
+    "company that distributes or wholesales products is NOT network marketing, and "
+    "a news outlet or journalist writing about MLM is not a participant in it.",
     SignalType.BEAUTY: "Works with beauty, cosmetics, skincare or perfume products.",
     SignalType.RECRUITING: "Actively invites people to join their team or business.",
     SignalType.LEADERSHIP: "Leads, mentors or manages a team or other people.",
@@ -388,8 +403,11 @@ For EVERY requirement return:
 - evidence: when met, a short quote copied EXACTLY, character for character, from \
 the profile text (max 200 characters, no paraphrase, no translation, no "…"). \
 Quote what the person or page says — never the labels of this text ("Address:", \
-"Name:", "Location:", "Languages:", "Search result:") or the address: that the \
-profile is on Instagram shows nothing. When not met, "".
+"Name:", "Location:", "Languages:", "Search result:", "Their own post:") or the \
+address: that the profile is on Instagram shows nothing. When not met, "".
+- A "Their own post" line is a post this person published on their own account: \
+its words are the person speaking and count as the profile showing them, exactly \
+like their bio. Its publication date, when given, is evidence of recent activity.
 - A level or seniority is met only by that level: "middle" is not met by "Senior", \
 "Lead" or "Head of"; "junior" is not met by "Senior". Years of experience count \
 only when the text states them.
@@ -537,6 +555,11 @@ class LlmSignalDetector(SignalDetector):
     ) -> LeadSignal:
         evidence = " ".join(str(answer.get("evidence") or "").split())
         met = bool(answer.get("met")) and quoted(evidence, text)
+        if not met and _dated_activity(signal):
+            # Read by code from a date the judge never sees as such — a post's
+            # publication date, the index's page age. A text reader saying "no
+            # date in the text" does not make the date go away.
+            return signal.model_copy(update={"label": requirement.label or None})
         if not met:
             return signal.model_copy(update={"detected": False, "confidence": 0, "evidence": None})
         try:
@@ -622,6 +645,9 @@ class LlmSignalDetector(SignalDetector):
                 {
                     "role": "user",
                     "content": (
+                        # A post's date means nothing to a reader who does not know
+                        # what day it is.
+                        f"Today is {datetime.now(UTC).date().isoformat()}.\n\n"
                         f"Requirements:\n{listing}\n\nJudge every candidate below on its "
                         f"own text only; quotes must come from that candidate's text.\n\n"
                         f"{profiles}"
@@ -722,8 +748,18 @@ class BudgetedSignalDetector(SignalDetector):
 
 
 #: The labels `profile_text` writes in front of each field. Never evidence.
+def _dated_activity(signal: LeadSignal) -> bool:
+    """An activity sighting the code read off a date (see `DATED_ACTIVITY_CONFIDENCE`)."""
+    return (
+        str(signal.type) == SignalType.ACTIVITY
+        and signal.detected
+        and signal.confidence >= DATED_ACTIVITY_CONFIDENCE
+    )
+
+
 PROFILE_LABELS = re.compile(
-    r"(?:^|\n|\s)(?:Address|Name|Headline|Company|Location|Languages|About|Search result):",
+    r"(?:^|\n|\s)(?:Address|Name|Headline|Company|Location|Languages|About|Search result"
+    r"|Their own post(?: \(published [\d-]+\))?):",
 )
 
 

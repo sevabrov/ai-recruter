@@ -23,19 +23,27 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 from urllib.parse import unquote, urlparse
 
 from app.core.config import Settings
 from app.core.logging import bind, get_logger
 from app.core.retry import retry_async
 from app.db.repository import Repository
-from app.models.common import HIGH_QUALITY_THRESHOLD, SearchStage, SearchStatus, SignalType
+from app.models.common import (
+    HIGH_QUALITY_THRESHOLD,
+    Platform,
+    SearchStage,
+    SearchStatus,
+    SignalType,
+)
 from app.models.lead import Lead, LeadSignal, ScoreComponent
 from app.models.profile import ExtractedProfile
 from app.models.rejection import RejectedCandidate, RejectionReason
 from app.models.search import GeneratedQuery, Search, SearchProgress, SearchUsage
 from app.models.source import DiscoveredUrl, ProviderResult, UrlKind
 from app.services.extraction import personhood
+from app.services.extraction.posts import with_posts
 from app.services.extraction.signal_detector import (
     Judgement,
     SignalDetector,
@@ -60,10 +68,13 @@ from app.services.search.providers.base import SearchMarket, SearchProvider
 from app.services.search.query_generator import QueryGenerator
 from app.services.search.url_tools import (
     SOCIAL_PLATFORMS,
+    allowed_platforms,
+    attach_posts,
     author_profile,
     candidates,
     canonicalize,
     discover,
+    needs_opening,
     promote_posts,
 )
 
@@ -83,6 +94,11 @@ LOOKAHEAD_WIDTHS = 2
 #: shares the instructions and requirements, which is most of a call's tokens; a
 #: lead left waiting behind a slow page is a lead the target check cannot see.
 JUDGE_AFTER_SECONDS = 2.0
+
+#: How many authorless posts one run may open to learn who published them. Each is
+#: a free browser read of about a second; the cap keeps a hashtag-heavy run from
+#: spending minutes on posts before it reads a single profile.
+MAX_POSTS_OPENED = 40
 
 #: How often reading writes the progress record. Reads now finish one at a time,
 #: and a database write per page would be most of the work for the cached ones.
@@ -127,6 +143,12 @@ class SearchCancelled(Exception):
     """Raised internally when a cancel request is noticed at a checkpoint."""
 
 
+class PostReader(Protocol):
+    """Fills in a post's author — and its date and caption — by opening it."""
+
+    async def read_post(self, url: DiscoveredUrl) -> DiscoveredUrl | None: ...
+
+
 @dataclass
 class Harvest:
     """
@@ -166,6 +188,7 @@ class SearchPipeline:
         extractor: ProfileExtractor,
         detector: SignalDetector,
         scoring: ScoringService,
+        post_reader: PostReader | None = None,
     ) -> None:
         self.repo = repository
         self.settings = settings
@@ -174,6 +197,9 @@ class SearchPipeline:
         self.extractor = extractor
         self.detector = detector
         self.scoring = scoring
+        #: Opens a post that names its author nowhere else (`url_tools.needs_opening`).
+        #: Our own browser, so free; absent when the browser is switched off.
+        self.post_reader = post_reader
         # Ranking reads no pages: it judges candidates by the search result the
         # provider already returned, which is exactly what this extractor does.
         self._snippets = SnippetProfileExtractor()
@@ -357,6 +383,7 @@ class SearchPipeline:
         # A hashtag search returns posts, and a post names its author: the profile
         # behind it is the candidate, not the post (`url_tools.promote_posts`).
         normalized = promote_posts(discover(results))
+        normalized = await self._open_posts(search, normalized)
         sources = search.criteria.sources
         profile_urls = candidates(normalized, sources)
         kept = {url.canonical_url for url in profile_urls}
@@ -381,6 +408,41 @@ class SearchPipeline:
         )
         return profile_urls
 
+    async def _open_posts(self, search: Search, urls: list[DiscoveredUrl]) -> list[DiscoveredUrl]:
+        """
+        Learn who published the posts that name nobody: `instagram.com/p/Cxyz`.
+
+        Seven of 34 refused addresses in one run were posts like that — "Czy
+        marketing sieciowy to piramida finansowa?" — and every one was thrown away
+        unread, while the post page names its author (and its date) in its first
+        line. Our browser opens it for nothing; the author then becomes a candidate
+        like any other post's author, with the post attached as evidence.
+        """
+        if self.post_reader is None:
+            return urls
+        allowed = allowed_platforms(search.criteria.sources)
+        if allowed is not None and Platform.INSTAGRAM not in allowed:
+            return urls
+        todo = [url for url in urls if needs_opening(url)][:MAX_POSTS_OPENED]
+        if not todo:
+            return urls
+
+        slots = asyncio.Semaphore(max(1, self.settings.extraction_concurrency))
+        reader = self.post_reader
+
+        async def open_one(url: DiscoveredUrl) -> DiscoveredUrl | None:
+            async with slots:
+                try:
+                    return await reader.read_post(url)
+                except Exception:
+                    log.warning("post_open_failed", extra={"url": url.canonical_url})
+                    return None
+
+        opened = await asyncio.gather(*(open_one(url) for url in todo))
+        resolved = [post for post in opened if post is not None and post.author_url]
+        log.info("posts_opened", extra={"opened": len(todo), "authors": len(resolved)})
+        return attach_posts(urls, resolved)
+
     def _refuse_addresses(
         self,
         search: Search,
@@ -394,7 +456,15 @@ class SearchPipeline:
         for url in normalized:
             if url.canonical_url in profile_shaped:
                 continue
-            self._refuse(search, url, RejectionReason.NOT_A_PROFILE, _why_not_a_profile(url, kept))
+            author = author_profile(url)
+            followed = canonicalize(author) if author and canonicalize(author) in kept else None
+            self._refuse(
+                search,
+                url,
+                RejectionReason.NOT_A_PROFILE,
+                _why_not_a_profile(url, kept),
+                author_url=followed,
+            )
         for url in off_source:
             self._refuse(
                 search,
@@ -474,7 +544,9 @@ class SearchPipeline:
             except Exception:
                 log.warning("extraction_failed", extra={"url": url.canonical_url})
                 return None, True
-            return profile, False
+            # The posts the search found by this person are evidence about them —
+            # added here, after the cache, because they belong to this search.
+            return (with_posts(profile, url) if profile is not None else None), False
 
         def paid_slot_open() -> bool:
             if running[True] >= width:
@@ -927,10 +999,12 @@ class SearchPipeline:
         *,
         promise: int | None = None,
         read: bool = False,
+        author_url: str | None = None,
     ) -> None:
         """Record a refused address — one the run never got a profile out of."""
         self._record(
             RejectedCandidate(
+                author_url=author_url,
                 id=_rejection_id(search.id, url.canonical_url),
                 user_id=search.user_id,
                 search_id=search.id,
@@ -1005,7 +1079,7 @@ class SearchPipeline:
         await self.repo.add_leads(leads)
         # The result is both lists. Storing only the leads left the client with a
         # count of refusals and no way to check a single one of them.
-        await self.repo.add_rejections(list(self._rejected.values()))
+        await self.repo.add_rejections(_with_author_outcomes(list(self._rejected.values()), leads))
         high_quality = sum(1 for lead in leads if lead.score >= HIGH_QUALITY_THRESHOLD)
         self._progress.stage = SearchStage.DONE
         self._progress.percent = 100
@@ -1120,6 +1194,42 @@ def _why_not_a_profile(url: DiscoveredUrl, kept: set[str]) -> str:
             f"({canonicalize(profile)}) was looked at instead."
         )
     return WHY_NOT_A_PROFILE.get(url.kind, "Not a person's page.")
+
+
+#: `RejectedCandidate.author_outcome` for an author who became a lead.
+AUTHOR_BECAME_LEAD = "lead"
+
+
+def _with_author_outcomes(
+    rejected: list[RejectedCandidate], leads: list[Lead]
+) -> list[RejectedCandidate]:
+    """
+    Tell each refused post what became of the person who published it.
+
+    "Not a profile" next to a post reads as a person thrown away. Most of the time
+    the author was followed and judged — and the answer is in the other list, or
+    further down this one. Said on the post's row, the client does not have to go
+    looking for it.
+    """
+    lead_by_url = {url: lead for lead in leads for url in lead.merged_urls}
+    refused_by_url = {entry.canonical_url: entry for entry in rejected}
+    updated: list[RejectedCandidate] = []
+    for entry in rejected:
+        if not entry.author_url:
+            updated.append(entry)
+            continue
+        lead = lead_by_url.get(entry.author_url)
+        author = refused_by_url.get(entry.author_url)
+        if lead is not None:
+            entry = entry.model_copy(
+                update={"author_outcome": AUTHOR_BECAME_LEAD, "author_name": lead.name}
+            )
+        elif author is not None:
+            entry = entry.model_copy(
+                update={"author_outcome": author.reason.value, "author_name": author.name}
+            )
+        updated.append(entry)
+    return updated
 
 
 def _title_name(title: str) -> str:

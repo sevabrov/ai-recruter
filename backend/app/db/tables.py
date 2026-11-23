@@ -216,6 +216,11 @@ class SearchRejectionRow(Base):
     query: Mapped[str] = mapped_column(Text, nullable=False, default="")
     promise: Mapped[int | None] = mapped_column(Integer)
 
+    #: On a refused post: whose post it was, and what became of them.
+    author_url: Mapped[str | None] = mapped_column(Text)
+    author_name: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    author_outcome: Mapped[str | None] = mapped_column(String(32))
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 

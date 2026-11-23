@@ -25,6 +25,7 @@ a browser (0 of 40 from the datacentre), while ScrapeGraphAI reads it (83%).
 import asyncio
 import re
 from contextlib import asynccontextmanager, suppress
+from datetime import UTC, datetime
 from typing import Any
 
 from app.core.logging import get_logger
@@ -55,6 +56,18 @@ _READY = """() => {
 }"""
 
 MAX_BIO = 1500
+MAX_CAPTION = 600
+
+#: How an Instagram post introduces itself to an anonymous visitor, in its
+#: `og:description`: `32 likes, 2 comments - renata.kierszka on June 5, 2025: "…"`.
+#: The counts are optional (a post with none omits them), the handle and the date
+#: are not.
+_POST_LINE = re.compile(
+    r"(?:^|\s-\s)(?P<handle>[A-Za-z0-9._]{2,30}) on "
+    r"(?P<date>(?:January|February|March|April|May|June|July|August|September|October"
+    r"|November|December) \d{1,2}, \d{4})(?::\s*(?P<caption>.*))?",
+    re.DOTALL,
+)
 
 
 class BrowserPool:
@@ -153,6 +166,40 @@ class BrowserPageReader:
             )
         return await self._verdict(url, seen)
 
+    async def read_post(self, url: DiscoveredUrl) -> DiscoveredUrl | None:
+        """
+        Open an Instagram post that does not name its author anywhere else, and
+        return it with the author's profile, the date and the caption filled in.
+
+        Free, like every read here, and never raises: a post that would not open is
+        simply a post whose author stays unknown — which is what it was before.
+        """
+        if url.platform is not Platform.INSTAGRAM:
+            return None
+        try:
+            async with self.pool.page() as page:
+                seen = await self._open(page, url.url)
+        except Exception as error:
+            log.warning(
+                "browser_post_failed", extra={"url": url.canonical_url, "error": str(error)[:200]}
+            )
+            return None
+        if _LOGIN.search(seen["final_url"]):
+            return None
+        found = parse_post(seen["description"]) or parse_post(seen["title"])
+        if found is None:
+            return None
+        handle, published, caption = found
+        log.info("browser_post_author", extra={"url": url.canonical_url, "handle": handle})
+        return url.model_copy(
+            update={
+                "author_url": f"https://instagram.com/{handle}",
+                "snippet": caption or url.snippet,
+                "page_age": published or url.page_age,
+                "age_label": None if published else url.age_label,
+            }
+        )
+
     async def _open(self, page: Any, address: str) -> dict[str, str]:
         await page.goto(address, wait_until="domcontentloaded", timeout=self.timeout_ms)
         with suppress(Exception):  # judged on whatever has drawn
@@ -212,6 +259,22 @@ class BrowserPageReader:
         )
         log.info("browser_read", extra={"url": url.canonical_url, "person": profile.name})
         return PageRead(ScrapeOutcome.OK, profile=profile)
+
+
+def parse_post(text: str) -> tuple[str, datetime | None, str] | None:
+    """`(handle, published, caption)` from a post's own description, or None."""
+    match = _POST_LINE.search(text or "")
+    if match is None:
+        return None
+    handle = match.group("handle").strip(".")
+    if handle.casefold() in {"instagram", "facebook"} or not re.search(r"[a-z]", handle, re.I):
+        return None
+    try:
+        published = datetime.strptime(match.group("date"), "%B %d, %Y").replace(tzinfo=UTC)
+    except ValueError:
+        published = None
+    caption = " ".join((match.group("caption") or "").split()).strip('"“” ')
+    return handle, published, caption[:MAX_CAPTION]
 
 
 class RoutingPageReader:

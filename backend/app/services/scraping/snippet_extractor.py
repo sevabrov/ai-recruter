@@ -31,6 +31,7 @@ guesswork — see `services/scraping/fallback.py`.
 
 import hashlib
 import re
+import unicodedata
 from datetime import UTC, datetime
 from urllib.parse import urlparse
 
@@ -43,6 +44,7 @@ from app.services.extraction.language import spoken
 from app.services.extraction.vocabulary import (
     ACTIVE_WITHIN_DAYS,
     BRAND_FOLLOWERS,
+    DATED_ACTIVITY_CONFIDENCE,
     find_place,
     find_terms,
     quote,
@@ -235,9 +237,45 @@ def _linkedin(url: DiscoveredUrl) -> tuple[str, str | None, str | None, str | No
 
 def _facebook(url: DiscoveredUrl) -> tuple[str, str | None, str | None, str | None] | None:
     parts = _segments(url.title)
-    if not parts or not _looks_like_a_person(parts[0]):
+    if not parts:
         return None
-    return parts[0], None, parts[1] if len(parts) > 1 else None, None
+    if _looks_like_a_person(parts[0]):
+        return parts[0], None, parts[1] if len(parts) > 1 else None, None
+    # A public figure's page is titled with the name *and* what they do, in one
+    # phrase: "Piotr Krenig o przedsiębiorczości, marketingu i rozwoju". The name
+    # is the capitalised words in front; it is accepted only when the page's own
+    # address spells it too (`facebook.com/PiotrKrenigPrzedsiebiorca`), so a
+    # phrase that merely starts with two capitalised words does not become a name.
+    leading = _leading_name(parts[0])
+    if leading and _in_address(leading, url.canonical_url):
+        rest = parts[0][len(leading) :].strip(" ,-–—")
+        return leading, None, rest or (parts[1] if len(parts) > 1 else None), None
+    return None
+
+
+def _leading_name(text: str) -> str | None:
+    """
+    Two or three capitalised words at the front of a longer phrase, ended by a
+    lowercase word ("Piotr Krenig o …"), or None.
+    """
+    words = (text or "").split()
+    for size in (3, 2):
+        if len(words) > size and words[size][:1].islower():
+            candidate = " ".join(words[:size]).strip(" ,")
+            if _looks_like_a_person(candidate):
+                return candidate
+    return None
+
+
+def _in_address(name: str, canonical_url: str) -> bool:
+    """Whether the address spells the name, accents and spaces aside."""
+    path = _fold(urlparse(canonical_url).path)
+    return bool(path) and _fold(name) in path
+
+
+def _fold(text: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", text.replace("ł", "l").replace("Ł", "L"))
+    return "".join(ch for ch in decomposed if ch.isalnum()).casefold()
 
 
 def _own_site(url: DiscoveredUrl) -> tuple[str, str | None, str | None, str | None] | None:
@@ -342,7 +380,7 @@ def _activity(url: DiscoveredUrl, text: str) -> tuple[float, str] | None:
         age = datetime.now(UTC) - _aware(url.page_age)
         if age.days <= ACTIVE_WITHIN_DAYS:
             when = url.age_label or url.page_age.date().isoformat()
-            return 0.55, f"Search index reports the page as updated {when}"
+            return DATED_ACTIVITY_CONFIDENCE, f"Search index reports the page as updated {when}"
 
     posts = _count(POSTS, text)
     if posts:

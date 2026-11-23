@@ -14,6 +14,15 @@ from pydantic import BaseModel, Field
 from app.models.common import Platform
 
 
+class LeadSourceKind(StrEnum):
+    """What a lead's source is: their own page, or something they published."""
+
+    PAGE = "page"
+    #: A post, reel or video the person published. Its words are theirs, which is
+    #: why it counts as evidence about the person and not as a page about them.
+    POST = "post"
+
+
 class LeadSource(BaseModel):
     """A public page a lead was found on."""
 
@@ -23,6 +32,9 @@ class LeadSource(BaseModel):
     title: str
     snippet: str
     discovered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    kind: LeadSourceKind = LeadSourceKind.PAGE
+    #: When a post was published, if the index or the post itself said so.
+    published_at: datetime | None = None
 
 
 class ProviderResult(BaseModel):
@@ -55,6 +67,22 @@ class UrlKind(StrEnum):
     UNKNOWN = "unknown"
 
 
+class FoundPost(BaseModel):
+    """
+    A post the search found, kept on the profile of the person who published it.
+
+    The post is often the only reason the person was found at all — a reel titled
+    "Dlaczego network marketing?" — so it travels with the author's profile as
+    evidence instead of being thrown away with the post's address.
+    """
+
+    url: str
+    title: str = ""
+    snippet: str = ""
+    published_at: datetime | None = None
+    age_label: str | None = None
+
+
 class DiscoveredUrl(BaseModel):
     """A normalized, classified URL — the unit the extraction stage consumes."""
 
@@ -70,3 +98,10 @@ class DiscoveredUrl(BaseModel):
     page_age: datetime | None = None
     age_label: str | None = None
     language: str | None = None
+
+    #: On a profile: the posts by this person the search found (newest evidence of
+    #: what they publish). Empty for everything else.
+    posts: list[FoundPost] = Field(default_factory=list)
+    #: On a post: the profile of the account that published it, once known — from
+    #: the address, the result title, or by opening the post.
+    author_url: str | None = None

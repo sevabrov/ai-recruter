@@ -26,6 +26,7 @@ from app.db.seed import SeedData, load_seed
 from app.services.adapters import (
     ReaderResources,
     build_brief_parser,
+    build_post_reader,
     build_profile_extractor,
     build_reader_resources,
     build_search_provider,
@@ -88,6 +89,7 @@ def build_container(settings: Settings | None = None) -> Container:
     # the extractor around them is per job because its cost counters are.
     provider = build_search_provider(settings, catalogue)
     reader = build_reader_resources(settings)
+    post_reader = build_post_reader(settings, reader)
     # Demo pacing is for fixtures. Real providers bring their own latency, and
     # adding a quarter of a second per step to it would be nothing but a delay.
     pipeline_settings = (
@@ -107,6 +109,7 @@ def build_container(settings: Settings | None = None) -> Container:
             extractor=build_profile_extractor(settings, catalogue, repository, reader),
             detector=build_signal_detector(settings),
             scoring=scoring,
+            post_reader=post_reader,
         )
 
     jobs = JobService(repository, pipeline_factory)

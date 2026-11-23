@@ -85,6 +85,9 @@ def rejection_row(rejected: RejectedCandidate) -> SearchRejectionRow:
         snippet=rejected.snippet,
         query=rejected.query,
         promise=rejected.promise,
+        author_url=rejected.author_url,
+        author_name=rejected.author_name,
+        author_outcome=rejected.author_outcome,
         created_at=rejected.created_at,
     )
 
@@ -106,6 +109,9 @@ def to_rejection(row: SearchRejectionRow) -> RejectedCandidate:
             "snippet": row.snippet,
             "query": row.query,
             "promise": row.promise,
+            "author_url": row.author_url,
+            "author_name": row.author_name or "",
+            "author_outcome": row.author_outcome,
             "created_at": row.created_at,
         }
     )

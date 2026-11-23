@@ -93,4 +93,14 @@ class RejectedCandidate(BaseModel):
     #: None when the candidate was refused before anything was computed for it.
     promise: int | None = None
 
+    #: On a refused post: the profile of the account that published it, when the
+    #: run followed it. The post is not a person; its author may well be one.
+    author_url: str | None = None
+    #: What the run knew the author as, once judged.
+    author_name: str = ""
+    #: What became of the author: "lead", or the `RejectionReason` they were
+    #: refused for. None when the author was never judged (not reached, or no
+    #: author could be named).
+    author_outcome: str | None = None
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

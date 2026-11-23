@@ -316,6 +316,14 @@ export interface RejectedCandidate {
   query: string;
   /** What the search result alone supported, 0–100. Absent when never ranked. */
   promise?: number | null;
+  /**
+   * On a refused post: the profile of the account that published it, when the
+   * run followed it there. The post is not a person; its author may be one.
+   */
+  authorUrl?: string | null;
+  authorName?: string;
+  /** What became of the author: "lead", or the reason they were refused. */
+  authorOutcome?: "lead" | RejectionReason | null;
   createdAt: string;
 }
 
@@ -379,6 +387,9 @@ export interface LeadSource {
   title: string;
   snippet: string;
   discoveredAt: string;
+  /** "post" for something the person published themselves. */
+  kind?: "page" | "post";
+  publishedAt?: string | null;
 }
 
 export interface ScoreComponent {

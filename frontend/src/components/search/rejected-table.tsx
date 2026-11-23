@@ -193,8 +193,47 @@ function Row({ entry, label }: { entry: RejectedCandidate; label: string }) {
           {/* Written by the pipeline, so it arrives in the backend's language. */}
           <span>{entry.detail}</span>
         </span>
+        {entry.authorUrl ? <PostAuthor entry={entry} /> : null}
       </td>
     </tr>
+  );
+}
+
+/**
+ * What became of the person who published a refused post. Without it a post
+ * reads as a lost lead, when its author was followed and judged — and the
+ * answer is in the other list, or further down this one.
+ */
+function PostAuthor({ entry }: { entry: RejectedCandidate }) {
+  const t = useTranslations("rejected");
+  const reasons = useTranslations("domain.rejectionReason");
+  const outcome = entry.authorOutcome;
+
+  if (!outcome) {
+    return <p className="mt-1.5 text-fg-faint">{t("authorNotJudged")}</p>;
+  }
+
+  const verdict =
+    outcome === "lead"
+      ? t("authorBecameLead")
+      : t("authorRefused", {
+          reason: isKnownRejectionReason(outcome) ? reasons(`${outcome}.label`) : outcome,
+        });
+
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-1">
+      <span>{t("authorChecked")}</span>
+      <a
+        href={entry.authorUrl ?? undefined}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="font-medium text-fg hover:text-accent"
+      >
+        {entry.authorName || entry.authorUrl}
+      </a>
+      <span>—</span>
+      <span className={outcome === "lead" ? "font-medium text-accent" : undefined}>{verdict}</span>
+    </p>
   );
 }
 

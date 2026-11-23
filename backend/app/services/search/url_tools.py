@@ -15,7 +15,7 @@ import re
 from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlunparse
 
 from app.models.common import Platform, SourceKind
-from app.models.source import DiscoveredUrl, ProviderResult, UrlKind
+from app.models.source import DiscoveredUrl, FoundPost, ProviderResult, UrlKind
 
 TRACKING_PREFIXES = ("utm_", "fbclid", "gclid", "mc_", "igshid", "ref_", "ref", "source")
 
@@ -48,7 +48,17 @@ SOCIAL_PLATFORMS = {Platform.INSTAGRAM, Platform.FACEBOOK, Platform.THREADS, Pla
 NON_PROFILE_SEGMENTS = {
     "instagram.com": {"p", "reel", "reels", "explore", "stories", "tv"},
     "linkedin.com": {"company", "school", "jobs", "posts", "pulse", "showcase"},
-    "facebook.com": {"groups", "events", "marketplace", "watch", "photo", "story.php"},
+    "facebook.com": {
+        "groups",
+        "events",
+        "marketplace",
+        "watch",
+        "photo",
+        "story.php",
+        "permalink.php",
+        "reel",
+        "share",
+    },
 }
 
 BLOG_HINTS = ("/blog/", "medium.com", "substack.com", "wordpress.com", "blogspot.")
@@ -238,10 +248,23 @@ NOT_A_HANDLE = {
     "story.php",
     "photo.php",
     "profile.php",
+    "permalink.php",
+    "share",
     "sharer",
     "login",
     "p",
+    "reel",
+    "reels",
 }
+
+#: How many of one person's posts travel with their profile as evidence. Enough to
+#: show what they publish; more is tokens for the judge and nothing new.
+MAX_POSTS_PER_AUTHOR = 3
+
+#: `linkedin.com/posts/{vanity}_{words}-activity-{id}-{x}`: the author's public
+#: profile name comes before the first underscore. LinkedIn vanity names are
+#: letters, digits and hyphens only, so the underscore is an unambiguous separator.
+LINKEDIN_POST = re.compile(r"^(?P<vanity>[a-z0-9-]{3,100})_", re.IGNORECASE)
 #: What a handle looks like. Not a bare number: `facebook.com/581399108893746` is a
 #: page's internal id, and the page it belongs to has no name to judge.
 HANDLE_SHAPE = re.compile(r"^(?=.*[a-z])[a-z0-9._-]{3,40}$", re.IGNORECASE)
@@ -277,32 +300,127 @@ def promote_posts(urls: list[DiscoveredUrl]) -> list[DiscoveredUrl]:
     provider's own address or text, and the profile URL is the platform's
     documented shape. A handle that turns out not to exist costs one unreadable
     page, which the chain already handles.
+
+    Every post by an author is kept on the author's profile (`posts`), not only
+    the first: the posts are what the person publishes, and they are often the
+    only evidence of what the search was looking for. The post also records where
+    its author is (`author_url`), so the refused list can say who was checked.
     """
-    known = {url.canonical_url for url in urls}
-    promoted: list[DiscoveredUrl] = []
+    by_canonical = {url.canonical_url: url for url in urls}
+    promoted: dict[str, DiscoveredUrl] = {}
+    posts_of: dict[str, list[FoundPost]] = {}
+    marked: list[DiscoveredUrl] = []
 
     for url in urls:
         profile = author_profile(url)
         if profile is None:
+            marked.append(url)
             continue
 
         canonical = canonicalize(profile)
-        if canonical in known:
+        marked.append(url.model_copy(update={"author_url": canonical}))
+        posts_of.setdefault(canonical, []).append(_as_post(url))
+        if canonical in by_canonical or canonical in promoted:
             continue
-        known.add(canonical)
-        promoted.append(
-            url.model_copy(
-                update={
-                    "url": profile,
-                    "canonical_url": canonical,
-                    "kind": UrlKind.CANDIDATE,
-                    # The post is what was found; the profile is where to look. The
-                    # post's own text stays attached as the evidence it is.
-                }
-            )
+        promoted[canonical] = url.model_copy(
+            update={
+                "url": profile,
+                "canonical_url": canonical,
+                "kind": UrlKind.CANDIDATE,
+                # The post is what was found; the profile is where to look. The
+                # post's own text stays attached as the evidence it is.
+                "author_url": None,
+            }
         )
 
-    return [*urls, *promoted]
+    def with_posts(url: DiscoveredUrl) -> DiscoveredUrl:
+        found = posts_of.get(url.canonical_url)
+        if not found:
+            return url
+        return url.model_copy(update={"posts": _merge_posts(url.posts, found)})
+
+    return [with_posts(url) for url in marked] + [with_posts(url) for url in promoted.values()]
+
+
+def attach_posts(urls: list[DiscoveredUrl], posts: list[DiscoveredUrl]) -> list[DiscoveredUrl]:
+    """
+    Fold posts whose author was found later (by opening the post) into the list:
+    each post gets its `author_url`, and each author's profile is added — or, if it
+    is already there, given the post as evidence.
+    """
+    resolved = {post.canonical_url: post for post in posts if post.author_url}
+    if not resolved:
+        return urls
+
+    posts_of: dict[str, list[FoundPost]] = {}
+    first_post: dict[str, DiscoveredUrl] = {}
+    for post in resolved.values():
+        author = post.author_url or ""
+        posts_of.setdefault(author, []).append(_as_post(post))
+        first_post.setdefault(author, post)
+
+    updated = [
+        url.model_copy(update={"author_url": resolved[url.canonical_url].author_url})
+        if url.canonical_url in resolved
+        else url
+        for url in urls
+    ]
+    present = {url.canonical_url for url in updated}
+    for author, post in first_post.items():
+        if author not in present:
+            updated.append(
+                post.model_copy(
+                    update={
+                        "url": author,
+                        "canonical_url": author,
+                        "kind": UrlKind.CANDIDATE,
+                        "author_url": None,
+                        "posts": [],
+                    }
+                )
+            )
+
+    return [
+        url.model_copy(update={"posts": _merge_posts(url.posts, posts_of[url.canonical_url])})
+        if url.canonical_url in posts_of
+        else url
+        for url in updated
+    ]
+
+
+def _as_post(url: DiscoveredUrl) -> FoundPost:
+    return FoundPost(
+        url=url.url,
+        title=url.title,
+        snippet=url.snippet,
+        published_at=url.page_age,
+        age_label=url.age_label,
+    )
+
+
+def _merge_posts(existing: list[FoundPost], found: list[FoundPost]) -> list[FoundPost]:
+    """One entry per post address, newest first, capped."""
+    seen: dict[str, FoundPost] = {}
+    for post in [*existing, *found]:
+        seen.setdefault(canonicalize(post.url), post)
+    ordered = sorted(
+        seen.values(),
+        key=lambda post: post.published_at.timestamp() if post.published_at else float("-inf"),
+        reverse=True,
+    )
+    return ordered[:MAX_POSTS_PER_AUTHOR]
+
+
+def needs_opening(url: DiscoveredUrl) -> bool:
+    """
+    A post whose author neither the address nor the result title names:
+    `instagram.com/p/Cxyz`, `instagram.com/reel/Cxyz`. Opening the post is the only
+    way to learn who published it — and the post page says so in its first line.
+    """
+    if url.platform is not Platform.INSTAGRAM or url.author_url or author_profile(url):
+        return False
+    segments = [segment for segment in urlparse(url.canonical_url).path.split("/") if segment]
+    return len(segments) == 2 and segments[0].lower() in {"p", "reel", "reels", "tv"}
 
 
 def author_profile(url: DiscoveredUrl) -> str | None:
@@ -315,6 +433,14 @@ def author_profile(url: DiscoveredUrl) -> str | None:
     *was* followed has to say so, or the list reads as a lost lead when the lead
     is sitting in the other column.
     """
+    if url.author_url:
+        return url.author_url
+    if url.platform is Platform.LINKEDIN:
+        return _linkedin_author(url)
+    if url.platform is Platform.FACEBOOK:
+        by_id = _facebook_story_author(url)
+        if by_id:
+            return by_id
     host = PROFILE_HOST.get(url.platform)
     if host is None:
         return None
@@ -323,6 +449,30 @@ def author_profile(url: DiscoveredUrl) -> str | None:
         return None
     prefix = "@" if url.platform is Platform.THREADS else ""
     return f"https://{host}/{prefix}{handle}"
+
+
+def _linkedin_author(url: DiscoveredUrl) -> str | None:
+    """`/posts/{vanity}_…` → `/in/{vanity}`. Other LinkedIn content names nobody."""
+    segments = [segment for segment in urlparse(url.canonical_url).path.split("/") if segment]
+    if len(segments) < 2 or segments[0].lower() != "posts":
+        return None
+    match = LINKEDIN_POST.match(unquote(segments[1]))
+    if match is None:
+        return None
+    return f"https://linkedin.com/in/{match.group('vanity').lower()}"
+
+
+def _facebook_story_author(url: DiscoveredUrl) -> str | None:
+    """
+    `permalink.php?story_fbid=…&id=1000…` and `story.php?…&id=…`: the `id` is the
+    account that published the story, and `profile.php?id=` is where it lives.
+    """
+    parsed = urlparse(url.canonical_url)
+    segments = [segment for segment in parsed.path.split("/") if segment]
+    if segments[:1] not in (["permalink.php"], ["story.php"]):
+        return None
+    owner = dict(parse_qsl(parsed.query)).get("id", "")
+    return f"https://facebook.com/profile.php?id={owner}" if owner.isdigit() else None
 
 
 def _author(url: DiscoveredUrl) -> str | None:

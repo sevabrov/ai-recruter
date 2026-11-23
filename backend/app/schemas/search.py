@@ -196,6 +196,11 @@ class RejectedCandidateOut(CamelModel):
     #: What the search result alone supported, 0–100. Absent when the candidate
     #: was refused before anything was computed for it.
     promise: int | None = None
+    #: On a refused post: the author's profile, when the run followed it, and what
+    #: became of them — "lead" or the reason they were refused.
+    author_url: str | None = None
+    author_name: str = ""
+    author_outcome: str | None = None
     created_at: datetime
 
 

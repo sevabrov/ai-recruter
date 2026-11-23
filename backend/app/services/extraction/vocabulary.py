@@ -153,6 +153,11 @@ SIGNAL_TERMS: dict[SignalType, tuple[str, ...]] = {
 #: A page that says it was updated within this window counts as active.
 ACTIVE_WITHIN_DAYS = 120
 
+#: Activity backed by a date — the index's page age, or a post's publication date.
+#: At or above this confidence the sighting is a fact the code read, which the
+#: judge cannot see (it reads text, not dates) and therefore may not overrule.
+DATED_ACTIVITY_CONFIDENCE = 0.55
+
 #: Below this, a follower count says nothing about a personal brand.
 BRAND_FOLLOWERS = 2_000
 

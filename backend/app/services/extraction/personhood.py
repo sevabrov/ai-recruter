@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from app.models.common import Platform
 from app.models.profile import ExtractedProfile
 from app.services.extraction.vocabulary import find_place, find_terms
-from app.services.scraping.names import commercial
+from app.services.scraping.names import commercial, looks_like_a_person
 
 #: What an organisation calls itself. Distinct from `names.NOT_A_PERSON`, which
 #: is about a *handle or title* being commercial; these are the nouns an entity
@@ -160,8 +160,14 @@ CORPORATE_VOICE = (
 
 #: How a Facebook Page gives itself away in a search result: pages carry a like
 #: count and a category, profiles carry neither.
+#:
+#: The like count alone is not proof of an organisation, though: the people this
+#: product looks for — network-marketing leaders, coaches, mentors — very often
+#: publish through a public Page under their own name ("Piotr Krenig …, 20,872
+#: likes"). So a like count refuses only a Page whose name is not a person's; the
+#: category refuses whatever the name.
+FACEBOOK_LIKES = (r"\d[\d,. ]*\s*(?:likes|people like this|подписчик|вподоба)",)
 FACEBOOK_PAGE = (
-    r"\d[\d,. ]*\s*(?:likes|people like this|подписчик|вподоба)",
     r"·\s*(?:magazine|media|product/service|community|company|brand|shopping)",
     r"\.\s*(?:magazine|community|product/service)\b",
 )
@@ -170,6 +176,7 @@ _ORGANISATION = {word.lower() for word in ORGANISATION_WORDS}
 _LEGAL = {form.replace(".", "") for form in LEGAL_FORMS}
 _CORPORATE = [re.compile(pattern, re.IGNORECASE) for pattern in CORPORATE_VOICE]
 _FACEBOOK_PAGE = [re.compile(pattern, re.IGNORECASE) for pattern in FACEBOOK_PAGE]
+_FACEBOOK_LIKES = [re.compile(pattern, re.IGNORECASE) for pattern in FACEBOOK_LIKES]
 _WORDS = re.compile(r"[^\w]+", re.UNICODE)
 #: A domain where a name should be. The article that got through was headlined by
 #: its own publication: "PRAVO.UA".
@@ -222,7 +229,7 @@ def assess(profile: ExtractedProfile) -> Verdict:
         return Verdict(False, f"“{name}” reads as a business name.")
 
     summary = profile.summary or ""
-    if profile.platform is Platform.FACEBOOK and _matches(_FACEBOOK_PAGE, summary):
+    if profile.platform is Platform.FACEBOOK and _facebook_organisation_page(name, summary):
         return Verdict(False, f"“{name}” is a Facebook page, not somebody's profile.")
 
     corporate = _matches(_CORPORATE, summary)
@@ -230,6 +237,13 @@ def assess(profile: ExtractedProfile) -> Verdict:
         return Verdict(False, f"“{name}” writes about itself as an organisation: “{corporate}”.")
 
     return PERSON
+
+
+def _facebook_organisation_page(name: str, summary: str) -> bool:
+    """A Page that is an organisation's — by its category, or by likes and a non-name."""
+    if _matches(_FACEBOOK_PAGE, summary):
+        return True
+    return bool(_matches(_FACEBOOK_LIKES, summary)) and not looks_like_a_person(name)
 
 
 def before_reading(name: str, brands: list[str]) -> Verdict:

@@ -567,7 +567,11 @@
     "nothingUnderReasonBody": "The counts above cover the whole run; this page of the list does not reach it.",
     "showingMostPromising": "Showing the {shown, number} most promising of {total, number}. The counts above are over the whole run.",
     "wasRead": "The page itself was opened and read.",
-    "wasNotRead": "Nobody opened this page — the verdict rests on the search result alone."
+    "wasNotRead": "Nobody opened this page — the verdict rests on the search result alone.",
+    "authorChecked": "Post author checked:",
+    "authorNotJudged": "The post's author was found but not judged.",
+    "authorBecameLead": "became a lead",
+    "authorRefused": "refused: {reason}"
   },
   "wizard": {
     "stepOf": "Step {step} of {total}",
