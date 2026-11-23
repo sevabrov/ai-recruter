@@ -612,6 +612,13 @@
     "startSearch": "Start search",
     "untitled": "Untitled search",
     "almostThere": "Almost there",
+    "leaveRefine": {
+      "title": "Leave this refined search?",
+      "description": "The search has not been started.",
+      "body": "If you leave this page, the settings carried over from the earlier search will be cleared, and \"New search\" will open on an empty form.",
+      "stay": "Stay",
+      "leave": "Leave and clear"
+    },
     "steps": {
       "1": {
         "label": "Describe",

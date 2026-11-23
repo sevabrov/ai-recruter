@@ -57,7 +57,13 @@ type WizardState = {
    * a language other than English.
    */
   worldwide: boolean;
-  setStep: (step: WizardStepId) => void;
+  /**
+   * The draft was loaded from an existing search ("Refine and re-run"), not
+   * typed. Leaving it unstarted asks first and then drops it — otherwise the
+   * next "New search" opens on that old search instead of an empty form.
+   */
+  refining: boolean;
+  setStep:(step: WizardStepId) => void;
   setBrief: (brief: string) => void;
   setName: (name: string) => void;
   setWorldwide: (worldwide: boolean) => void;
@@ -90,8 +96,9 @@ export const useWizardStore = create<WizardState>()(
       parser: null,
       parsedFrom: null,
       worldwide: false,
+      refining: false,
 
-      setStep: (step) => set({ step }),
+      setStep:(step) => set({ step }),
       setBrief: (brief) => set({ brief }),
       setName: (name) => set({ name }),
       setWorldwide: (worldwide) => set({ worldwide }),
@@ -184,6 +191,7 @@ export const useWizardStore = create<WizardState>()(
           parser: null,
           parsedFrom: criteria.brief ?? "",
           worldwide: !criteria.location.country,
+          refining: true,
           // An older search is edited as requirements from the start.
           criteria: {
             ...emptyCriteria(),
@@ -201,6 +209,7 @@ export const useWizardStore = create<WizardState>()(
           parser: null,
           parsedFrom: null,
           worldwide: false,
+          refining: false,
         }),
     }),
     {
