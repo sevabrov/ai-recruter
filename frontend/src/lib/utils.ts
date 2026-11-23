@@ -18,4 +18,4 @@ export function initials(name: string) {
 }
 
 /* Number, currency and date formatting are locale-dependent and live in
-   src/lib/format.ts as hooks — see `useNumbers`, `useTimeAgo`, `useDateTime`. */
+   src/lib/format.ts as hooks - see `useNumbers`, `useTimeAgo`, `useDateTime`. */

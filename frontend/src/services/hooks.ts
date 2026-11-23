@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Data access for every screen. Components use these hooks only — no component
+ * Data access for every screen. Components use these hooks only - no component
  * imports a service or a fixture directly, which is what makes the Phase 2
  * swap a configuration change instead of a refactor.
  */

@@ -23,7 +23,7 @@
     "optional": "optional",
     "suggestions": "Suggestions",
     "select": "Select…",
-    "dash": "—",
+    "dash": "-",
     "loading": "Loading…",
     "removeValue": "Remove {value}",
     "noMatches": "Nothing found"
@@ -145,7 +145,7 @@
       },
       "threads_public": {
         "label": "Threads public pages",
-        "hint": "Public profiles — returns almost nothing"
+        "hint": "Public profiles - returns almost nothing"
       },
       "company_websites": {
         "label": "Company websites",
@@ -217,7 +217,7 @@
       },
       "not_a_profile": {
         "label": "Not a profile page",
-        "hint": "A shop, an article, a login form or a numeric page id — refused for free, before anything was read."
+        "hint": "A shop, an article, a login form or a numeric page id - refused for free, before anything was read."
       },
       "off_source": {
         "label": "Outside your sources",
@@ -424,7 +424,7 @@
   "outreach": {
     "draft": "Draft outreach",
     "modalTitle": "Message {name}",
-    "modalDescription": "Generated from the evidence on this profile — review before sending.",
+    "modalDescription": "Generated from the evidence on this profile - review before sending.",
     "generate": "Generate draft",
     "regenerate": "Regenerate",
     "writing": "Writing…",
@@ -466,7 +466,7 @@
     "notFound": "This search could not be found.",
     "eyebrow": "Search in progress",
     "cancel": "Cancel",
-    "complete": "Search complete — opening results",
+    "complete": "Search complete - opening results",
     "cancelled": "Search cancelled",
     "pipeline": "Pipeline",
     "pipelineHint": "Each step reports from the worker, not the browser",
@@ -533,7 +533,7 @@
       },
       "offSource": {
         "label": "offered by the search engine outside your sources, and refused",
-        "fix": "Nothing was read or paid for here. If one of your own queries has no site: operator it is asked of the whole web — the wizard now scopes those to the platforms you picked."
+        "fix": "Nothing was read or paid for here. If one of your own queries has no site: operator it is asked of the whole web - the wizard now scopes those to the platforms you picked."
       },
       "notAPerson": {
         "label": "not people (brand accounts, communities, articles)",
@@ -567,7 +567,7 @@
     "nothingUnderReasonBody": "The counts above cover the whole run; this page of the list does not reach it.",
     "showingMostPromising": "Showing the {shown, number} most promising of {total, number}. The counts above are over the whole run.",
     "wasRead": "The page itself was opened and read.",
-    "wasNotRead": "Nobody opened this page — the verdict rests on the search result alone.",
+    "wasNotRead": "Nobody opened this page - the verdict rests on the search result alone.",
     "authorNotJudged": "not judged",
     "foundVia": "Found through {count, plural, one {a post} other {# posts}}:",
     "post": "post {index, number}",
@@ -635,7 +635,7 @@
       "2": "Fix anything that is off and answer what is missing. Nothing runs until you press the button."
     },
     "issues": {
-      "terms": "Add a job title, a skill or a brand — how these people describe themselves",
+      "terms": "Add a job title, a skill or a brand - how these people describe themselves",
       "sources": "Choose at least one source in the advanced settings"
     },
     "geography": {
@@ -643,7 +643,7 @@
       "noOutsideCountryGeneric": "Nobody from outside the chosen country",
       "noOutsideCountryHint": "A profile that places the person somewhere else is refused. Turn this off and geographic match goes back to being worth points instead.",
       "confirmedOnly": "…and only if it can be confirmed",
-      "confirmedLocationHint": "Strict: a profile that says nothing about where the person is gets dropped too. Off, it becomes a lead that scores lower — which is usually what you want, because most social profiles never name a city and their pages will not open.",
+      "confirmedLocationHint": "Strict: a profile that says nothing about where the person is gets dropped too. Off, it becomes a lead that scores lower - which is usually what you want, because most social profiles never name a city and their pages will not open.",
       "noOtherLanguages": "Nobody publishing only in other languages than {languages}",
       "noOtherLanguagesGeneric": "Nobody publishing only in other languages",
       "noOtherLanguagesHint": "Judged on what the profile is written in.",
@@ -659,7 +659,7 @@
       "fewer": "Fewer leads",
       "more": "More leads",
       "leadsToFind": "Leads to find",
-      "targetHint": "The search stops once it has this many leads that pass every requirement. Candidates are read best first, so what a limit drops is the weakest tail — and the pages it never pays for still become leads from their search result.",
+      "targetHint": "The search stops once it has this many leads that pass every requirement. Candidates are read best first, so what a limit drops is the weakest tail - and the pages it never pays for still become leads from their search result.",
       "warningsTitle": "Worth knowing before you start",
       "queriesTitle": "Queries the search will run",
       "queriesCount": "{count, number} queries",
@@ -667,7 +667,7 @@
       "wholeWeb": "Whole web",
       "queryPlaceholder": "джерелія",
       "queryAria": "What to search for",
-      "queryHint": "Type the brand people distribute, or how they describe themselves — джерелія, фармасі, консультант. One query is one billed call, and a name your market uses beats any template.",
+      "queryHint": "Type the brand people distribute, or how they describe themselves - джерелія, фармасі, консультант. One query is one billed call, and a name your market uses beats any template.",
       "queryPickPlace": "Pick at least one place to search.",
       "queryOwnSite": "This query names its own <code>site:</code>, so it is added exactly as written.",
       "queryYours": "yours",
@@ -676,15 +676,15 @@
       "costExpectedTitle": "Expected cost of this search",
       "costAbout": "≈ {amount}",
       "costCeiling": "At most",
-      "costBrowserFree": "free — Instagram and Facebook are read by our browser",
+      "costBrowserFree": "free - Instagram and Facebook are read by our browser",
       "costBrowserNote": "Instagram and Facebook pages are read by our browser for free; only LinkedIn and other sites are paid pages.",
       "costExpectedNote": "The expected amount comes from earlier runs: a search stops once it has the leads it was asked for. It will never exceed the ceiling.",
-      "costFailed": "The backend could not price this search. It can still be started — the limits configured on the server apply either way.",
+      "costFailed": "The backend could not price this search. It can still be started - the limits configured on the server apply either way.",
       "costTitle": "This search will cost at most",
       "costQueries": "Search queries",
       "costCalls": "{count, number} calls",
       "costPagesRead": "Pages read",
-      "costNoReader": "none — no page reader configured",
+      "costNoReader": "none - no page reader configured",
       "costUpTo": "up to {pages, number} ({credits, number} credits)",
       "costUnlimited": "unlimited",
       "costPerLead": "{pages, number} pages per lead, measured from earlier runs. A page already read this week is free.",
@@ -706,7 +706,7 @@
           "question": "Which languages do these people write in?"
         },
         "brands": {
-          "question": "Which companies or brands are these people linked to? It is the strongest query — it finds them most precisely."
+          "question": "Which companies or brands are these people linked to? It is the strongest query - it finds them most precisely."
         },
         "requirements": {
           "question": "What makes a candidate right? Add at least one requirement, or every candidate gets the same score."
@@ -718,7 +718,7 @@
       "fieldAboutMeHint": "Used for outreach drafts. Never part of the search, so it does not find your own team.",
       "fieldAboutMePlaceholder": "HR at an IT company, Warsaw",
       "fieldBrands": "Companies and brands",
-      "fieldBrandsHint": "Where they work or what they represent. The strongest query: each name is searched on every selected platform. Spell them as profiles do — farmasi and фармасі find different people.",
+      "fieldBrandsHint": "Where they work or what they represent. The strongest query: each name is searched on every selected platform. Spell them as profiles do - farmasi and фармасі find different people.",
       "fieldBrandsPlaceholder": "SoftServe, Farmasi…",
       "fieldKeywords": "How they describe themselves",
       "fieldKeywordsHint": "Words from their profiles: job title, skills, niche. In the language they write in.",
@@ -742,7 +742,7 @@
         "confirmed_language_social": "“Confirmed languages only” over social sources is strict: a two-line profile description often shows no language at all.",
         "many_must_have": "{count} required signals means all of them at once, each proven by a quote from the profile. Two are already hard to find together on a profile that could not be opened.",
         "activity_must_have": "“Recent activity” as a requirement gates hard and is worth no points: it needs a date the page states, which a search result usually omits.",
-        "no_keywords": "No companies or brands, and no words these people use about themselves. Add a job title, a skill or a brand — the way people write it in their profiles.",
+        "no_keywords": "No companies or brands, and no words these people use about themselves. Add a job title, a skill or a brand - the way people write it in their profiles.",
         "languages_without_country": "Languages are chosen but no country. Queries in languages other than English are written with the place in that language, so without a country none of them will run.",
         "threads_empty": "Threads has returned zero results for every query in every measured run, and each one still costs a search call. Unselect it unless you know it works for your market."
       },
@@ -770,11 +770,11 @@
     "editBrief": "Edit description",
     "brief": {
       "label": "Describe the search in your own words",
-      "placeholder": "For example: I'm an Oriflame partner in Poland. I'm looking for women already in network marketing — Avon, Farmasi, Amway — who have a team or want to build one. Polish- and Ukrainian-speaking. No shops or beauty salons…",
-      "hint": "Write in any language. Brands and the words people use about themselves are kept exactly as you wrote them — those are the search queries.",
+      "placeholder": "For example: {example}",
+      "hint": "Write in any language. Brands and the words people use about themselves are kept exactly as you wrote them - those are the search queries.",
       "chars": "{count, number} / {max, number}",
       "useExample": "Use an example",
-      "example": "I'm a MIHI leader in Spain. I'm looking for women already working in network marketing in cosmetics — Farmasi, Jerelia — who have their own team or actively invite people. Ukrainian and Russian speakers, in Spain. No shops and no beauty salons. I need 25 leads.",
+      "example": "I'm an Oriflame partner in Poland. I'm looking for women already in network marketing - Avon, Farmasi, Amway - who have a team or want to build one. Polish- and Ukrainian-speaking. No shops or beauty salons.",
       "tipsTitle": "Worth mentioning",
       "tips": {
         "who": "Who you are: your brand and role",
@@ -787,7 +787,7 @@
       },
       "parse": "Read description",
       "parsing": "Reading…",
-      "tooShort": "Describe it in a bit more detail — at least one sentence.",
+      "tooShort": "Describe it in a bit more detail - at least one sentence.",
       "failed": "Could not read the description. Please try again."
     }
   },
@@ -831,7 +831,7 @@
       "brave": "Live public web results",
       "scrapegraph": "Opens each candidate page and extracts the profile it states",
       "llm": "Judges each signal on the profile",
-      "snippet": "Profiles built from result metadata, not from the page — add SCRAPEGRAPH_API_KEY",
+      "snippet": "Profiles built from result metadata, not from the page - add SCRAPEGRAPH_API_KEY",
       "fixture": "Offline stand-in: no external service is configured",
       "unknown": "Unknown adapter"
     },
@@ -839,7 +839,7 @@
     "standIn": "stand-in",
     "concurrencyLimits": "Concurrency limits (server-side)",
     "readingSources": "Reading the sources",
-    "readingSourcesHint": "Measured from the pages this workspace has opened — not an assumption about the platforms",
+    "readingSourcesHint": "Measured from the pages this workspace has opened - not an assumption about the platforms",
     "readingSourcesText": "{fallback} A page is read once and reused for {hours, number} hours, so the same profile is never paid for twice.",
     "readingSourcesFailed": "The backend did not answer this one.",
     "readingSourcesLoading": "Loading the reading record…",
@@ -847,7 +847,7 @@
     "unlimited": "unlimited",
     "noTarget": "no target",
     "unknown": "?",
-    "budgetNote": "The wizard sets the target per search and turns it into the budget: <mono>leads × PAGES_PER_LEAD</mono>, capped by the ceiling above. Pages past the budget still become leads — from their search result, at snippet confidence. The credit price is what the plan charges: the API does not report it, so set it from the dashboard.",
+    "budgetNote": "The wizard sets the target per search and turns it into the budget: <mono>leads × PAGES_PER_LEAD</mono>, capped by the ceiling above. Pages past the budget still become leads - from their search result, at snippet confidence. The credit price is what the plan charges: the API does not report it, so set it from the dashboard.",
     "usableShare": "{share, number}% usable",
     "pages": "{count, number} pages",
     "outcome": {

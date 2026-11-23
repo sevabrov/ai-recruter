@@ -49,7 +49,7 @@ const GAP_FIELD: Record<WizardGap, string> = {
 /**
  * Step two: what was understood, and what is still missing.
  *
- * Every criterion is editable here, in the interface language — tokens like
+ * Every criterion is editable here, in the interface language - tokens like
  * "Spain" or "Cosmetics" are what the backend stores, never what the client
  * reads. What the brief did not say is asked as a question, in place, on the
  * field that answers it; the two questions that make a search pointless to run
@@ -317,10 +317,10 @@ const EUROPE = "@europe";
 /**
  * Where to look: any number of countries, "any European country", or the whole
  * world. "Ukraine or Europe" used to become the whole world, because the field
- * only held one country — and the search came back from Indonesia.
+ * only held one country - and the search came back from Indonesia.
  *
  * "Anywhere" excludes the rest; Europe and countries combine. Taking the last
- * choice away leaves nothing chosen — the open question — rather than quietly
+ * choice away leaves nothing chosen - the open question - rather than quietly
  * turning into "anywhere", which is what an empty pick meant to the store.
  */
 function Places() {
@@ -409,7 +409,7 @@ function ReviewField({
 
 /**
  * A closed list as a searchable dropdown: the client picks, and never sees a
- * stored token — but may type one, so "Spanish" still finds "Іспанська".
+ * stored token - but may type one, so "Spanish" still finds "Іспанська".
  */
 function VocabularyPicker({
   entries,
@@ -447,7 +447,7 @@ function VocabularyPicker({
 }
 
 /**
- * What makes a candidate right for this search — written for it, editable here.
+ * What makes a candidate right for this search - written for it, editable here.
  *
  * The client chooses how much each thing matters; the points follow (100 in all)
  * and are shown, not typed. The old wizard asked for seven fixed network-marketing
@@ -610,7 +610,7 @@ function Warnings({ warnings }: { warnings: EstimateWarning[] }) {
  * The price, as a ceiling rather than a forecast.
  *
  * The backend derives this figure and the run's page budget from the same
- * function, so it is a promise the search cannot break — which is the only kind
+ * function, so it is a promise the search cannot break - which is the only kind
  * of number worth showing before somebody presses start.
  */
 function Cost({

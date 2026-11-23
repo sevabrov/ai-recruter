@@ -66,7 +66,7 @@ export default async function LocaleLayout({
         suppressHydrationWarning
       >
         {/* Locale, messages and formats are read from i18n/request.ts and handed
-            to the client tree — the app is almost entirely client components. */}
+            to the client tree - the app is almost entirely client components. */}
         <NextIntlClientProvider>
           <Providers>{children}</Providers>
         </NextIntlClientProvider>

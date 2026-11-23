@@ -19,7 +19,7 @@ type ToastContextValue = {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-/** Must sit inside Radix's <Toast.Provider> — see src/lib/providers.tsx. */
+/** Must sit inside Radix's <Toast.Provider> - see src/lib/providers.tsx. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
 

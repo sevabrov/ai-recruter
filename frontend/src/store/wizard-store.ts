@@ -7,7 +7,7 @@
  * Two steps. The client describes the search in their own words; the backend
  * reads that into criteria; the client checks what was understood and answers
  * what was not. The five-step form this replaced asked for twenty-odd fields, most
- * of which nobody could say the effect of — and the three that matter (brands,
+ * of which nobody could say the effect of - and the three that matter (brands,
  * country, who to exclude) looked no more important than the rest.
  */
 
@@ -45,7 +45,7 @@ type WizardState = {
   brief: string;
   name: string;
   criteria: SearchCriteria;
-  /** Which reader answered the last parse — "rules" means no model did. */
+  /** Which reader answered the last parse - "rules" means no model did. */
   parser: string | null;
   /**
    * The text the current criteria were read from. While the brief still says
@@ -60,7 +60,7 @@ type WizardState = {
   worldwide: boolean;
   /**
    * The draft was loaded from an existing search ("Refine and re-run"), not
-   * typed. Leaving it unstarted asks first and then drops it — otherwise the
+   * typed. Leaving it unstarted asks first and then drops it - otherwise the
    * next "New search" opens on that old search instead of an empty form.
    */
   refining: boolean;
@@ -238,7 +238,7 @@ function toggle<T>(list: T[], value: T): T[] {
 
 /**
  * Searches are by country only. A city the brief named, or one an older search
- * carried, is dropped here — with no field to show it, it would narrow every
+ * carried, is dropped here - with no field to show it, it would narrow every
  * query without the client ever seeing why.
  */
 function withoutCity(location: GeoLocation = {}): GeoLocation {
@@ -249,18 +249,18 @@ function withoutCity(location: GeoLocation = {}): GeoLocation {
 
 /**
  * What the review screen has to ask about. Decided here, by rules, not by the
- * model — the questions are fixed copy in the interface language, so they read
+ * model - the questions are fixed copy in the interface language, so they read
  * the same every time and cannot be phrased into something misleading.
  *
  * Each gap is one a measured run paid for:
  *
- * * `terms` (blocks the start) — no brand and no self-description: the queries
+ * * `terms` (blocks the start) - no brand and no self-description: the queries
  *   fall back to the niche's generic name and come back with its famous accounts.
- * * `brands` — words, but no brand: it runs, and finds fewer of the right people.
- * * `requirements` — nothing to judge candidates by, so every lead scores alike.
- * * `sources` (blocks the start) — nowhere to look.
- * * `country` — without one, no query is written in any language but English.
- * * `languages` — the country is known but not who in it to look for; a diaspora
+ * * `brands` - words, but no brand: it runs, and finds fewer of the right people.
+ * * `requirements` - nothing to judge candidates by, so every lead scores alike.
+ * * `sources` (blocks the start) - nowhere to look.
+ * * `country` - without one, no query is written in any language but English.
+ * * `languages` - the country is known but not who in it to look for; a diaspora
  *   (Ukrainians in Spain) writes in a different language from the country.
  */
 export type WizardGap =

@@ -12,7 +12,7 @@ import { useWizardStore } from "@/store/wizard-store";
 
 /**
  * Everything the old five-step wizard asked up front that a brief does not need
- * to answer: where to look, how strict the gates are, and the exact queries. Defaults that work, folded away — open for the
+ * to answer: where to look, how strict the gates are, and the exact queries. Defaults that work, folded away - open for the
  * client who wants to tune, out of the way of the one who does not.
  */
 export function AdvancedSettings({
@@ -154,7 +154,7 @@ function Requirements() {
       ) : null}
 
       {/* Confirmation has to come from the profile page, and a social page is the
-          one kind that most often will not open — a measured run refused 19
+          one kind that most often will not open - a measured run refused 19
           candidates this way and 18 had simply said nothing about where they were. */}
       {strictOverSocialOnly ? (
         <p className="mt-2 flex gap-2 rounded-card border border-warn/30 bg-warn-soft px-3 py-2 text-xs leading-relaxed text-fg-muted">

@@ -20,7 +20,7 @@ import type { RejectedCandidate, RejectedList, RejectionReason } from "@/service
 /**
  * Everything the search turned away.
  *
- * The list is not an apology for a thin result — it is the only way to check one.
+ * The list is not an apology for a thin result - it is the only way to check one.
  * So it opens with the three groups that decide whether a lead was lost: pages
  * nobody opened, profiles the chosen sources excluded, and candidates that were
  * read and failed a requirement. Only the first can be hiding somebody.
@@ -271,7 +271,7 @@ function FoundVia({ posts }: { posts: string[] }) {
 }
 
 /**
- * The author of a post that stayed in this list: found, but not checked — the
+ * The author of a post that stayed in this list: found, but not checked - the
  * page would not open, or the run stopped first. A post whose author was judged
  * is not listed here at all; it is on the author's row, or among a lead's sources.
  */
@@ -296,7 +296,7 @@ function PostAuthor({ entry }: { entry: RejectedCandidate }) {
       >
         {entry.authorName || entry.authorUrl}
       </a>
-      <span>—</span>
+      <span>-</span>
       <span className="text-fg-faint">{verdict}</span>
     </p>
   );

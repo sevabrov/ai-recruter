@@ -9,7 +9,7 @@ import { Menu, MenuItem, MenuLabel, MenuSeparator } from "@/components/ui/overla
 
 /**
  * Two palettes plus "follow system". Themes come from the registry, so a third
- * palette appears here automatically — its name and hint come from the message
+ * palette appears here automatically - its name and hint come from the message
  * catalogue under `theme.<id>`.
  */
 export function ThemeSwitcher() {

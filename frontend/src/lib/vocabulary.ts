@@ -5,8 +5,8 @@
  *
  * The criteria store a country as "Spain" and an industry as "Cosmetics" because
  * that is what the backend keys on; a person reading the screen should see
- * "Іспанія" and "Косметика". Anything that is not a known token — a brand, a
- * city, a search from before the vocabularies existed — is shown as written.
+ * "Іспанія" and "Косметика". Anything that is not a known token - a brand, a
+ * city, a search from before the vocabularies existed - is shown as written.
  */
 
 import { useTranslations } from "next-intl";
@@ -40,7 +40,7 @@ export function useVocabulary() {
     const businessType = (token?: string | null) =>
       label("businessType", BUSINESS_TYPES, token);
 
-    /** Any token of either list — the joined target line mixes both. */
+    /** Any token of either list - the joined target line mixes both. */
     const anyTerm = (token: string) =>
       vocabularyEntry(INDUSTRIES, token)
         ? industry(token)

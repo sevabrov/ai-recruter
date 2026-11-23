@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const SEGMENTS = 36;
 
 /**
- * Segmented meter — reads as an instrument rather than a loading bar, and the
+ * Segmented meter - reads as an instrument rather than a loading bar, and the
  * leading segment animates so a slow stage still looks alive.
  */
 export function ProgressMeter({

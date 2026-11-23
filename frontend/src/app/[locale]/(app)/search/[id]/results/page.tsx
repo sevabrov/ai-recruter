@@ -32,7 +32,7 @@ import type { Search } from "@/services/types";
  *
  * A search that returns four people out of fifty candidates used to show the four
  * and a set of counters for the rest. The counters cannot be checked, and the
- * question they raise — *are we losing leads in there?* — can only be answered by
+ * question they raise - *are we losing leads in there?* - can only be answered by
  * opening the addresses that were refused. So the refused ones are a list of their
  * own, kept behind a tab because they are a diagnostic, not the deliverable.
  */

@@ -1,7 +1,7 @@
 /**
  * Thin fetch wrapper for the FastAPI backend (Phase 2+).
  *
- * Only public config lives here. Provider keys — Brave, ScrapeGraphAI, OpenAI —
+ * Only public config lives here. Provider keys - Brave, ScrapeGraphAI, OpenAI -
  * are never referenced from front-end code; the browser talks to our backend
  * and nothing else.
  */

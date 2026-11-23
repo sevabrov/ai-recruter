@@ -81,7 +81,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 /**
- * A live connection indicator — an unreachable backend must not look like an
+ * A live connection indicator - an unreachable backend must not look like an
  * empty workspace.
  */
 function DataSourceFooter() {
@@ -155,7 +155,7 @@ function NavLink({
   );
 }
 
-/** Wordmark: two overlapping apertures — search over a person. */
+/** Wordmark: two overlapping apertures - search over a person. */
 function Mark() {
   return (
     <span className="grid size-8 shrink-0 place-items-center rounded-[9px] border border-accent-line bg-accent-soft">

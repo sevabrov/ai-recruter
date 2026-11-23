@@ -5,7 +5,7 @@
  * the fallback for anything a translation file has not caught up with yet.
  *
  * Every route carries its prefix (`/uk/leads`, `/en/leads`, `/ru/leads`) so a
- * URL is never ambiguous about the language it renders in — a link pasted into
+ * URL is never ambiguous about the language it renders in - a link pasted into
  * a chat opens in the language it was written in.
  */
 

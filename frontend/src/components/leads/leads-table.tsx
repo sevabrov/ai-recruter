@@ -220,7 +220,7 @@ function RequirementsMet({ lead }: { lead: Lead }) {
         <span className="flex flex-col gap-0.5">
           {judged.map((row) => (
             <span key={row.type} className={row.awarded > 0 ? "" : "text-fg-faint"}>
-              {row.awarded > 0 ? "✓" : "—"} {vocabulary.requirement(row)}
+              {row.awarded > 0 ? "✓" : "-"} {vocabulary.requirement(row)}
             </span>
           ))}
         </span>

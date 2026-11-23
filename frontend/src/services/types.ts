@@ -46,7 +46,7 @@ export type RequirementImportance = "required" | "high" | "normal";
  * One thing that makes a candidate right for *this* search. Written per search:
  * "Python", "Django" for a developer search; the built-in signals ("mlm",
  * "beauty"…) for a network-marketing one. A built-in signal's id is its signal
- * type and its label may be empty — the interface names it.
+ * type and its label may be empty - the interface names it.
  */
 export interface Requirement {
   id: string;
@@ -67,7 +67,7 @@ export interface GeoLocation {
 export interface SearchCriteria {
   /** What the client wrote, in their own words, before it became criteria. */
   brief?: string;
-  /** Who is searching — their brand and role. Context, never a search term. */
+  /** Who is searching - their brand and role. Context, never a search term. */
   aboutMe?: string;
   /**
    * Brands the wanted people distribute, spelled as the market spells them. Each
@@ -92,7 +92,7 @@ export interface SearchCriteria {
   niceToHave: SignalType[];
   /**
    * Country and language as requirements rather than as points: a candidate who
-   * fails one never becomes a lead. Both default to on, and both are per search —
+   * fails one never becomes a lead. Both default to on, and both are per search -
    * the price of a hard filter is the person whose bio never says where they live.
    */
   requireLocation?: boolean;
@@ -100,16 +100,16 @@ export interface SearchCriteria {
   /**
    * …and whether a profile that says nothing about it is refused too. Off by
    * default: "we could not tell" is not "somewhere else", and treating the two as
-   * one answer emptied a search — 18 of 19 geographic refusals in one run were
+   * one answer emptied a search - 18 of 19 geographic refusals in one run were
    * profiles with no location on them at all.
    */
   requireConfirmedLocation?: boolean;
   requireConfirmedLanguage?: boolean;
-  /** Score points per signal. Must total 100 — the backend owns the arithmetic. */
+  /** Score points per signal. Must total 100 - the backend owns the arithmetic. */
   signalWeights: Record<ScoredSignalType, number>;
   /**
    * What the search judges and scores candidates by. Absent (null) for a search
-   * recorded before requirements existed — those are read from the signal fields
+   * recorded before requirements existed - those are read from the signal fields
    * by `effectiveRequirements`.
    */
   requirements?: Requirement[] | null;
@@ -262,7 +262,7 @@ export interface EstimateWarning {
   params?: Record<string, string>;
 }
 
-/** `POST /searches/parse` — a free-text brief read into criteria. */
+/** `POST /searches/parse` - a free-text brief read into criteria. */
 export interface ParseBriefInput {
   text: string;
   /** Interface language, so the suggested search name reads in it. */
@@ -273,7 +273,7 @@ export interface ParsedBrief {
   name: string;
   criteria: SearchCriteria;
   /**
-   * "openai", or "rules" when no model answered — the rules read only countries,
+   * "openai", or "rules" when no model answered - the rules read only countries,
    * languages, well-known brands and a lead count, so the screen says so.
    */
   parser: string;
@@ -285,7 +285,7 @@ export interface ParsedBrief {
  * Why a candidate is not in the lead list.
  *
  * Four of these are the requirements the search was given; the other four happen
- * before anything is judged — the address was not a profile, it was on a platform
+ * before anything is judged - the address was not a profile, it was on a platform
  * nobody asked for, the reader failed, or the search already had enough leads.
  */
 export type RejectionReason =
@@ -313,7 +313,7 @@ export interface RejectedCandidate {
   detailParams?: Record<string, string>;
   /**
    * Whether the page itself was opened. False means the verdict rests on a
-   * two-line search result — which is where a missed lead would be hiding.
+   * two-line search result - which is where a missed lead would be hiding.
    */
   read: boolean;
   name: string;
@@ -346,7 +346,7 @@ export interface RejectedCandidate {
 export interface RejectedList {
   items: RejectedCandidate[];
   total: number;
-  /** Counted over the whole run, not over `items` — see the backend schema. */
+  /** Counted over the whole run, not over `items` - see the backend schema. */
   byReason: Partial<Record<RejectionReason, number>>;
   /** Refusals decided without the page ever being opened. */
   unseen: number;
@@ -544,7 +544,7 @@ export interface HealthStatus {
   phase: number;
   /**
    * "fixture" while nothing external is called, "live" once every stage has a real
-   * service behind it, "partial" in between — Phase 4 with a Brave key searches the
+   * service behind it, "partial" in between - Phase 4 with a Brave key searches the
    * real web but still reads and judges with stand-ins.
    */
   pipeline: "fixture" | "partial" | "live";
@@ -553,7 +553,7 @@ export interface HealthStatus {
   database?: boolean;
   /** Which adapter is behind each pipeline stage (API mode only). */
   stages?: { search: string; extraction: string; signals: string };
-  /** Whether a provider key is configured — never the key itself. */
+  /** Whether a provider key is configured - never the key itself. */
   providers: { braveSearch: boolean; scrapegraph: boolean; openai: boolean };
 }
 
@@ -587,7 +587,7 @@ export interface SourcesReport {
   maxPagesPerSearch?: number | null;
   /** Leads a search stops at. Null means "as many as there are". */
   targetLeads?: number | null;
-  /** Assumed cost of one page in the plan's units — the API reports none. */
+  /** Assumed cost of one page in the plan's units - the API reports none. */
   creditsPerPage?: number;
   /** How many paid pages one lead is assumed to cost, which is what turns the
    *  lead target the wizard asks for into a page budget and a price. */

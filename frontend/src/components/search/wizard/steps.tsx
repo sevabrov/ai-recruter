@@ -7,7 +7,7 @@ import { WIZARD_STEPS, type WizardStepId } from "@/store/wizard-store";
 
 /**
  * The wizard is a genuine sequence, so the markers are numbered. Completed
- * steps stay clickable — the client can jump back without losing input — and so
+ * steps stay clickable - the client can jump back without losing input - and so
  * does the review once a description has been read into criteria.
  */
 export function WizardSteps({

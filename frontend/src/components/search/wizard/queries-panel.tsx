@@ -15,12 +15,12 @@ import { Eyebrow } from "@/components/ui/misc";
  *
  * The generated ones are templates: they know the criteria, not the market. The
  * people a client is looking for label *themselves*, with a brand name nobody
- * outside that market would guess — so the panel that shows what will run is also
+ * outside that market would guess - so the panel that shows what will run is also
  * where a line of it can be written by hand. Hand-written queries run first and
  * are never dropped by the query cap.
  *
  * Where to look is a set of buttons rather than something to type. Asked to write
- * the query itself, the client wrote `джерелія` — a perfectly good question, put
+ * the query itself, the client wrote `джерелія` - a perfectly good question, put
  * to the whole indexed web, which answered with the brand's own site, four shops,
  * a catalogue and a hotel called Jerelia. Eighteen of those twenty results were
  * then thrown away for being off-source. Nobody should have to know that

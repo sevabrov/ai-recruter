@@ -1,5 +1,5 @@
 /**
- * Deterministic query templates — a front-end preview of the backend's
+ * Deterministic query templates - a front-end preview of the backend's
  * QueryGeneratorService (spec §29). Templates only, no LLM. Once the backend
  * owns generation, this file is used for the wizard preview only, or dropped in
  * favour of a `POST /searches/preview` call returning the same strings.
@@ -30,7 +30,7 @@ export function generateQueryPreview(criteria: SearchCriteria, limit = 8): strin
       push([site, `"${keywords[1]}"`, industries[0], country]);
       continue;
     }
-    // With one keyword — and with none, that one is the niche's generic name —
+    // With one keyword - and with none, that one is the niche's generic name -
     // the query returns the niche's brands. The industry and a role word are
     // what turn it back into a description of a person (see the backend's
     // generator, which does the same in each chosen language).
@@ -60,7 +60,7 @@ export function generateQueryPreview(criteria: SearchCriteria, limit = 8): strin
     .map((query) => (negatives.length ? `${query} ${negatives.join(" ")}` : query));
 
   // Hand-written queries come first and are never dropped by the cap, exactly as
-  // the backend orders them — and one without a `site:` inherits the sources, so
+  // the backend orders them - and one without a `site:` inherits the sources, so
   // a bare word is not a question to the whole web when only social was asked for.
   const sites = criteria.sources
     .map((source) => SITE_BY_SOURCE[source])

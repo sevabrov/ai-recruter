@@ -37,13 +37,13 @@ export default function NewSearchPage() {
   const parseBrief = useParseBrief();
   const createSearch = useCreateSearch();
 
-  // The draft is kept in sessionStorage so a refresh mid-flow keeps the input —
+  // The draft is kept in sessionStorage so a refresh mid-flow keeps the input -
   // which also meant the next "New search" opened on whatever was here last. Two
   // drafts are dropped as this page leaves: a search that was started (it is no
   // longer a draft) and a refined copy of an old search that was not (it is that
   // search, not a new one). Dropped after leaving, not before: resetting first
   // would flash step 1 while navigating away. Deferred, so Strict Mode's
-  // rehearsal unmount — which mounts again at once — doesn't wipe it.
+  // rehearsal unmount - which mounts again at once - doesn't wipe it.
   const started = useRef(false);
   useEffect(() => {
     clearTimeout(pendingReset);

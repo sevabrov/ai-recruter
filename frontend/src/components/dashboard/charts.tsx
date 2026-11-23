@@ -5,7 +5,7 @@
  *
  * Colour does no identifying work here: every series is single-hue, and identity
  * comes from the platform icon and the text label. Score buckets are the one
- * exception — they reuse the app's score-tier semantics (high / medium / low),
+ * exception - they reuse the app's score-tier semantics (high / medium / low),
  * always alongside the numeric range, so the tier is never colour-alone.
  */
 

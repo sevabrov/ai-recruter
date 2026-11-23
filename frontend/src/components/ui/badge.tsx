@@ -36,7 +36,7 @@ export function Badge({
   );
 }
 
-/** Small state dot — encodes status in form as well as color. */
+/** Small state dot - encodes status in form as well as color. */
 export function Dot({ tone = "neutral", pulse }: { tone?: Tone; pulse?: boolean }) {
   const color: Record<Tone, string> = {
     neutral: "bg-fg-faint",

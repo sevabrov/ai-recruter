@@ -12,7 +12,7 @@ const ROOM_BELOW = 320;
 export type ComboOption = {
   value: string;
   label: string;
-  /** Extra text the search also matches — the stored token, say, so "Spain" finds "Іспанія". */
+  /** Extra text the search also matches - the stored token, say, so "Spain" finds "Іспанія". */
   keywords?: string;
 };
 
@@ -29,7 +29,7 @@ const fold = (text: string) =>
  * What is chosen sits above the field, and the list opens below it: that way the
  * open list never covers the choices, and the client sees each one land as they
  * pick. (Near the bottom of the screen the page scrolls to make room below.) The list
- * stays open between picks — choosing three languages is three clicks, not six.
+ * stays open between picks - choosing three languages is three clicks, not six.
  *
  * `pinned` entries ("Anywhere", "Any European country") come first, apart from
  * the rest, and are never filtered out of sight by a sort. What each pick means

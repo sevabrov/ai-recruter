@@ -18,7 +18,7 @@ import {
 } from "./themes";
 
 /* ---------------------------------------------------------------------------
-   Two tiny external stores — the stored preference and the OS setting. Reading
+   Two tiny external stores - the stored preference and the OS setting. Reading
    them through useSyncExternalStore keeps the server render deterministic and
    avoids setState-in-effect entirely; the <html data-theme> stamp is written
    from the setter, which is where a DOM side effect belongs.
@@ -50,7 +50,7 @@ function writePreference(preference: ThemePreference) {
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, preference);
   } catch {
-    /* storage unavailable — the in-memory value still drives this session */
+    /* storage unavailable - the in-memory value still drives this session */
   }
   stamp(preference);
   preferenceListeners.forEach((listener) => listener());
@@ -86,7 +86,7 @@ export const themeBootstrapScript = `
 `;
 
 type ThemeContextValue = {
-  /** What the user picked — may be "system". */
+  /** What the user picked - may be "system". */
   preference: ThemePreference;
   /** What is actually painted right now. */
   resolved: ThemeId;

@@ -8,7 +8,7 @@ import { ConfidenceMeter, PlatformIcon } from "@/components/ui/misc";
 import type { LeadSignal } from "@/services/types";
 
 /**
- * The evidence panel. A signal is never rendered as a bare boolean — the quote
+ * The evidence panel. A signal is never rendered as a bare boolean - the quote
  * that triggered it and the page it came from travel with it (spec §16).
  */
 export function SignalEvidence({ signals }: { signals: LeadSignal[] }) {

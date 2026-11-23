@@ -11,7 +11,7 @@ export const BRIEF_MAX = 4000;
 /** Below this there is nothing to read: "косметика" is a word, not a search. */
 export const BRIEF_MIN = 15;
 
-/** What a useful description mentions — the things the review would otherwise ask. */
+/** What a useful description mentions - the things the review would otherwise ask. */
 const TIPS = ["who", "whom", "brands", "where", "languages", "exclude", "count"] as const;
 
 /**
@@ -37,7 +37,7 @@ export function StepBrief() {
           value={brief}
           maxLength={BRIEF_MAX}
           onChange={(event) => setBrief(event.target.value)}
-          placeholder={t("placeholder")}
+          placeholder={t("placeholder", { example: t("example") })}
           className="min-h-56 text-[15px]"
         />
         <div className="flex flex-wrap items-center justify-between gap-2">

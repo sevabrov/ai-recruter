@@ -49,7 +49,7 @@ export function StatTile({
           </span>
         ) : null}
         {/* Supplied by the data source, so it stays in whatever language the
-            backend speaks — see README, "What i18n does not cover". */}
+            backend speaks - see README, "What i18n does not cover". */}
         {stat.hint ? <span className="truncate text-fg-faint">{stat.hint}</span> : null}
       </div>
     </div>

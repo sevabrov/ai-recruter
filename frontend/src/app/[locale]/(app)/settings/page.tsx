@@ -114,7 +114,7 @@ export default function SettingsPage() {
   const health = useBackendHealth();
   const sources = useSourceReport();
 
-  // A backend whose database stopped answering is not "connected" — it is degraded,
+  // A backend whose database stopped answering is not "connected" - it is degraded,
   // and saying so beats letting every screen fail with an empty state.
   const degraded = health.data?.database === false;
   const sourceTone = health.isError

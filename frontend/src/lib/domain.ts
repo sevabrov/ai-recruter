@@ -3,7 +3,7 @@
  * screen.
  *
  * The *words* live in `messages/<locale>.json` under the `domain` namespace and
- * are keyed by the ids below — a component reads them with
+ * are keyed by the ids below - a component reads them with
  * `t('domain.signal.mlm')` and friends, so wording stays consistent without
  * being pinned to one language. Anything here that is still a string is either
  * an id or an operator, never display copy.
@@ -63,7 +63,7 @@ export const PLATFORMS: Platform[] = [
 /**
  * Sources in the order the wizard offers them. The label and the hint are
  * `domain.source.<id>.label` / `.hint`; a note about why a source behaves the
- * way it does belongs with the translation, not here — Threads, for instance,
+ * way it does belongs with the translation, not here - Threads, for instance,
  * came back empty in every measured run while still costing a search call.
  */
 export const SOURCE_KINDS: { id: SourceKind; platform?: Platform }[] = [
@@ -95,7 +95,7 @@ export const WEB_SOURCES: SourceKind[] = ["public_web", "company_websites", "blo
 /**
  * Closed vocabularies, as `{ id, token }`.
  *
- * The *token* is what the criteria store and the backend keys on — the country
+ * The *token* is what the criteria store and the backend keys on - the country
  * name the markets map knows, the English industry word the phrasebook
  * translates into each query language. The *id* names its translation:
  * `domain.country.<id>`, `domain.language.<id>`, `domain.industry.<id>`,
@@ -166,7 +166,7 @@ export function vocabularyEntry(list: VocabularyEntry[], token?: string | null) 
 
 /**
  * Where a new search looks when the brief names no platform: the three that
- * return people. The open web is left out — with no `site:` it spent a third of
+ * return people. The open web is left out - with no `site:` it spent a third of
  * a run's calls on directories and articles.
  */
 export const DEFAULT_SOURCES: SourceKind[] = [
@@ -189,7 +189,7 @@ export type Tone = "neutral" | "accent" | "good" | "warn" | "bad" | "info";
 /**
  * How the refused half of a result is presented.
  *
- * `group` is the part that answers the question the list exists for — *are we
+ * `group` is the part that answers the question the list exists for - *are we
  * losing leads in there?* A candidate whose page was opened was judged on what
  * they published; one refused at an address nobody opened was judged on a
  * two-line search result, and that is where a lead can hide. The third group is
