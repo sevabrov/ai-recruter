@@ -85,6 +85,9 @@ class FallbackProfileExtractor(ProfileExtractor):
         #: Addresses whose page never opened and were judged on the search result
         #: alone — so a refusal can say "would not open" rather than "was read".
         self.unread: set[str] = set()
+        #: Addresses whose page said the profile no longer exists — so a refusal can
+        #: say that, rather than "a brand account, a community or a shop".
+        self.gone: set[str] = set()
 
     def bills(self, url: DiscoveredUrl) -> bool:
         """Only the reader can cost money; the snippet behind it never does."""
@@ -101,6 +104,13 @@ class FallbackProfileExtractor(ProfileExtractor):
         ):
             # The page was read and settled the question. The snippet does not get
             # a second vote — that is how shops come back as leads.
+            #
+            # "Gone" included, checked again: "Ewelina Kapinos" and "Klaudia
+            # Koliber", both titled as people in a run's search results, open as
+            # gone in the same browser that opens `avon_polska` fine — exactly as a
+            # handle that never existed does. The index remembers them from 2018.
+            if read.detail == PROFILE_GONE:
+                self.gone.add(url.canonical_url)
             return None
         # …unless the search result itself is titled with a person's name. An
         # Instagram profile often serves a login wall to a reader: "no person on

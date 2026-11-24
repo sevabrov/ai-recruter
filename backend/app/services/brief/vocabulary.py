@@ -29,6 +29,14 @@ COUNTRIES: dict[str, str] = {
     "RO": "Romania",
     "BE": "Belgium",
     "US": "United States",
+    "CA": "Canada",
+    "IE": "Ireland",
+    "NO": "Norway",
+    "LV": "Latvia",
+    "IL": "Israel",
+    "KZ": "Kazakhstan",
+    "RU": "Russia",
+    "BY": "Belarus",
 }
 
 #: ISO 639-1 code → the language name `markets.LANGUAGE_CODES` keys on.

@@ -98,6 +98,9 @@ class BraveSearchProvider(SearchProvider):
             params["country"] = market.country
         if market and market.language:
             params["search_lang"] = market.language
+        if market and market.page:
+            # Brave's `offset` counts pages of `count` results, not results (max 9).
+            params["offset"] = min(9, market.page)
 
         payload = await self._get(params)
         results = [

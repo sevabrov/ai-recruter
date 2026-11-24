@@ -41,6 +41,7 @@ from app.models.profile import ExtractedProfile
 from app.models.search import SearchCriteria
 from app.services.extraction import personhood
 from app.services.search.markets import iso_code, language_code
+from app.services.search.query_generator import is_network_marketing
 
 
 class Refusal(StrEnum):
@@ -72,10 +73,21 @@ ADMITTED = Eligibility(True)
 
 def admit(profile: ExtractedProfile, criteria: SearchCriteria) -> Eligibility:
     """Whether this profile may become a lead, and if not, the reason in words."""
-    verdict = personhood.assess(profile)
+    verdict = personhood.assess(profile, sellers=is_network_marketing(criteria))
     if not verdict.is_person:
         return Eligibility(
             False, Refusal.NOT_A_PERSON, verdict.detail, verdict.code, verdict.params
+        )
+
+    found_in = (profile.location.country or "").strip()
+    if criteria.in_excluded_place(found_in):
+        # Excluded whatever else the search allows — "the whole world" included.
+        return Eligibility(
+            False,
+            Refusal.WRONG_COUNTRY,
+            f"This profile is in {found_in}, which this search excludes.",
+            "excluded_country",
+            {"found": country_param(found_in)},
         )
 
     place = criteria.place_label()

@@ -50,6 +50,8 @@ class FixtureSearchProvider(SearchProvider):
     async def search(
         self, query: str, limit: int = 20, *, market: SearchMarket | None = None
     ) -> list[ProviderResult]:
+        if market and market.page:
+            return []  # the catalogue is one page long
         terms, negatives, platform = _parse(query)
 
         ranked: list[tuple[int, str, Lead]] = []

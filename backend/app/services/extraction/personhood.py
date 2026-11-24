@@ -32,6 +32,7 @@ credibility with somebody they then try to recruit.
 
 import re
 from dataclasses import dataclass, field
+from urllib.parse import unquote
 
 from app.models.common import Platform
 from app.models.profile import ExtractedProfile
@@ -172,6 +173,55 @@ FACEBOOK_PAGE = (
     r"\.\s*(?:magazine|community|product/service)\b",
 )
 
+#: What one person who sells a brand calls herself — in the singular, because
+#: "Konsultantki Avon Polska" (plural) is a group, and "Konsultantka Avon" is
+#: Joanna in Świebodzice. Measured on a search for Avon / Farmasi / Amway leaders in
+#: Poland: about twenty of its 202 "not a person" refusals were consultants like
+#: that, refused for being "named after a place" ("AVON Wrocław", handle
+#: `avon.konsultantka.wroclaw`) or for "speaking as a shop" — which a consultant's
+#: account does, because taking orders is what it is for.
+#:
+#: "Distributor" and its cognates are left out on purpose, at the client's request.
+REP_ROLES = {
+    # Polish
+    "konsultantka",
+    "konsultant",
+    "liderka",
+    "lider",
+    "ambasadorka",
+    "doradczyni",
+    "przedstawicielka",
+    # Ukrainian / Russian
+    "консультант",
+    "консультантка",
+    "лідер",
+    "лідерка",
+    "лидер",
+    "представниця",
+    "представитель",
+    "представительница",
+    "наставник",
+    "наставниця",
+    "наставница",
+    # elsewhere
+    "consultant",
+    "consultante",
+    "ambassador",
+    "leader",
+    "beraterin",
+    "consultora",
+    "asesora",
+    "consulente",
+    "incaricata",
+    "conseillère",
+}
+
+#: Handles glue words together ("konsultantkaa_avon", "konsultantkapl"), so a
+#: handle is matched by prefix — on the forms long enough not to collide.
+_HANDLE_ROLES = sorted((role for role in REP_ROLES if len(role) >= 7), key=len, reverse=True)
+#: …but not into a plural: "konsultantki", "consultants", "консультанты" are a group.
+_PLURAL = ("ki", "ów", "ow", "s", "es", "ы", "и", "ів", "ов")
+
 _ORGANISATION = {word.lower() for word in ORGANISATION_WORDS}
 _LEGAL = {form.replace(".", "") for form in LEGAL_FORMS}
 _CORPORATE = [re.compile(pattern, re.IGNORECASE) for pattern in CORPORATE_VOICE]
@@ -198,8 +248,17 @@ class Verdict:
 PERSON = Verdict(True)
 
 
-def assess(profile: ExtractedProfile) -> Verdict:
-    """Is the thing this profile describes a human being?"""
+def assess(profile: ExtractedProfile, *, sellers: bool = False) -> Verdict:
+    """
+    Is the thing this profile describes a human being?
+
+    `sellers` is a network-marketing search. There, an account that names its
+    owner's role — "Konsultantka Avon", "Avon Lider Luboń", handle
+    `avon.swiebodzice.joanna` with "Konsultantka AVON" — is one person selling a
+    brand, whatever else its title says: the rules below exist to catch the brand's
+    own accounts, and those never call themselves a consultant. Whether it really
+    is one person is still the judge's to say, from what the page says.
+    """
     name = (profile.name or "").strip()
     if not name:
         return Verdict(False, "No person is named on this page.", "no_name")
@@ -208,6 +267,9 @@ def assess(profile: ExtractedProfile) -> Verdict:
         # LinkedIn keeps people and companies on different paths, and only the
         # person path reaches this far (`url_tools.classify`). That is stronger
         # evidence than anything a title can offer, so it settles the question.
+        return PERSON
+
+    if sellers and seller_role(name, profile.canonical_url):
         return PERSON
 
     for token in _tokens(name):
@@ -290,7 +352,25 @@ def _facebook_organisation_page(name: str, summary: str) -> bool:
     return bool(_matches(_FACEBOOK_LIKES, summary)) and not looks_like_a_person(name)
 
 
-def before_reading(name: str, brands: list[str]) -> Verdict:
+def seller_role(name: str, address: str = "") -> str:
+    """
+    The role word ("konsultantka", "лідер") this account's name or handle calls its
+    owner by, or "" when it names none.
+    """
+    for token in _tokens(_fold(name)):
+        if token in REP_ROLES:
+            return token
+    path = unquote(address.split("://", 1)[-1].split("/", 1)[-1])
+    # "KonsultantkiAvonPolska" is three words.
+    path = re.sub(r"(?<=[^\W\d_])(?=[A-ZА-ЯЁІЇЄҐ])", " ", path)
+    for token in re.split(r"[\W_]+", _fold(path)):
+        for role in _HANDLE_ROLES:
+            if token.startswith(role) and not token[len(role) :].startswith(_PLURAL):
+                return role
+    return ""
+
+
+def before_reading(name: str, brands: list[str], *, sellers: bool = False) -> Verdict:
     """
     Is the search result alone enough to say this is not a person — before a credit
     is spent opening the page?
@@ -312,6 +392,9 @@ def before_reading(name: str, brands: list[str]) -> Verdict:
     """
     name = name.strip()
     if not name:
+        return PERSON
+    if sellers and seller_role(name):
+        # "Avon Konsultantka" opens with the brand and is still somebody.
         return PERSON
 
     brand = _leading_brand(name, brands)

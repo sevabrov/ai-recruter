@@ -477,7 +477,9 @@ ends are configuration:
 | `MAX_PAGES_PER_SEARCH` | paid page reads per search; the rest become snippet leads | `25` |
 | `TARGET_LEADS` | stop reading and judging once this many leads qualify | `0` (no target) |
 | `PAGES_PER_LEAD` | how many paid pages one lead costs — turns a target into a budget | `3` |
-| `MAX_QUERIES_PER_SEARCH` | generated queries, and so billed search calls | `24` |
+| `MAX_QUERIES_PER_SEARCH` | generated queries, and so billed search calls — across all waves | `96` |
+| `QUERIES_PER_WAVE` | with a lead target, queries sent per wave; another wave goes out only while short of the target | `12` |
+| `MAX_RESULT_PAGES` | pages of results one query may ask for, when its last page came back full | `3` |
 | `SCRAPEGRAPH_READ_ATTEMPTS` | attempts per page — a served request is billed either way | `1` |
 | `SCRAPEGRAPH_CREDITS_PER_PAGE` | what one page costs in plan units; the API reports none | `5` |
 | `SCRAPEGRAPH_STEALTH` | read social profiles through the residential proxy | `true` |

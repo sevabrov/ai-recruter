@@ -360,3 +360,139 @@ async def test_must_have_criteria_still_gate_live_results(settings, must_have):
     assert leads
     for lead in leads:
         assert set(must_have) <= {str(signal.type) for signal in lead.signals if signal.detected}
+
+
+# ------------------------------------------------------------------------ waves
+#
+# A run asked for 50 leads stopped at 8 with half its planned queries never sent:
+# one fixed batch of queries was all it ever asked, and the lead target only ever
+# stopped a search early, never sent it back for more. With a target, queries now
+# go out a wave at a time until the target is met or the plan runs out.
+
+SURNAMES = [
+    "Ruiz", "Gil", "Vidal", "Mora", "Soto", "Pons", "Vega", "Cano", "Sanz", "Ortiz",
+    "Lara", "Rubio", "Molina", "Navarro", "Torres", "Ramos", "Serra", "Blanco",
+    "Castro", "Prieto", "Crespo", "Pascual", "Herrera", "Rojas", "Garrido", "Campos",
+    "Vargas", "Reyes", "Bravo", "Soler", "Peña", "Cruz", "Parra", "Nieto", "Iglesias",
+    "Lozano", "Medina", "Guerrero", "Cortés", "Fuentes",
+]  # fmt: skip
+
+
+def one_person_per_query(*, same: bool = False):
+    """Every query finds somebody nobody else found — or, with `same`, the same one."""
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.params.get("q", ""))
+        surname = SURNAMES[0 if same else (len(calls) - 1) % len(SURNAMES)]
+        handle = f"ana.{surname.lower()}"
+        person = {
+            "title": f"Ana {surname} (@{handle}) • Instagram photos and videos",
+            "url": f"https://www.instagram.com/{handle}/",
+            "description": (
+                f"Ana {surname}: network marketing y belleza en España. "
+                "Líder de equipo, únete a mi equipo."
+            ),
+            "language": "es",
+        }
+        return httpx.Response(200, json={"web": {"results": [person]}})
+
+    return calls, handler
+
+
+INSTAGRAM_ONLY = {"sources": ["instagram_public"]}
+
+
+def planned(settings: Settings, **criteria: object) -> int:
+    scoped = SearchCriteria.model_validate({**live_criteria(), **criteria})
+    return len(TemplateQueryGenerator().generate(scoped, limit=settings.max_queries_per_search))
+
+
+async def test_a_search_short_of_its_target_sends_another_wave(settings):
+    waves = settings.model_copy(update={"queries_per_wave": 2})
+    calls, handler = one_person_per_query()
+
+    search, leads = await run_live(waves, handler, target_leads=3, **INSTAGRAM_ONLY)
+
+    assert search is not None and search.status is SearchStatus.COMPLETED
+    # Two queries, two leads: one short. A second wave of two, and the target is met.
+    assert len(calls) == 4
+    # Reads already under way when the target is met still finish, as before.
+    assert len(leads) >= 3
+    assert search.usage.search_api_calls == search.progress.queries == 4
+    # Only the queries that were sent are listed — none waiting with zero results.
+    assert len(search.queries) == 4
+    assert search.progress.percent == 100
+
+
+async def test_a_search_that_has_its_leads_sends_no_more_waves(settings):
+    waves = settings.model_copy(update={"queries_per_wave": 2})
+    calls, handler = one_person_per_query()
+
+    _, leads = await run_live(waves, handler, target_leads=1, **INSTAGRAM_ONLY)
+
+    assert len(calls) == 2
+    assert len(leads) >= 1
+
+
+async def test_the_waves_stop_when_the_plan_runs_out(settings):
+    """The same person behind every query: read once, and the plan is used up."""
+    waves = settings.model_copy(update={"queries_per_wave": 2})
+    calls, handler = one_person_per_query(same=True)
+
+    search, leads = await run_live(waves, handler, target_leads=5, **INSTAGRAM_ONLY)
+
+    assert search is not None and search.status is SearchStatus.COMPLETED
+    assert len(calls) == planned(waves, **INSTAGRAM_ONLY) > 2
+    assert len(leads) == 1
+    assert search.progress.profiles_processed == 1
+    assert search.progress.profiles_discovered == 1
+
+
+async def test_without_a_target_every_planned_query_goes_out_at_once(settings):
+    waves = settings.model_copy(update={"queries_per_wave": 2})
+    calls, handler = one_person_per_query()
+
+    await run_live(waves, handler, **INSTAGRAM_ONLY)
+
+    assert len(calls) == planned(waves, **INSTAGRAM_ONLY) > 2
+
+
+def twenty_people_per_request():
+    """Every request — first page or next — finds twenty people nobody else found."""
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        start = (len(requests) - 1) * 20
+        people = [
+            {
+                "title": f"Ana {SURNAMES[n % len(SURNAMES)]} (@ana.p{n}) • Instagram",
+                "url": f"https://www.instagram.com/ana.p{n}/",
+                "description": "network marketing y belleza en España. Líder de equipo.",
+                "language": "es",
+            }
+            for n in range(start, start + 20)
+        ]
+        return httpx.Response(200, json={"web": {"results": people}})
+
+    return requests, handler
+
+
+async def test_a_query_that_came_back_full_is_asked_for_its_next_page(settings):
+    tuned = settings.model_copy(
+        update={"queries_per_wave": 2, "max_queries_per_search": 6, "max_result_pages": 2}
+    )
+    requests, handler = twenty_people_per_request()
+
+    search, _ = await run_live(tuned, handler, target_leads=1000, **INSTAGRAM_ONLY)
+
+    assert search is not None and search.status is SearchStatus.COMPLETED
+    # Short of the target until the ceiling: never past it.
+    assert len(requests) == 6 == search.usage.search_api_calls
+    pages = [request.url.params.get("offset") for request in requests]
+    assert "1" in pages, "no query was asked for its next page"
+    # Asked again only for the next page, never twice for the same one.
+    asked = [(request.url.params["q"], request.url.params.get("offset")) for request in requests]
+    assert len(set(asked)) == len(asked)
+    assert any(entry.page == 1 and entry.id.endswith("_p2") for entry in search.queries)

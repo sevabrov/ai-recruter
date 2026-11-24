@@ -110,7 +110,7 @@
       "activity": "Activity"
     },
     "signalHint": {
-      "mlm": "Partner, distributor or consultant language in public bios",
+      "mlm": "Partner, consultant or leader language in public bios",
       "beauty": "Product category the person actually works in",
       "recruiting": "Open calls to join a team, posted recently",
       "leadership": "Mentions of a team, structure or the people they train",
@@ -149,7 +149,7 @@
       },
       "company_websites": {
         "label": "Company websites",
-        "hint": "Team and distributor pages"
+        "hint": "Team and consultant pages"
       },
       "blogs": {
         "label": "Blogs",
@@ -269,7 +269,15 @@
       "GB": "United Kingdom",
       "RO": "Romania",
       "BE": "Belgium",
-      "US": "United States"
+      "US": "United States",
+      "RU": "Russia",
+      "BY": "Belarus",
+      "KZ": "Kazakhstan",
+      "IL": "Israel",
+      "LV": "Latvia",
+      "IE": "Ireland",
+      "NO": "Norway",
+      "CA": "Canada"
     },
     "language": {
       "uk": "Ukrainian",
@@ -537,7 +545,7 @@
       },
       "notAPerson": {
         "label": "not people (brand accounts, communities, articles)",
-        "fix": "Narrow the wording: add a role word to your own query (консультант, дистриб’ютор), or exclude shops with -shop -магазин."
+        "fix": "Narrow the wording: add a role word to your own query (консультант, лідер), or exclude shops with -shop -магазин."
       },
       "country": {
         "label": "not confirmed to be in {country}",
@@ -584,6 +592,7 @@
       "off_source": "Found on {platform}, which is not among this search's sources. It was never opened or paid for.",
       "unreadable": "The page could not be read, so nothing about this person was seen.",
       "page_no_person": "The page was read and named no person: a brand account, a community or a shop.",
+      "profile_gone": "The profile no longer exists or is not public — the search engine still remembers an old copy of it.",
       "unopened_no_person": "The page would not open, and the search result on its own named nobody.",
       "not_examined": "The search already had the {target, number} leads it was asked for and stopped. This candidate was never opened or paid for.",
       "no_name": "No person is named on this page.",
@@ -600,6 +609,8 @@
       "wrong_country": "This profile is in {found}, not {place}.",
       "country_unconfirmed": "Nothing on this profile confirms {place}, and this search asked for confirmed locations only.",
       "judge_wrong_country": "“{evidence}” places this profile in {found}, not {place}.",
+      "excluded_country": "This profile is in {found}, which this search excludes.",
+      "judge_excluded_country": "“{evidence}” places this profile in {found}, which this search excludes.",
       "wrong_language": "This profile publishes in {found}, not in {wanted}.",
       "language_unconfirmed": "Nothing on this profile shows which language the person publishes in, and this search asked for confirmed languages only.",
       "missing_signals": "Nothing on this profile showed: {signals}.",
@@ -700,7 +711,7 @@
           "question": "Where should we look? No source is selected."
         },
         "country": {
-          "question": "Where should we look? Pick one or more countries, all of Europe, or anywhere. Without a place, queries are written in English only."
+          "question": "Where should we look? Pick one or more countries, all of Europe, or anywhere - then we look where the chosen languages are written."
         },
         "languages": {
           "question": "Which languages do these people write in?"
@@ -724,7 +735,10 @@
       "fieldKeywordsHint": "Words from their profiles: job title, skills, niche. In the language they write in.",
       "fieldKeywordsPlaceholder": "Python developer, nurse…",
       "fieldCountry": "Where to look",
-      "fieldCountryHint": "Pick several countries or all of Europe. Queries are written for each country, and only people from the chosen places become leads.",
+      "fieldCountryHint": "Pick several countries or all of Europe. Queries are written for each country, and only people from the chosen places become leads. Anywhere means the countries the chosen languages are written in: their home first, then the largest diasporas.",
+      "fieldExcluded": "Never search in",
+      "fieldExcludedHint": "No query is written for these countries, and people found there are refused - even when searching anywhere. Remove a country from the list or add another.",
+      "pickExcluded": "Add a country…",
       "anywhere": "Anywhere",
       "fieldLanguages": "Languages they write in",
       "fieldLanguagesHint": "Queries are written in each of these. For a diaspora it is the people's language, not the country's: Ukrainians in Spain write in Ukrainian and Russian.",
@@ -743,7 +757,7 @@
         "many_must_have": "{count} required signals means all of them at once, each proven by a quote from the profile. Two are already hard to find together on a profile that could not be opened.",
         "activity_must_have": "“Recent activity” as a requirement gates hard and is worth no points: it needs a date the page states, which a search result usually omits.",
         "no_keywords": "No companies or brands, and no words these people use about themselves. Add a job title, a skill or a brand - the way people write it in their profiles.",
-        "languages_without_country": "Languages are chosen but no country. Queries in languages other than English are written with the place in that language, so without a country none of them will run.",
+        "languages_without_country": "Languages are chosen but no country, and for these languages we do not know where their speakers live. Queries in them are written with the place's name, so without a country none of them will run.",
         "threads_empty": "Threads has returned zero results for every query in every measured run, and each one still costs a search call. Unselect it unless you know it works for your market."
       },
       "fieldRequirements": "What makes a candidate right",

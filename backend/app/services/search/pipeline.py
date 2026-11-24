@@ -23,6 +23,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from itertools import zip_longest
 from typing import Protocol
 from urllib.parse import unquote, urlparse
 
@@ -69,7 +70,7 @@ from app.services.search.estimate import judging_budget_for, page_budget_for
 from app.services.search.markets import country_code, iso_code
 from app.services.search.prospects import Prospect, rank
 from app.services.search.providers.base import SearchMarket, SearchProvider
-from app.services.search.query_generator import QueryGenerator
+from app.services.search.query_generator import QueryGenerator, is_network_marketing
 from app.services.search.url_tools import (
     SOCIAL_PLATFORMS,
     allowed_platforms,
@@ -218,6 +219,12 @@ class SearchPipeline:
         #: LLM_CONCURRENCY for the whole run (§52). Judging now overlaps reading, so
         #: several `_judge` calls can be in flight at once and must share the limit.
         self._llm_slots = asyncio.Semaphore(max(1, settings.llm_concurrency))
+        #: Addresses and candidates earlier waves already dealt with. A later wave's
+        #: queries find many of the same people again; they are not read twice.
+        self._seen_urls: set[str] = set()
+        self._seen_candidates: set[str] = set()
+        #: Posts opened so far this run, against MAX_POSTS_OPENED.
+        self._posts_opened = 0
 
     async def run(self, search_id: str) -> None:
         search = await self.repo.get_search(search_id)
@@ -231,13 +238,23 @@ class SearchPipeline:
         self._progress = SearchProgress()
         self._usage = SearchUsage()
         self._rejected = {}
+        self._seen_urls = set()
+        self._seen_candidates = set()
+        self._posts_opened = 0
         self._aim(search)
 
         try:
-            queries = await self._generate_queries(search)
-            results = await self._run_queries(search, queries)
-            urls = await self._discover(search, results)
-            harvest = await self._extract(search, urls)
+            planned = await self._generate_queries(search)
+            harvest = Harvest()
+            sent: list[GeneratedQuery] = []
+            while True:
+                wave = self._next_wave(planned, sent)
+                sent.extend(wave)
+                results = await self._run_queries(search, wave, sent)
+                urls = await self._discover(search, results)
+                harvest = await self._extract(search, urls, harvest)
+                if not self._wants_another_wave(planned, sent, harvest):
+                    break
             leads = await self._score(search, harvest)
             leads = await self._deduplicate(search, leads)
             await self._complete(search, leads)
@@ -283,6 +300,12 @@ class SearchPipeline:
 
     # ------------------------------------------------------------- stage 1–2
     async def _generate_queries(self, search: Search) -> list[GeneratedQuery]:
+        """
+        Every query this search may send, best first. How many of them actually go
+        out is decided wave by wave (`_next_wave`), so only those are saved on the
+        search: a query listed with zero results would read as one that found
+        nothing, when it was never asked.
+        """
         await self._enter(search.id, SearchStage.GENERATING_QUERIES)
         generated = self.query_generator.generate(
             search.criteria, limit=self.settings.max_queries_per_search
@@ -297,14 +320,95 @@ class SearchPipeline:
             )
             for index, plan in enumerate(generated)
         ]
-        self._progress.queries = len(queries)
         await self._tick()
-        await self._save(search.id, SearchStage.GENERATING_QUERIES, 1.0, queries=queries)
+        await self._save(search.id, SearchStage.GENERATING_QUERIES, 1.0)
         log.info("queries_generated", extra={"count": len(queries)})
         return queries
 
+    def _next_wave(
+        self, planned: list[GeneratedQuery], sent: list[GeneratedQuery]
+    ) -> list[GeneratedQuery]:
+        """
+        The next queries to send. Without a lead target there is nothing to stop
+        for, so everything planned goes out at once; with one, a wave at a time —
+        the next page of every query that came back full, alternated with the
+        planned queries not yet sent, up to MAX_QUERIES_PER_SEARCH in all.
+        """
+        asked = {entry.id for entry in sent}
+        remaining = [entry for entry in planned if entry.id not in asked]
+        if self._target <= 0:
+            return remaining
+        room = min(
+            max(1, self.settings.queries_per_wave),
+            self.settings.max_queries_per_search - len(sent),
+        )
+        mixed = [
+            entry
+            for pair in zip_longest(self._follow_ups(sent), remaining)
+            for entry in pair
+            if entry is not None
+        ]
+        return mixed[: max(0, room)]
+
+    def _follow_ups(self, sent: list[GeneratedQuery]) -> list[GeneratedQuery]:
+        """
+        The next page of each query whose last page came back (nearly) full.
+
+        Brave answers twenty results a question, and a well-aimed question has more
+        than twenty answers: `Avon konsultantka Polska` returned a full page every
+        time it was asked. Its second page is twenty people nobody else's query
+        reaches — a better bet than a new question that may return nothing (21 of
+        a run's 48 returned nothing at all).
+        """
+        full = max(1, self.settings.brave_results_per_query * 3 // 4)
+        asked = {(entry.query, entry.page) for entry in sent}
+        follow: list[GeneratedQuery] = []
+        for entry in sent:
+            page = entry.page + 1
+            if (
+                entry.result_count < full
+                or page >= self.settings.max_result_pages
+                or (entry.query, page) in asked
+            ):
+                continue
+            base = entry.id.split("_p", 1)[0]
+            update = {"id": f"{base}_p{page + 1}", "page": page, "result_count": 0}
+            follow.append(entry.model_copy(update=update))
+        return follow
+
+    def _wants_another_wave(
+        self, planned: list[GeneratedQuery], sent: list[GeneratedQuery], harvest: Harvest
+    ) -> bool:
+        """
+        Whether to go back to the provider: the search is still short of the leads it
+        was asked for, under its query ceiling, and has something left to ask —
+        a planned query, or the next page of one that came back full.
+
+        Everything found so far has been read and judged by now (with a target,
+        judging runs inside reading), so the lead count is final for these waves.
+        """
+        if self._target <= 0 or harvest.stopped_early:
+            return False
+        if len(sent) >= self.settings.max_queries_per_search:
+            return False
+        if not self._next_wave(planned, sent):
+            return False
+        leads = len(deduplicate(harvest.leads)[0])
+        if leads >= self._target:
+            return False
+        log.info(
+            "search_wave_needed",
+            extra={
+                "leads": leads,
+                "target": self._target,
+                "sent": len(sent),
+                "planned": len(planned),
+            },
+        )
+        return True
+
     async def _run_queries(
-        self, search: Search, queries: list[GeneratedQuery]
+        self, search: Search, queries: list[GeneratedQuery], sent: list[GeneratedQuery]
     ) -> list[ProviderResult]:
         """
         Queries fan out concurrently (spec §30) under SEARCH_CONCURRENCY (§52),
@@ -316,12 +420,18 @@ class SearchPipeline:
         One query failing is not the search failing: real providers rate-limit and
         time out, and eleven good queries are worth more than an error page. Only a
         search where *nothing* came back reports the provider's error.
+
+        `queries` is this wave; `sent` is every query the run has sent, this wave
+        included — the counters and the stored list are the run's, not the wave's.
         """
+        self._progress.queries = len(sent)
         await self._enter(search.id, SearchStage.WEB_SEARCH)
+        await self._save(search.id, SearchStage.WEB_SEARCH, 0.0, queries=sent)
         market = SearchMarket.from_criteria(search.criteria)
         semaphore = asyncio.Semaphore(self.settings.search_concurrency)
         collected: list[ProviderResult] = []
         done = 0
+        known = len(self._seen_urls)
 
         async def run_one(entry: GeneratedQuery) -> None:
             nonlocal done
@@ -330,6 +440,7 @@ class SearchPipeline:
                     "language": entry.language or market.language,
                     # A search over several countries aims each query at its own.
                     "country": country_code(entry.country) if entry.country else market.country,
+                    "page": entry.page,
                 }
             )
             async with semaphore:
@@ -345,8 +456,8 @@ class SearchPipeline:
             # One query is one billed call: the provider is capped at a single
             # request per query, so this stays exact (spec §54).
             self._usage.search_api_calls += 1
-            self._progress.queries_completed = done
-            self._progress.urls_discovered = len(collected)
+            self._progress.queries_completed += 1
+            self._progress.urls_discovered = known + len(collected)
             await self._save(search.id, SearchStage.WEB_SEARCH, done / max(1, len(queries)))
 
         outcomes = await asyncio.gather(
@@ -364,8 +475,11 @@ class SearchPipeline:
                 extra={"failed_queries": len(failures), "of": len(queries)},
             )
 
-        await self._save(search.id, SearchStage.WEB_SEARCH, 1.0, queries=queries)
-        log.info("web_search_completed", extra={"raw_results": len(collected)})
+        await self._save(search.id, SearchStage.WEB_SEARCH, 1.0, queries=sent)
+        log.info(
+            "web_search_completed",
+            extra={"raw_results": len(collected), "queries": len(queries), "sent": len(sent)},
+        )
         return collected
 
     # --------------------------------------------------------------- stage 3
@@ -387,17 +501,27 @@ class SearchPipeline:
         # A hashtag search returns posts, and a post names its author: the profile
         # behind it is the candidate, not the post (`url_tools.promote_posts`).
         normalized = promote_posts(discover(results))
+        # A later wave finds many of the same addresses again: only new ones count.
+        normalized = [url for url in normalized if url.canonical_url not in self._seen_urls]
+        self._seen_urls.update(url.canonical_url for url in normalized)
         normalized = await self._open_posts(search, normalized)
         sources = search.criteria.sources
-        profile_urls = candidates(normalized, sources)
+        profile_urls = [
+            url
+            for url in candidates(normalized, sources)
+            if url.canonical_url not in self._seen_candidates
+        ]
         kept = {url.canonical_url for url in profile_urls}
+        self._seen_candidates.update(kept)
         readable = candidates(normalized)
-        off_source = [url for url in readable if url.canonical_url not in kept]
+        # Not kept *this* wave can also mean an author an earlier wave already read
+        # (a new post of theirs promoted them again) — that is no off-source refusal.
+        off_source = [url for url in readable if url.canonical_url not in self._seen_candidates]
         self._refuse_addresses(search, normalized, readable, off_source, kept)
 
-        self._progress.urls_discovered = len(normalized)
-        self._progress.profiles_discovered = len(profile_urls)
-        self._progress.rejected_off_source = len(off_source)
+        self._progress.urls_discovered = len(self._seen_urls)
+        self._progress.profiles_discovered += len(profile_urls)
+        self._progress.rejected_off_source += len(off_source)
         await self._tick()
         await self._save(search.id, SearchStage.DISCOVERING_PROFILES, 1.0)
         log.info(
@@ -431,9 +555,10 @@ class SearchPipeline:
             url
             for url in urls
             if needs_opening(url) and (allowed is None or url.platform in allowed)
-        ][:MAX_POSTS_OPENED]
+        ][: max(0, MAX_POSTS_OPENED - self._posts_opened)]
         if not todo:
             return urls
+        self._posts_opened += len(todo)
 
         slots = asyncio.Semaphore(max(1, self.settings.extraction_concurrency))
         reader = self.post_reader
@@ -488,7 +613,9 @@ class SearchPipeline:
             )
 
     # --------------------------------------------------------------- stage 4
-    async def _extract(self, search: Search, urls: list[DiscoveredUrl]) -> Harvest:
+    async def _extract(
+        self, search: Search, urls: list[DiscoveredUrl], harvest: Harvest | None = None
+    ) -> Harvest:
         """
         Read the candidates — best first, as a stream, and only as far as the
         search's limits allow.
@@ -520,11 +647,16 @@ class SearchPipeline:
           (spec §53).
 
         Each kind of read is bounded by EXTRACTION_CONCURRENCY (§35).
+
+        A later wave passes in the `harvest` the earlier ones built, so the target
+        is checked against every lead the run has, not this wave's alone.
         """
         await self._enter(search.id, SearchStage.EXTRACTING)
         ranked = await rank(urls, search.criteria, snippets=self._snippets, scoring=self.scoring)
         target = self._target
-        harvest = Harvest()
+        harvest = harvest if harvest is not None else Harvest()
+        #: Pages earlier waves processed; the progress counter is the run's.
+        before = self._progress.profiles_processed
         width = max(1, self.settings.extraction_concurrency)
         window = width * LOOKAHEAD_WIDTHS
         batch = max(1, self.settings.judge_batch_size)
@@ -656,7 +788,7 @@ class SearchPipeline:
                 if not stopping:
                     dispatch()
 
-                self._progress.profiles_processed = processed
+                self._progress.profiles_processed = before + processed
                 self._bill_extraction()
                 self._tally(harvest)
                 if clock.time() - saved_at >= SAVE_EVERY_SECONDS:
@@ -672,7 +804,7 @@ class SearchPipeline:
                 task.cancel()
             await asyncio.gather(*leftovers, return_exceptions=True)
 
-        self._progress.profiles_processed = processed
+        self._progress.profiles_processed = before + processed
         self._bill_extraction()
         self._tally(harvest)
         await self._save(search.id, SearchStage.EXTRACTING, 1.0)
@@ -762,6 +894,21 @@ class SearchPipeline:
                 profile is not None and profile.extractor not in SNIPPET_ONLY
             )
             harvest.refusals[Refusal.NOT_A_PERSON] += 1
+            if profile is None and prospect.url.canonical_url in getattr(
+                self.extractor, "gone", ()
+            ):
+                # Not a brand: an account that is gone, which the index still lists.
+                self._refuse(
+                    search,
+                    prospect.url,
+                    RejectionReason.NOT_A_PERSON,
+                    "The profile no longer exists or is not public — the search engine "
+                    "still remembers an old copy of it.",
+                    promise=prospect.promise,
+                    read=True,
+                    code="profile_gone",
+                )
+                continue
             self._refuse(
                 search,
                 prospect.url,
@@ -786,7 +933,9 @@ class SearchPipeline:
         """
         named = prospect.profile.name if prospect.profile else None
         verdict = personhood.before_reading(
-            named or _title_name(prospect.url.title), search.criteria.brands
+            named or _title_name(prospect.url.title),
+            search.criteria.brands,
+            sellers=is_network_marketing(search.criteria),
         )
         if verdict.is_person:
             return False
@@ -929,6 +1078,22 @@ class SearchPipeline:
 
             # Where the judge read the person is, when code could not tell.
             profile, signals = placed_by_judge(profile, search.criteria, judgement)
+            if judgement.country and search.criteria.in_excluded_place(profile.location.country):
+                harvest.refusals[Refusal.WRONG_COUNTRY] += 1
+                self._refuse_profile(
+                    search,
+                    profile,
+                    RejectionReason.WRONG_COUNTRY,
+                    f"“{judgement.country_evidence}” places this profile in "
+                    f"{profile.location.country}, which this search excludes.",
+                    harvest.promise.get(profile.canonical_url),
+                    code="judge_excluded_country",
+                    params={
+                        "evidence": judgement.country_evidence,
+                        "found": country_param(profile.location.country),
+                    },
+                )
+                return
             if (
                 judgement.country
                 and search.criteria.allowed_countries()
@@ -1177,7 +1342,8 @@ class SearchPipeline:
         queries: list[GeneratedQuery] | None = None,
     ) -> None:
         self._progress.stage = stage
-        self._progress.percent = _percent(stage, fraction)
+        # A second wave goes back to searching; the bar waits, it never goes back.
+        self._progress.percent = max(self._progress.percent, _percent(stage, fraction))
         updates: dict[str, object] = {
             "status": STAGE_STATUS[stage],
             "progress": self._progress.model_copy(),

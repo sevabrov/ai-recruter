@@ -252,7 +252,9 @@ def test_each_brand_is_asked_on_every_chosen_platform_first():
 
     queries = [plan.query for plan in TemplateQueryGenerator().generate(criteria, limit=24)]
 
-    assert queries[:2] == ["site:instagram.com джерелія", "site:facebook.com джерелія"]
+    # Not a network-marketing search and no country: the brand alone, on each platform.
+    assert queries[0] == "site:instagram.com джерелія"
+    assert "site:facebook.com джерелія" in queries
 
 
 def test_a_search_for_any_other_role_gets_no_network_marketing_words():
@@ -285,9 +287,10 @@ def test_a_network_marketing_search_keeps_its_templates():
 
     queries = [plan.query for plan in TemplateQueryGenerator().generate(criteria, limit=24)]
 
-    # The role word is written in the keyword's own language, not added in English.
-    assert any("дистриб" in query for query in queries)
-    assert not any("distributor" in query for query in queries)
+    assert any('"консультант"' in query for query in queries)
+    # No role word added in English, and "distributor" in no language at all.
+    assert not any("consultant" in query or "distribut" in query for query in queries)
+    assert not any("дистриб" in query for query in queries)
 
 
 def test_brands_alone_carry_a_search_for_any_role():
@@ -377,11 +380,15 @@ def test_queries_are_written_for_each_country_and_aimed_at_it():
 
     plans = TemplateQueryGenerator().generate(criteria, limit=24)
 
-    assert [(p.query, p.country) for p in plans] == [
+    # Every country first; its cities only after (`_for_cities`).
+    assert [(p.query, p.country) for p in plans[:4]] == [
         ('site:linkedin.com/in "junior frontend developer" Ukraine', "Ukraine"),
         ('site:linkedin.com/in "junior frontend developer" Poland', "Poland"),
         ('site:linkedin.com/in "junior frontend developer" Germany', "Germany"),
         ('site:linkedin.com/in "junior frontend developer" Spain', "Spain"),
+    ]
+    assert ('site:linkedin.com/in "junior frontend developer" Kyiv', "Ukraine") in [
+        (p.query, p.country) for p in plans[4:]
     ]
 
 
@@ -498,4 +505,6 @@ def test_a_profession_on_instagram_is_also_asked_with_a_portfolio():
 
     queries = [p.query for p in TemplateQueryGenerator().generate(criteria, limit=24)]
 
-    assert 'site:instagram.com "SMM-менеджер" "портфоліо"' in queries
+    # No country: asked where Ukrainian is written (`SearchCriteria.language_focus`).
+    assert 'site:instagram.com "SMM-менеджер" "портфоліо" Україна' in queries
+    assert 'site:instagram.com "SMM-менеджер" "портфоліо" Польща' in queries

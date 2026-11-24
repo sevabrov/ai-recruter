@@ -9,7 +9,7 @@ returns exactly this, which is why the frontend never has to invent progress.
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.common import (
     DEFAULT_SIGNAL_WEIGHTS,
@@ -143,6 +143,40 @@ REGION_FOCUS: dict[str, tuple[str, ...]] = {
 #: How many countries one search writes queries for. Each is another set of calls.
 MAX_FOCUS_COUNTRIES = 4
 
+#: Where the people who write in a language live, most first: the home country, then
+#: its largest diasporas. A search for "the whole world" in Ukrainian is asked in
+#: these countries, in Ukrainian — a query needs a place to find anybody (people
+#: write where they are, never "the world"), and with no place at all the brand
+#: went out bare and came back as twenty official brand accounts.
+LANGUAGE_COUNTRIES: dict[str, tuple[str, ...]] = {
+    "ukrainian": (
+        "Ukraine", "Poland", "Germany", "Czechia", "Italy", "Spain",
+        "United Kingdom", "United States", "Canada",
+    ),
+    "russian": (
+        "Russia", "Kazakhstan", "Ukraine", "Belarus", "Germany", "Israel",
+        "United States", "Latvia",
+    ),
+    "polish": (
+        "Poland", "United Kingdom", "Germany", "Ireland", "Netherlands", "Norway",
+        "United States",
+    ),
+    "english": ("United States", "United Kingdom", "Canada", "Australia", "Ireland"),
+    "spanish": ("Spain", "Mexico", "United States", "Argentina", "Colombia"),
+    "german": ("Germany", "Austria", "Switzerland"),
+    "italian": ("Italy", "Switzerland"),
+    "portuguese": ("Portugal", "Brazil"),
+    "french": ("France", "Belgium", "Switzerland", "Canada"),
+    "dutch": ("Netherlands", "Belgium"),
+}  # fmt: skip
+
+#: How many countries a search with no place is asked in.
+MAX_LANGUAGE_COUNTRIES = 6
+
+#: Countries a new search leaves out — no query is written for them and nobody
+#: found there becomes a lead — until the client takes them off the list.
+DEFAULT_EXCLUDED_COUNTRIES = ("Russia", "Belarus")
+
 
 def canonical_country(name: str | None) -> str:
     """One spelling per country, so "Czech Republic" on a page matches "Czechia"."""
@@ -214,6 +248,36 @@ class SearchCriteria(BaseModel):
     #: before anything runs, and the search stops once it is met. 0 means "use
     #: whatever the server allows".
     target_leads: int = Field(default=0, ge=0, le=1000)
+    #: Countries this search never looks in: no query is written for them (not as
+    #: a diaspora of a chosen language, not as part of a region) and a candidate
+    #: found there is refused. Russia and Belarus unless the client says otherwise;
+    #: a country the client chose to search in is never excluded.
+    excluded_countries: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_EXCLUDED_COUNTRIES), max_length=50
+    )
+
+    @model_validator(mode="after")
+    def _a_chosen_country_is_not_excluded(self) -> "SearchCriteria":
+        chosen = {
+            canonical_country(name).casefold()
+            for name in (self.location.country, *self.countries)
+            if name
+        }
+        kept = [
+            name
+            for name in dict.fromkeys(canonical_country(name) for name in self.excluded_countries)
+            if name and name.casefold() not in chosen
+        ]
+        if kept != self.excluded_countries:
+            self.excluded_countries = kept
+        return self
+
+    def in_excluded_place(self, country: str | None) -> bool:
+        """Whether a candidate's country is one this search never looks in."""
+        if not country:
+            return False
+        excluded = {canonical_country(name).casefold() for name in self.excluded_countries}
+        return canonical_country(country).casefold() in excluded
 
     def allowed_countries(self) -> frozenset[str]:
         """Every country a candidate may be in; empty means anywhere."""
@@ -243,9 +307,42 @@ class SearchCriteria(BaseModel):
             return [self.location.country]
         focus = [name for name in self.countries if name]
         for name in REGION_FOCUS.get(self.region, ()):
-            if name not in focus:
+            if name not in focus and not self.in_excluded_place(name):
                 focus.append(name)
+        if not focus:
+            return [country for country, _ in self.language_focus()]
         return focus[:MAX_FOCUS_COUNTRIES]
+
+    def language_focus(self) -> list[tuple[str, list[str]]]:
+        """
+        For a search with no place — "the whole world" — the countries its languages
+        are written in, each with the languages that brought it there.
+
+        Taken a rank at a time across the languages, so every language's home comes
+        before anybody's diaspora: Ukrainian and Polish give Ukraine, Poland, then
+        Poland again (now asked in Ukrainian too), the United Kingdom, Germany…
+        Empty when the search names a place, or no language we know the map of.
+        """
+        if self.location.country or self.countries or self.region:
+            return []
+        lists = [
+            (language, LANGUAGE_COUNTRIES.get(language.strip().casefold(), ()))
+            for language in self.languages
+        ]
+        order: dict[str, list[str]] = {}
+        for rank in range(max((len(countries) for _, countries in lists), default=0)):
+            for language, countries in lists:
+                if rank >= len(countries):
+                    continue
+                country = countries[rank]
+                if self.in_excluded_place(country):
+                    continue  # Russian is asked in Kazakhstan and Israel, not in Russia
+                if country not in order and len(order) >= MAX_LANGUAGE_COUNTRIES:
+                    continue
+                wanted = order.setdefault(country, [])
+                if language not in wanted:
+                    wanted.append(language)
+        return list(order.items())
 
     def effective_requirements(self) -> list[Requirement]:
         """
@@ -321,6 +418,8 @@ class GeneratedQuery(BaseModel):
     language: str | None = None
     #: The country this query was written for, when the search asks for several.
     country: str | None = None
+    #: Which page of the provider's results this asks for; 0 is the first.
+    page: int = 0
 
 
 class SearchUsage(BaseModel):

@@ -14,7 +14,7 @@ from app.models.common import (
     SourceKind,
 )
 from app.models.rejection import RejectionReason
-from app.models.search import Importance
+from app.models.search import DEFAULT_EXCLUDED_COUNTRIES, Importance
 from app.schemas.common import CamelModel
 
 
@@ -74,6 +74,10 @@ class SearchCriteriaSchema(CamelModel):
     #: How many leads to look for. It buys the page budget, so it is also what the
     #: wizard prices. 0 means "whatever the server allows".
     target_leads: int = Field(default=0, ge=0, le=1000)
+    #: Countries never searched and never accepted. Russia and Belarus by default.
+    excluded_countries: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_EXCLUDED_COUNTRIES), max_length=50
+    )
 
     @field_validator("custom_queries")
     @classmethod
@@ -137,6 +141,8 @@ class GeneratedQuerySchema(CamelModel):
     language: str | None = None
     #: Which country it was written for, when the search asks for several.
     country: str | None = None
+    #: Which page of results it asked for; 0 is the first.
+    page: int = 0
 
 
 class SearchUsageSchema(CamelModel):

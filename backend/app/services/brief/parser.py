@@ -419,10 +419,11 @@ When a level or seniority is asked, write it together with the title, one phrase
 per level ("junior frontend developer", "middle frontend developer"). For network \
 marketing use only phrases that mean network marketing on their own: "мережевий \
 маркетинг", "млм", "сетевой маркетинг", "сетевой бизнес", "network marketing". A \
-role word ("консультант", "дистриб'ютор", "партнер") only together with a brand or \
-"млм" ("консультант Farmasi", "дистриб'ютор млм") — alone it finds lawyers, tax \
-advisers and wholesalers. Never the recruiter's own company or brand (from \
-about_me), alone or in a phrase: that finds their own team. No places. Max 6.
+role word ("консультант", "партнер", "лідер") only together with a brand or \
+"млм" ("консультант Farmasi", "лідер млм") — alone it finds lawyers, tax advisers \
+and wholesalers. Never "дистриб'ютор", "distributor" or any word sharing its root. \
+Never the recruiter's own company or brand (from about_me), alone or in a phrase: \
+that finds their own team. No places. Max 6.
 - negative_keywords: kinds of pages or people to exclude, as words that appear on \
 them ("агенція", "магазин", "вакансія"). Max 5.
 - countries: ISO 3166-1 alpha-2 codes of the countries to search in, most important \

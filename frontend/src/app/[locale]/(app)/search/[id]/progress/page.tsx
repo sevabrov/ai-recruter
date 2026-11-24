@@ -230,6 +230,8 @@ export default function SearchProgressPage() {
                     {/* Which index it was put to: a Ukrainian query goes to the
                         Ukrainian one, which is half of why it finds anybody. */}
                     {query.language ? `${query.language} · ` : ""}
+                    {/* The next page of a query whose first came back full. */}
+                    {query.page ? `p${query.page + 1} · ` : ""}
                     {query.resultCount}
                   </span>
                 </li>

@@ -221,9 +221,13 @@ def test_warnings_are_codes_not_english_sentences(settings):
 
 
 def test_languages_without_a_country_are_flagged(settings):
-    """Without a place to write in Ukrainian, no Ukrainian query is written at all."""
-    loose = quote(settings, languages=["Ukrainian", "Russian"], location={"country": None})
+    """Without a place to write in Czech, no Czech query is written at all."""
+    loose = quote(settings, languages=["Czech"], location={"country": None})
     assert "languages_without_country" in {note.code for note in loose.warnings}
+
+    # Ukrainian and Russian with no country are asked where they are written.
+    world = quote(settings, languages=["Ukrainian", "Russian"], location={"country": None})
+    assert "languages_without_country" not in {note.code for note in world.warnings}
 
     anchored = quote(settings, languages=["Ukrainian"], location={"country": "Ukraine"})
     assert "languages_without_country" not in {note.code for note in anchored.warnings}
@@ -252,7 +256,9 @@ def test_the_wizard_can_price_a_search_without_creating_one(client):
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["targetLeads"] == 10
-    assert body["searchCalls"] == len(body["queries"])
+    # With a target, the next page of a full query may be asked too: the ceiling
+    # is above the plan, and never above the server's query ceiling.
+    assert len(body["queries"]) <= body["searchCalls"] <= Settings().max_queries_per_search
     assert body["maxCostEur"] >= 0
     assert any(entry["language"] == "uk" for entry in body["queries"])
     assert client.get("/searches").json() == before, "estimating must not create anything"

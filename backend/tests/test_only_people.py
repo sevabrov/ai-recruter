@@ -250,3 +250,71 @@ def test_a_beauty_distributor_writing_in_the_first_person_is_a_person():
 def test_a_missing_name_is_the_first_refusal():
     assert not personhood.assess(profile("")).is_person
     assert admit(profile(""), criteria()).refusal is Refusal.NOT_A_PERSON
+
+
+# ------------------------------------------------- a consultant's own sales account
+#
+# About twenty of 202 "not a person" refusals in a search for Avon / Farmasi / Amway
+# leaders in Poland were consultants: "AVON Wrocław" (handle
+# avon.konsultantka.wroclaw) refused as named after a place, "Konsultantka AVON -
+# Świebodzice" as a shop. In a network-marketing search such an account is the lead.
+
+IG = Platform.INSTAGRAM
+
+
+@pytest.mark.parametrize(
+    ("name", "url"),
+    [
+        ("AVON Wrocław", "https://instagram.com/avon.konsultantka.wroclaw"),
+        ("Avon Lider Lubon/Poznan", "https://instagram.com/avon_lider_lubon_poznan"),
+        ("Konsultantka Avon", "https://instagram.com/konsultantkaa_avon"),
+        ("Farmasi Beauty Consultant", "https://facebook.com/people/Farmasi-Beauty-Consultant/1"),
+    ],
+)
+def test_a_consultant_selling_a_brand_is_a_person_in_a_network_marketing_search(name, url):
+    seller = profile(name, platform=IG, url=url)
+
+    assert personhood.assess(seller, sellers=True).is_person
+    assert admit(seller, criteria(business_types=["MLM"], brands=["Avon"])).admitted
+
+
+@pytest.mark.parametrize(
+    ("name", "url"),
+    [
+        ("Avon Polska", "https://instagram.com/avon_polska"),
+        ("Konsultantki Avon Polska", "https://facebook.com/KonsultantkiAvonPolska"),
+        ("Farmasi Polska", "https://instagram.com/farmasi_poland"),
+    ],
+)
+def test_the_brand_s_own_accounts_and_groups_are_still_not_people(name, url):
+    """No role word in the singular: the brand itself, or a group of consultants."""
+    assert not personhood.assess(profile(name, platform=IG, url=url), sellers=True).is_person
+
+
+def test_outside_network_marketing_a_role_word_excuses_nothing():
+    """ "SAP Consultant Germany" may well be a company: the rule is the niche's."""
+    named = profile(
+        "AVON Wrocław", platform=IG, url="https://instagram.com/avon.konsultantka.wroclaw"
+    )
+
+    assert not personhood.assess(named).is_person
+
+
+def test_distributor_is_not_a_seller_s_role_word():
+    """Left out at the client's request, with every word that shares its root."""
+    for word in ("distributor", "dystrybutorka", "дистриб'ютор", "дистрибьютор", "distribuidora"):
+        assert word not in personhood.REP_ROLES
+    named = profile("Avon Polska", platform=IG, url="https://instagram.com/dystrybutorka_avon")
+    assert not personhood.assess(named, sellers=True).is_person
+
+
+def test_a_candidate_in_an_excluded_country_is_refused_even_worldwide():
+    world = criteria(location={}, languages=[])
+    moscow = profile("Ирина Петрова", country="Russia")
+
+    verdict = admit(moscow, world)
+
+    assert not verdict.admitted
+    assert verdict.refusal is Refusal.WRONG_COUNTRY
+    assert verdict.code == "excluded_country"
+    assert admit(moscow, criteria(location={}, languages=[], excluded_countries=[])).admitted

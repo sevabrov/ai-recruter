@@ -125,6 +125,11 @@ export interface SearchCriteria {
    * wizard prices. 0 means "whatever the server allows".
    */
   targetLeads?: number;
+  /**
+   * Countries never searched and never accepted - not as a diaspora of a chosen
+   * language, not as part of a region. Russia and Belarus by default.
+   */
+  excludedCountries?: string[];
 }
 
 export interface SearchProgress {
@@ -173,6 +178,8 @@ export interface GeneratedQuery {
   language?: string | null;
   /** The country it was written for, when the search asks for several. */
   country?: string | null;
+  /** Which page of results it asked for; 0 (or absent) is the first. */
+  page?: number;
 }
 
 export interface SearchUsage {

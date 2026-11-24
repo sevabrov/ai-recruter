@@ -443,8 +443,15 @@ account run by one person under a business-like name is still a person when it \
 speaks as them or names them ("Робота_МЛМ_Світлана", "Наставник сетевиков", "Anna | \
 beauty coach"); judge by who is speaking, not by how the account is titled. A \
 person's first or last name in the handle or address (marianna.konovalova, \
-svitlana_kostyuchok_mlm) means a person. Mark false only when the page clearly speaks \
-for an organisation ("we", a company name, a shop, a school, a law firm). A job \
+svitlana_kostyuchok_mlm) means a person. An independent consultant or leader of a \
+network-marketing brand selling from their own account is one person, even when the \
+account is titled with the brand and their role and talks about orders, discounts \
+and catalogues ("Konsultantka AVON - Świebodzice", "Avon Lider Luboń", "Farmasi \
+Beauty Consultant") — taking orders is what such an account is for. It is NOT a \
+person only when it is the brand's own official or national account ("Avon Polska", \
+"Amway Polska"), a physical shop or salon, or a group of many consultants. Mark false \
+only when the page clearly speaks for an organisation ("we", a company name, a shop, \
+a school, a law firm). A job \
 posting is not a candidate: a page or post where someone is hiring ("шукаємо", \
 "шукає SMM-менеджера", "вакансія", "we are hiring") is is_person false.
 

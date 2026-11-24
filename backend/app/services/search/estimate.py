@@ -135,7 +135,15 @@ def estimate(
     # it is the server ceiling — which is what `MAX_PAGES_PER_SEARCH=0` removes.
     billable = pages if pages else (settings.max_pages_per_search if reads_pages else 0)
 
-    cost = len(queries) * settings.cost_per_search_call_eur + billable * settings.cost_per_page_eur
+    # With a lead target the run may also ask for the next page of a query that came
+    # back full, so its ceiling is the query ceiling, not the plan's length.
+    calls = len(queries)
+    if queries and (criteria.target_leads or settings.target_leads) > 0:
+        calls = min(
+            max(calls, settings.max_queries_per_search),
+            calls * max(1, settings.max_result_pages),
+        )
+    cost = calls * settings.cost_per_search_call_eur + billable * settings.cost_per_page_eur
     # One paid judgement per candidate, up to the search's judging budget — the
     # rest are judged by their words for free, so the budget is the ceiling.
     judgements = judging_budget_for(criteria, settings) if paid_detector else 0
@@ -154,7 +162,7 @@ def estimate(
     )
     return SearchEstimate(
         queries=queries,
-        search_calls=len(queries),
+        search_calls=calls,
         max_pages=pages,
         credits=billable * per_page if reads_pages else 0,
         target_leads=criteria.target_leads or settings.target_leads,

@@ -121,7 +121,21 @@ export const COUNTRIES: VocabularyEntry[] = [
   { id: "RO", token: "Romania" },
   { id: "BE", token: "Belgium" },
   { id: "US", token: "United States" },
+  { id: "CA", token: "Canada" },
+  { id: "IE", token: "Ireland" },
+  { id: "NO", token: "Norway" },
+  { id: "LV", token: "Latvia" },
+  { id: "IL", token: "Israel" },
+  { id: "KZ", token: "Kazakhstan" },
+  { id: "RU", token: "Russia" },
+  { id: "BY", token: "Belarus" },
 ];
+
+/**
+ * Countries a new search never looks in until the client takes them off the list.
+ * Mirrors `DEFAULT_EXCLUDED_COUNTRIES` in `backend/app/models/search.py`.
+ */
+export const DEFAULT_EXCLUDED_COUNTRIES = ["Russia", "Belarus"];
 
 export const LANGUAGES: VocabularyEntry[] = [
   { id: "uk", token: "Ukrainian" },
@@ -394,6 +408,7 @@ export function emptyCriteria(): SearchCriteria {
     customQueries: [],
     requirements: [],
     targetLeads: DEFAULT_TARGET_LEADS,
+    excludedCountries: [...DEFAULT_EXCLUDED_COUNTRIES],
   };
 }
 

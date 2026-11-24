@@ -168,7 +168,12 @@ def test_query_generator_produces_several_targeted_queries():
     assert any(query.startswith("site:instagram.com") for query in queries)
     assert any("site:linkedin.com/in" in query for query in queries)
     assert all('-"customer"' in query for query in queries)  # negatives on every query
-    assert all("Spain" in query for query in queries)
+    # The country, or — once the country has been asked — one of its cities.
+    assert all(
+        any(place in query for place in ("Spain", "Madrid", "Barcelona", "Valencia"))
+        for query in queries
+    )
+    assert "Spain" in queries[0]
     # No language was asked for, so every query goes to the default market.
     assert all(plan.language is None for plan in plans)
 

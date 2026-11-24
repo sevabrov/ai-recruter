@@ -17,6 +17,7 @@ English is not a Ukrainian query.
 from app.models.common import SourceKind
 from app.models.search import SearchCriteria
 from app.services.extraction import language
+from app.services.search import phrasebook
 from app.services.search.query_generator import TemplateQueryGenerator
 
 
@@ -181,8 +182,10 @@ def test_a_role_word_is_asked_for_when_the_client_wrote_no_keyword():
     """
     plans = TemplateQueryGenerator().generate(criteria(keywords=[]), limit=24)
 
-    assert any("дистриб'ютор" in plan.query for plan in plans)
-    assert any("дистрибьютор" in plan.query for plan in plans)
+    assert any('"мережевий маркетинг" консультант' in plan.query for plan in plans)
+    assert any('"сетевой маркетинг" консультант' in plan.query for plan in plans)
+    # "Distributor" is never searched for, in any language (the client's request).
+    assert not any("дистриб" in plan.query for plan in plans)
 
 
 # ------------------------------------------------------------ what a page speaks
@@ -215,3 +218,215 @@ def test_the_index_tag_and_the_text_are_both_kept():
     spoken = language.spoken(["English"], "Привіт! Я дистриб'ютор, разом побудуємо команду")
 
     assert spoken == ["English", "Ukrainian"]
+
+
+# ------------------------------------------------------- a brief from another market
+#
+# Measured on a search for Poland written by a Ukrainian-speaking client: the brands
+# went out bare (`site:instagram.com Avon`) and came back with twenty official Avon
+# accounts from twenty countries, and the brief's Ukrainian keywords went out inside
+# Polish queries (`"мережевий маркетинг" Polska`) and came back empty.
+
+POLAND = {
+    "brands": ["Avon", "Farmasi", "Amway"],
+    "keywords": [
+        "мережевий маркетинг",
+        "млм",
+        "сетевой маркетинг",
+        "дистриб'ютор Avon",
+    ],
+    "negative_keywords": ["магазин", "салон краси"],
+    "industry": ["Beauty"],
+    "business_types": ["MLM", "Network marketing"],
+    "location": {"country": "Poland"},
+    "languages": ["Polish", "Russian", "Ukrainian"],
+    "sources": [SourceKind.INSTAGRAM_PUBLIC.value, SourceKind.FACEBOOK_PUBLIC.value],
+}
+
+
+def _in_poland(query: str) -> bool:
+    return any(name in query for name in ("Polska", "Польша", "Польща"))
+
+
+def test_a_brand_is_asked_for_its_people_in_the_country_searched():
+    plans = TemplateQueryGenerator().generate(criteria(**POLAND), limit=24)
+    queries = [plan.query for plan in plans]
+
+    assert not any(query.split(" -")[0] == "site:instagram.com Avon" for query in queries)
+    # Poland's own language goes first, and takes the first brand.
+    assert plans[0].language == "pl"
+    assert plans[0].query.startswith("site:instagram.com Avon konsultantka Polska")
+    russian = [plan.query for plan in plans if plan.language == "ru"]
+    assert any(" консультант Польша" in q for q in russian)
+
+
+def test_a_brand_on_a_platform_is_asked_once_not_once_per_language():
+    """`Avon консультант Польша` found the accounts `Avon konsultantka Polska` had."""
+    plans = TemplateQueryGenerator().generate(criteria(**POLAND), limit=48)
+    country_wide = [p.query.split(" -")[0] for p in plans if _in_poland(p.query)]
+
+    for brand in POLAND["brands"]:
+        for site in ("site:instagram.com", "site:facebook.com"):
+            asked = [q for q in country_wide if q.startswith(f"{site} {brand} ")]
+            assert len(asked) == 1, (brand, site, asked)
+
+
+def test_a_keyword_naming_a_listed_brand_is_not_asked_on_its_own():
+    """Seventeen of eighteen "дистриб'ютор Avon"-style queries returned nothing."""
+    plans = TemplateQueryGenerator().generate(criteria(**POLAND), limit=200)
+
+    assert not [p.query for p in plans if "дистриб" in p.query or "dystrybut" in p.query]
+
+
+def test_the_country_s_cities_come_after_the_country():
+    plans = TemplateQueryGenerator().generate(criteria(**POLAND), limit=200)
+    queries = [plan.query for plan in plans]
+    first_city = next(i for i, q in enumerate(queries) if "Warszawa" in q or "Варшава" in q)
+
+    assert all(_in_poland(q) for q in queries[:first_city])
+    assert "site:instagram.com Avon konsultantka Warszawa" in " ".join(queries)
+    # Each brand and platform once per city, shared out between the languages.
+    warsaw = [q for q in queries if "Warszawa" in q or "Варшава" in q]
+    assert len(warsaw) == len(POLAND["brands"]) * 2
+
+
+def test_the_whole_world_is_asked_where_the_languages_are_written():
+    """
+    A search with no place came back as twenty official brand accounts: with no
+    country to write in Ukrainian, the brand went out bare.
+    """
+    plans = TemplateQueryGenerator().generate(
+        criteria(**{**POLAND, "location": {}, "languages": ["Ukrainian", "Polish"]}), limit=96
+    )
+
+    assert not any(p.query.split(" -")[0] == "site:instagram.com Avon" for p in plans)
+    # Home countries first, then the diasporas — each in the languages that brought it.
+    countries = list(dict.fromkeys(plan.country for plan in plans))
+    assert countries[:3] == ["Ukraine", "Poland", "United Kingdom"]
+    assert {(p.language, p.country) for p in plans} >= {
+        ("uk", "Ukraine"),
+        ("pl", "Poland"),
+        ("uk", "Poland"),
+        ("pl", "United Kingdom"),
+    }
+    assert ("pl", "Ukraine") not in {(p.language, p.country) for p in plans}
+    assert any("Avon консультант Україна" in p.query for p in plans) or any(
+        "консультант Україна" in p.query for p in plans
+    )
+
+
+def test_every_brand_survives_a_tight_query_cap():
+    plans = TemplateQueryGenerator().generate(criteria(**POLAND), limit=12)
+    queries = " ".join(plan.query for plan in plans)
+
+    for brand in POLAND["brands"]:
+        assert brand in queries
+    # …and the cap still leaves room for the keyword templates.
+    assert "marketing sieciowy" in queries
+
+
+def test_a_brand_in_another_kind_of_search_gets_no_sales_word():
+    plans = TemplateQueryGenerator().generate(
+        criteria(
+            brands=["Google"],
+            keywords=["Python developer"],
+            industry=[],
+            business_types=[],
+            location={"country": "Poland"},
+            languages=["Polish"],
+        ),
+        limit=24,
+    )
+
+    assert "site:instagram.com Google Polska" in [plan.query for plan in plans]
+    assert "konsultantka" not in " ".join(plan.query for plan in plans)
+
+
+def test_the_brief_s_keywords_are_written_in_the_language_of_the_query():
+    plans = TemplateQueryGenerator().generate(criteria(**POLAND), limit=24)
+    polish = " ".join(plan.query for plan in plans if plan.language == "pl")
+    russian = " ".join(plan.query for plan in plans if plan.language == "ru")
+
+    assert '"marketing sieciowy" Polska' in polish
+    assert "мережевий" not in polish and "сетевой" not in polish
+    assert '"сетевой маркетинг" Польша' in russian
+    assert "мережевий" not in russian
+
+
+def test_exclusions_are_written_in_the_language_of_the_query():
+    plans = TemplateQueryGenerator().generate(criteria(**POLAND), limit=24)
+
+    for plan in plans:
+        if plan.language == "pl":
+            assert plan.query.endswith('-"sklep" -"salon kosmetyczny"')
+        if plan.language == "ru":
+            assert plan.query.endswith('-"магазин" -"салон красоты"')
+
+
+def test_one_concept_written_three_ways_is_asked_once():
+    plans = TemplateQueryGenerator().generate(criteria(**POLAND), limit=48)
+    polish = [plan.query for plan in plans if plan.language == "pl"]
+
+    # "мережевий маркетинг" and "сетевой маркетинг" are one Polish phrase.
+    instagram = [q for q in polish if q.startswith('site:instagram.com "marketing sieciowy"')]
+    assert len(instagram) == 1
+
+
+def test_a_keyword_is_translated_around_a_name_but_not_around_a_common_word():
+    assert phrasebook.translate("pl", "консультант Avon") == "konsultantka Avon"
+    assert phrasebook.translate("pl", "Консультант Avon") == "konsultantka Avon"
+    # "Distributor" is not a word the phrasebook writes any more.
+    assert phrasebook.translate("pl", "дистриб'ютор Avon") is None
+    assert phrasebook.translate("pl", "МЛМ") == "MLM"
+    # "uroda blogger" would be two languages in one phrase.
+    assert phrasebook.translate("pl", "beauty blogger") is None
+    assert phrasebook.translate("pl", "Python developer") is None
+
+
+def test_distributor_is_never_searched_for():
+    """At the client's request: not as a template word, not as a keyword of theirs."""
+    plans = TemplateQueryGenerator().generate(
+        criteria(
+            keywords=["дистриб'ютор млм", "Vertriebspartnerin", "мережевий маркетинг"],
+            sources=[
+                SourceKind.INSTAGRAM_PUBLIC.value,
+                SourceKind.PUBLIC_WEB.value,
+                SourceKind.COMPANY_WEBSITES.value,
+            ],
+            languages=["Ukrainian", "Russian", "Polish", "Spanish", "German", "English"],
+        ),
+        limit=500,
+    )
+    text = " ".join(plan.query for plan in plans).casefold()
+
+    for root in ("distribu", "dystrybu", "дистриб", "vertriebspartner"):
+        assert root not in text
+
+
+# ------------------------------------------------------------ excluded countries
+
+
+def test_russia_and_belarus_are_excluded_unless_taken_off_the_list():
+    assert criteria().excluded_countries == ["Russia", "Belarus"]
+    world = criteria(location={}, languages=["Russian"])
+
+    countries = {plan.country for plan in TemplateQueryGenerator().generate(world, limit=96)}
+    assert "Russia" not in countries and "Belarus" not in countries
+    # Russian is still asked where it is written outside them.
+    assert {"Kazakhstan", "Ukraine", "Germany"} <= countries
+
+    allowed = criteria(location={}, languages=["Russian"], excluded_countries=[])
+    countries = {plan.country for plan in TemplateQueryGenerator().generate(allowed, limit=96)}
+    assert "Russia" in countries
+
+
+def test_a_country_the_client_chose_is_never_excluded():
+    chosen = criteria(location={"country": "Russia"})
+    assert chosen.excluded_countries == ["Belarus"]
+
+
+def test_the_client_may_exclude_another_country():
+    world = criteria(location={}, languages=["Ukrainian"], excluded_countries=["Russia", "Germany"])
+
+    countries = {plan.country for plan in TemplateQueryGenerator().generate(world, limit=96)}
+    assert "Germany" not in countries and "Ukraine" in countries

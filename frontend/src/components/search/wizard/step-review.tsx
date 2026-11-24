@@ -271,6 +271,10 @@ function Understood({ gaps }: { gaps: WizardGap[] }) {
         </ReviewField>
       </div>
 
+      <ReviewField id="wizard-excluded" label={t("fieldExcluded")} hint={t("fieldExcludedHint")}>
+        <ExcludedCountries />
+      </ReviewField>
+
       <ReviewField id="wizard-negatives" label={t("fieldNegatives")} hint={t("fieldNegativesHint")}>
         <ChipInput
           values={criteria.negativeKeywords}
@@ -347,14 +351,15 @@ function Places() {
     );
   };
 
+  const excluded = criteria.excludedCountries;
+  // An excluded country is not offered as a place: take it off "never search in"
+  // first. The two lists never hold the same country.
   const countries = useMemo(
     () =>
-      COUNTRIES.map((entry) => ({
-        value: entry.token,
-        label: vocabulary.country(entry.token),
-        keywords: entry.token,
-      })).sort((a, b) => a.label.localeCompare(b.label)),
-    [vocabulary],
+      countryOptions(vocabulary).filter(
+        (option) => !(excluded ?? []).includes(option.value),
+      ),
+    [vocabulary, excluded],
   );
 
   return (
@@ -368,6 +373,52 @@ function Places() {
       onToggle={toggle}
       placeholder={t("pickCountry")}
       ariaLabel={t("fieldCountry")}
+    />
+  );
+}
+
+/** Every country the wizard knows, by its name in the interface language. */
+function countryOptions(vocabulary: ReturnType<typeof useVocabulary>) {
+  return COUNTRIES.map((entry) => ({
+    value: entry.token,
+    label: vocabulary.country(entry.token),
+    keywords: entry.token,
+  })).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/**
+ * Countries this search never looks in: no query is written for them and nobody
+ * found there becomes a lead. Russia and Belarus out of the box; the client may
+ * take either off the list or add any other. A country chosen as a place is not
+ * offered here - the two lists never hold the same country.
+ */
+function ExcludedCountries() {
+  const t = useTranslations("wizard.review");
+  const vocabulary = useVocabulary();
+  const { criteria, patchCriteria } = useWizardStore();
+  const excluded = criteria.excludedCountries ?? [];
+  const single = criteria.location.country;
+  const several = criteria.countries;
+
+  const options = useMemo(() => {
+    const chosen = single ? [single] : (several ?? []);
+    return countryOptions(vocabulary).filter((option) => !chosen.includes(option.value));
+  }, [vocabulary, single, several]);
+
+  const toggle = (token: string) =>
+    patchCriteria({
+      excludedCountries: excluded.includes(token)
+        ? excluded.filter((entry) => entry !== token)
+        : [...excluded, token],
+    });
+
+  return (
+    <MultiCombobox
+      options={options}
+      selected={excluded}
+      onToggle={toggle}
+      placeholder={t("pickExcluded")}
+      ariaLabel={t("fieldExcluded")}
     />
   );
 }

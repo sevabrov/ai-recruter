@@ -158,6 +158,8 @@ def test_a_deleted_profile_is_not_rebuilt_from_its_old_search_result():
     chain = FallbackProfileExtractor(_Gone(), SnippetProfileExtractor())
 
     assert asyncio.run(chain.extract(named)) is None
+    # …and the refusal can say so, rather than "a brand account, a community or a shop".
+    assert named.canonical_url in chain.gone
 
 
 def test_the_country_reaches_scrapegraph_past_the_router():

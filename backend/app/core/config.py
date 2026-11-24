@@ -183,7 +183,21 @@ class Settings(BaseSettings):
     #: three languages writes three sets of them — so the money side of asking in
     #: more languages needs a limit of its own. The wizard shows the real number
     #: before the search starts; this is only the maximum it may reach.
-    max_queries_per_search: int = 24
+    #:
+    #: With a lead target, the queries are not all sent at once: see
+    #: `queries_per_wave`. This is then the most the waves may add up to.
+    max_queries_per_search: int = 96
+    #: A search with a lead target sends its queries this many at a time, reads and
+    #: judges what they found, and sends the next wave only while it is short of
+    #: the target. A run asked for 50 leads used to stop at 8 with half its planned
+    #: queries never sent, because one fixed batch was all it ever asked; a run
+    #: that has its leads after one wave no longer pays for the rest. Without a
+    #: target every query up to the ceiling goes out in one wave, as before.
+    queries_per_wave: int = 12
+    #: How many pages of results one query may ask for, its first included. A
+    #: query whose page came back (nearly) full has more behind it, and the next
+    #: page is a different twenty people for the same well-aimed question.
+    max_result_pages: int = 3
 
     # ------------------------------------------------ cost model (spec §54)
     cost_per_search_call_eur: float = 0.005

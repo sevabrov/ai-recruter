@@ -151,6 +151,7 @@ def test_opening_posts_turns_their_authors_into_candidates():
     pipeline = SearchPipeline.__new__(SearchPipeline)
     pipeline.post_reader = Reader()
     pipeline.settings = Settings()
+    pipeline._posts_opened = 0
     search = Search(
         id="s",
         user_id="u",
@@ -172,6 +173,7 @@ def test_posts_are_not_opened_when_instagram_was_not_asked_for():
     pipeline = SearchPipeline.__new__(SearchPipeline)
     pipeline.post_reader = Reader()
     pipeline.settings = Settings()
+    pipeline._posts_opened = 0
     search = Search(
         id="s", user_id="u", name="n", criteria=SearchCriteria(sources=[SourceKind.LINKEDIN_PUBLIC])
     )

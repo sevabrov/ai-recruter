@@ -24,6 +24,9 @@ from app.services.search.markets import country_code, language_code
 class SearchMarket(BaseModel):
     country: str | None = None
     language: str | None = None
+    #: Which page of results: 0 is the first twenty, 1 the next. Only a query whose
+    #: first page came back full is asked for another (`SearchPipeline._follow_ups`).
+    page: int = 0
 
     @classmethod
     def from_criteria(cls, criteria: SearchCriteria) -> "SearchMarket":
